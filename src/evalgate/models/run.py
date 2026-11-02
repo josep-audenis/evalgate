@@ -2,13 +2,24 @@
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictBool
 
 SCHEMA_VERSION = "1.0"
 
 # Strict: rejects bools and numeric strings; finite only, so NaN/inf never reach a mean.
 Number = Annotated[float, Field(strict=True, allow_inf_nan=False)]
 NonEmptyStr = Annotated[str, Field(min_length=1)]
+
+
+def _unwrap_numpy_bool(v: Any) -> Any:
+    # numpy comparisons yield np.bool_, which StrictBool rejects; unwrap only real bool scalars.
+    dtype = getattr(v, "dtype", None)
+    if dtype is not None and getattr(dtype, "kind", None) == "b" and getattr(v, "shape", ()) == ():
+        return bool(v)
+    return v
+
+
+Check = Annotated[StrictBool, BeforeValidator(_unwrap_numpy_bool)]
 
 
 class RunManifest(BaseModel):
@@ -33,7 +44,7 @@ class CaseResult(BaseModel):
     case_id: NonEmptyStr
     status: Literal["ok", "error"]
     scores: dict[str, Number] = {}
-    checks: dict[str, StrictBool] = {}
+    checks: dict[str, Check] = {}
     metrics: dict[str, Number] = {}
     metadata: dict[str, Any] = {}
     error: str | None = None

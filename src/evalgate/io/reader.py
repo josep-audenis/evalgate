@@ -87,9 +87,24 @@ def load_run(run_dir: Path) -> Run:
     return Run(manifest=manifest, cases=cases)
 
 
+class _UniqueKeyLoader(yaml.SafeLoader):
+    """SafeLoader that rejects duplicate keys; PyYAML keeps the last one, silently."""
+
+    def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
+        seen = set()
+        for key_node, _ in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            if key in seen:
+                raise yaml.constructor.ConstructorError(
+                    None, None, f"duplicate key {key!r}", key_node.start_mark
+                )
+            seen.add(key)
+        return super().construct_mapping(node, deep=deep)
+
+
 def load_policy(path: Path) -> Policy:
     try:
-        data = yaml.safe_load(_read_text(path))
+        data = yaml.load(_read_text(path), Loader=_UniqueKeyLoader)  # SafeLoader subclass
     except yaml.YAMLError as exc:
         raise InputError([_error("policy_yaml", f"{path}: invalid YAML: {exc}")]) from exc
     return _parse(Policy, data, str(path))

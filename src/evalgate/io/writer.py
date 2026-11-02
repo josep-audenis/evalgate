@@ -33,7 +33,8 @@ class EvalRun:
     """Record case results into a run directory (`run.json` + `cases.jsonl`).
 
     Cases stream to a partial file; only a clean exit from the `with` block publishes
-    them and writes `run.json` last. An interrupted run therefore never loads as complete.
+    them and writes `run.json` last. An interrupted run therefore never loads as complete,
+    and with `overwrite=True` a crash leaves the previous run untouched.
     """
 
     def __init__(
@@ -49,6 +50,9 @@ class EvalRun:
         overwrite: bool = False,
         **metadata: Any,
     ) -> None:
+        clash = sorted(metadata.keys() & RunManifest.model_fields.keys())
+        if clash:  # e.g. dataset_id= would silently override dataset=
+            raise ValueError(f"metadata keys collide with manifest fields: {', '.join(clash)}")
         self.manifest = RunManifest.model_validate(
             {
                 "schema_version": SCHEMA_VERSION,
@@ -68,14 +72,11 @@ class EvalRun:
         self._ids: set[str] = set()
 
     def __enter__(self) -> Self:
-        run_json, cases = self.path / "run.json", self.path / "cases.jsonl"
-        if run_json.exists() or cases.exists():
-            if not self.overwrite:
-                raise FileExistsError(f"{self.path} already holds a run; pass overwrite=True")
-            # Remove the commit marker first so a crash below can't leave the old run "complete".
-            run_json.unlink(missing_ok=True)
-            cases.unlink(missing_ok=True)
+        exists = (self.path / "run.json").exists() or (self.path / "cases.jsonl").exists()
+        if exists and not self.overwrite:
+            raise FileExistsError(f"{self.path} already holds a run; pass overwrite=True")
         self.path.mkdir(parents=True, exist_ok=True)
+        self._ids = set()
         self._file = self._partial.open("w", encoding="utf-8")
         return self
 
@@ -89,7 +90,9 @@ class EvalRun:
         self._file.close()
         self._file = None
         if exc_type is not None:
-            return  # leave only the partial file: the run stays incomplete
+            return  # the partial file is never loaded; any previous run stays intact
+        # Old run.json goes first so old manifest + new cases can never load together.
+        (self.path / "run.json").unlink(missing_ok=True)
         os.replace(self._partial, self.path / "cases.jsonl")
         _atomic_write(self.path / "run.json", self.manifest.model_dump_json(indent=2) + "\n")
 

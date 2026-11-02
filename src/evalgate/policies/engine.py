@@ -38,7 +38,7 @@ def evaluate_policy(
                     rule=f"metrics.{name}.max_mean_regression_abs",
                     passed=regression <= limit + _EPS,
                     message=f"{name} mean {d.baseline_mean:.6g} -> {d.candidate_mean:.6g}, "
-                    f"regression {max(regression, 0):.6g} (max {limit:g})",
+                    f"regression {max(0.0, regression):.6g} (max {limit:g})",
                 )
             )
         if rule.max_mean_regression_pct is not None:
@@ -65,7 +65,7 @@ def evaluate_policy(
                     rule=f"metrics.{name}.max_mean_regression_pct",
                     passed=regression_pct <= limit + _EPS,
                     message=f"{name} mean {d.baseline_mean:.6g} -> {d.candidate_mean:.6g}, "
-                    f"regression {max(regression_pct, 0):.4g}% (max {limit:g}%)",
+                    f"regression {max(0.0, regression_pct):.4g}% (max {limit:g}%)",
                 )
             )
 

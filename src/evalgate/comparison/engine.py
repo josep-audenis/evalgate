@@ -81,7 +81,7 @@ def compare(baseline: Run, candidate: Run, metrics: dict[str, MetricRule]) -> Co
         matched_cases=len(matched),
         compared_cases=len(pairs),
         baseline_errors=[i for i in matched if base[i].status == "error"],
-        candidate_errors=[i for i in matched if cand[i].status == "error"],
+        candidate_errors=[i for i in sorted(cand) if cand[i].status == "error"],
         metrics=metric_deltas,
         regressed_cases=sorted(regressed, key=order),
         improved_cases=sorted(improved, key=order),
@@ -89,7 +89,7 @@ def compare(baseline: Run, candidate: Run, metrics: dict[str, MetricRule]) -> Co
         newly_passing_checks=newly_passing,
         candidate_failing_checks=[
             CheckChange(case_id=i, check=check)
-            for i in matched
+            for i in sorted(cand)
             if cand[i].status == "ok"
             for check, passed in sorted(cand[i].checks.items())
             if not passed
