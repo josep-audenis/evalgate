@@ -1,0 +1,82 @@
+"""Structured comparison results and decision. Reports render these; JSON export dumps them."""
+
+from typing import Literal
+
+from pydantic import BaseModel
+
+from evalgate.models.policy import Direction, Policy
+from evalgate.models.run import RunManifest
+
+Status = Literal["PASS", "FAIL", "INVALID"]
+
+
+class Diagnostic(BaseModel):
+    """Validation finding. Any `error` makes the decision INVALID."""
+
+    level: Literal["error", "warning"]
+    code: str
+    message: str
+
+
+class MetricDelta(BaseModel):
+    name: str
+    path: str
+    direction: Direction
+    cases: int
+    baseline_mean: float
+    candidate_mean: float
+    delta_abs: float
+    delta_pct: float | None  # None when the baseline mean is 0
+
+
+class CaseDelta(BaseModel):
+    case_id: str
+    metric: str
+    baseline: float
+    candidate: float
+    delta_abs: float
+
+
+class CheckChange(BaseModel):
+    case_id: str
+    check: str
+
+
+class CategoryDelta(BaseModel):
+    category: str
+    metric: str
+    cases: int
+    baseline_mean: float
+    candidate_mean: float
+    delta_abs: float
+
+
+class Comparison(BaseModel):
+    matched_cases: int
+    compared_cases: int  # matched cases with `status: ok` in both runs
+    baseline_errors: list[str]
+    candidate_errors: list[str]
+    metrics: list[MetricDelta]
+    regressed_cases: list[CaseDelta]
+    improved_cases: list[CaseDelta]
+    newly_failing_checks: list[CheckChange]
+    newly_passing_checks: list[CheckChange]
+    candidate_failing_checks: list[CheckChange]
+    categories: list[CategoryDelta]
+
+
+class RuleResult(BaseModel):
+    rule: str
+    passed: bool
+    message: str
+
+
+class Report(BaseModel):
+    evalgate_version: str
+    status: Status
+    baseline: RunManifest | None = None
+    candidate: RunManifest | None = None
+    policy: Policy | None = None
+    diagnostics: list[Diagnostic] = []
+    comparison: Comparison | None = None
+    rules: list[RuleResult] = []

@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0",
+  "run_id": "baseline-v1",
+  "application": "support-agent",
+  "application_version": "v1.4.0",
+  "dataset_id": "regression-suite",
+  "dataset_version": "v3",
+  "evaluator_version": "rubric-v2"
+}
