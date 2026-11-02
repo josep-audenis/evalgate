@@ -90,7 +90,7 @@ def test_internal_error_exits_invalid(monkeypatch: object, tmp_path: Path) -> No
     def boom(*_: object) -> None:
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(cli, "evaluate", boom)  # type: ignore[attr-defined]
+    monkeypatch.setattr(cli, "run_compare", boom)  # type: ignore[attr-defined]
     base = str(EXAMPLE / "baseline")
     result = runner.invoke(app, ["compare", base, base, "--policy", str(EXAMPLE / "evalgate.yaml")])
     assert result.exit_code == EXIT_INVALID

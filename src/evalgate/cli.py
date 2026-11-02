@@ -11,10 +11,9 @@ from typing import Annotated, ParamSpec
 import typer
 from rich.console import Console
 
-from evalgate import __version__
-from evalgate.engine import evaluate, invalid_report
-from evalgate.io import InputError, load_policy, load_run, write_json_report
-from evalgate.models import Diagnostic, Policy, Run
+from evalgate._version import __version__
+from evalgate.api import compare as run_compare
+from evalgate.io import InputError, load_run, write_json_report
 from evalgate.reporting.terminal import render, render_diagnostics
 from evalgate.validation import validate_run
 
@@ -83,24 +82,7 @@ def compare(
     ] = None,
 ) -> None:
     """Compare a candidate run against a baseline under a release policy."""
-    diagnostics: list[Diagnostic] = []
-    runs: list[Run] = []
-    loaded_policy: Policy | None = None
-    for run_dir in (baseline, candidate):
-        try:
-            runs.append(load_run(run_dir))
-        except InputError as exc:
-            diagnostics += exc.diagnostics
-    try:
-        loaded_policy = load_policy(policy)
-    except InputError as exc:
-        diagnostics += exc.diagnostics
-
-    if diagnostics or loaded_policy is None:
-        report = invalid_report(diagnostics)
-    else:
-        report = evaluate(runs[0], runs[1], loaded_policy)
-
+    report = run_compare(baseline, candidate, policy)
     render(report, console)
     if json_out:
         write_json_report(report, json_out)
