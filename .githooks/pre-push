@@ -1,0 +1,12 @@
+#!/bin/sh
+# Local replacement for CI: lint, format, types and tests must pass before pushing.
+# Enable once per clone: git config core.hooksPath .githooks
+set -e
+cd "$(git rev-parse --show-toplevel)"
+# Use the project venv (created by `uv sync`); Scripts/ on Windows, bin/ elsewhere.
+PATH="$PWD/.venv/Scripts:$PWD/.venv/bin:$PATH"
+
+echo "pre-push: ruff check" && ruff check .
+echo "pre-push: ruff format --check" && ruff format --check .
+echo "pre-push: mypy" && mypy src
+echo "pre-push: pytest" && pytest -q
