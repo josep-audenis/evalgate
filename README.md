@@ -22,9 +22,10 @@ The quickstart candidate improves mean quality but newly fails `safety_valid` on
 `--report` writes a single standalone HTML file with no scripts and no external assets. Open it locally or attach it to a CI artifact. Like the JSON report, it contains scores, checks and case IDs, and never raw prompts or outputs.
 
 Policy notes:
-- Every metric declares `direction: maximize | minimize`.
+- Every metric declares `direction: maximize | minimize` and at least one threshold.
+- The policy is strict: unknown or duplicate keys, `true` where a number is expected, and a policy with no metric or check rules are all rejected.
 - `max_mean_regression_pct` is undefined when the baseline mean is 0; add `max_mean_regression_abs` or the result is INVALID.
-- Cases with `status: "error"` are excluded from means and count against `max_execution_errors` (default 0).
+- Cases with `status: "error"` are excluded from means and count against `max_execution_errors` (default 0). This includes candidate cases with no baseline match.
 - Missing/duplicate cases, missing metrics or checks, and dataset/evaluator mismatches give INVALID (exit 2).
 
 ## Python SDK
@@ -56,7 +57,7 @@ report.to_html("report.html")
 
 - Values are validated as you record them. Duplicate `case_id`s raise.
 - `run.json` is written only when the `with` block exits cleanly. An interrupted run never loads as complete.
-- `EvalRun` refuses to overwrite an existing run unless you pass `overwrite=True`.
+- `EvalRun` refuses to overwrite an existing run unless you pass `overwrite=True`. Even then, the old run is replaced only when the new one finishes cleanly.
 - The SDK's `compare` is the same code path as `evalgate compare`, and both produce identical reports.
 
 Runnable demo: `python examples/sdk_quickstart.py`.

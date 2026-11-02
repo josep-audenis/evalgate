@@ -92,11 +92,12 @@ def compare(
 ) -> None:
     """Compare a candidate run against a baseline under a release policy."""
     report = run_compare(baseline, candidate, policy)
-    render(report, console)
+    # Artifacts first: a terminal rendering problem must not lose the machine-readable result.
     if json_out:
         write_json_report(report, json_out)
     if html_out:
         write_html_report(report, html_out)
+    render(report, console)
     raise typer.Exit(EXIT_CODES[report.status])
 
 

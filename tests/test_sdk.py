@@ -52,15 +52,19 @@ def test_interrupted_run_is_not_loadable(tmp_path: Path) -> None:
     assert {d.code for d in exc.value.diagnostics} == {"file_missing"}
 
 
-def test_existing_run_protected_and_overwrite_clears_marker(tmp_path: Path) -> None:
+def test_existing_run_protected_and_crashed_overwrite_keeps_it(tmp_path: Path) -> None:
     path = record_run(tmp_path / "run", 0.9)
     with pytest.raises(FileExistsError):
         EvalRun("run", path=path, **IDENTITY).__enter__()
-    # A crashed overwrite must not leave the previous run looking complete.
-    with pytest.raises(RuntimeError), EvalRun("run", path=path, overwrite=True, **IDENTITY):
+    # A crashed overwrite must not destroy the previous (e.g. baseline) run.
+    with pytest.raises(RuntimeError), EvalRun("run", path=path, overwrite=True, **IDENTITY) as run:
+        run.record("new", scores={"quality": 0.1})
         raise RuntimeError
-    with pytest.raises(InputError):
-        load_run(path)
+    assert [c.case_id for c in load_run(path).cases] == ["case-0", "case-1", "case-2", "case-3"]
+    # A clean overwrite replaces it.
+    with EvalRun("run", path=path, overwrite=True, **IDENTITY) as run:
+        run.record("new", scores={"quality": 0.1})
+    assert [c.case_id for c in load_run(path).cases] == ["new"]
 
 
 def test_record_validates_immediately(tmp_path: Path) -> None:

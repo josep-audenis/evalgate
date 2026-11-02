@@ -31,22 +31,20 @@ def validate_pair(baseline: Run, candidate: Run, policy: Policy) -> list[Diagnos
     out: list[Diagnostic] = []
     bm, cm, rules = baseline.manifest, candidate.manifest, policy.comparison
 
-    if rules.require_same_dataset and (bm.dataset_id, bm.dataset_version) != (
-        cm.dataset_id,
-        cm.dataset_version,
-    ):
+    # Mismatches always surface: an error when required, a warning when the policy opted out.
+    if (bm.dataset_id, bm.dataset_version) != (cm.dataset_id, cm.dataset_version):
         out.append(
             _diag(
-                True,
+                rules.require_same_dataset,
                 "dataset_mismatch",
                 f"dataset differs: baseline {bm.dataset_id}@{bm.dataset_version}, "
                 f"candidate {cm.dataset_id}@{cm.dataset_version}",
             )
         )
-    if rules.require_same_evaluator and bm.evaluator_version != cm.evaluator_version:
+    if bm.evaluator_version != cm.evaluator_version:
         out.append(
             _diag(
-                True,
+                rules.require_same_evaluator,
                 "evaluator_mismatch",
                 f"evaluator_version differs: baseline {bm.evaluator_version}, "
                 f"candidate {cm.evaluator_version}",
@@ -90,7 +88,9 @@ def validate_pair(baseline: Run, candidate: Run, policy: Policy) -> list[Diagnos
 
     # A check that vanishes in the candidate could hide a new failure.
     for check in sorted(set(policy.checks.required)):
-        missing = [i for i in matched if cand[i].status == "ok" and check not in cand[i].checks]
+        missing = [
+            i for i in sorted(cand) if cand[i].status == "ok" and check not in cand[i].checks
+        ]
         if missing:
             out.append(
                 _diag(
