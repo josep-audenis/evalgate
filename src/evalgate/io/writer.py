@@ -4,6 +4,7 @@ from types import TracebackType
 from typing import IO, Any, Self
 
 from evalgate.models import SCHEMA_VERSION, CaseResult, Report, RunManifest
+from evalgate.models.policy import POLICY_TEMPLATE
 
 
 def _atomic_write(path: Path, text: str) -> None:
@@ -14,6 +15,18 @@ def _atomic_write(path: Path, text: str) -> None:
 
 def write_json_report(report: Report, path: Path) -> None:
     _atomic_write(path, report.model_dump_json(indent=2) + "\n")
+
+
+def write_html_report(report: Report, path: Path) -> None:
+    from evalgate.reporting.html import render_html
+
+    _atomic_write(path, render_html(report))
+
+
+def write_policy_template(path: Path, force: bool = False) -> None:
+    if path.exists() and not force:
+        raise FileExistsError(f"{path} already exists; pass --force to overwrite")
+    _atomic_write(path, POLICY_TEMPLATE)
 
 
 class EvalRun:

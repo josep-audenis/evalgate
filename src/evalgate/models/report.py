@@ -100,3 +100,9 @@ class Report(BaseModel):
         from evalgate.io.writer import write_json_report
 
         write_json_report(self, Path(path))
+
+    def to_html(self, path: str | Path) -> None:
+        """Write the same standalone HTML the CLI writes with `--report`."""
+        from evalgate.io.writer import write_html_report
+
+        write_html_report(self, Path(path))
