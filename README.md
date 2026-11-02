@@ -11,12 +11,15 @@ EvalGate compares a baseline evaluation run against a candidate, finds what impr
 Each run is a directory with `run.json` (manifest) and `cases.jsonl` (one case per line). See [examples/quickstart](examples/quickstart) and the spec's data model (§5) for the format.
 
 ```bash
+evalgate init                      # writes a documented evalgate.yaml to edit
 evalgate validate examples/quickstart/candidate
 evalgate compare examples/quickstart/baseline examples/quickstart/candidate \
-  --policy examples/quickstart/evalgate.yaml --json report.json
+  --policy examples/quickstart/evalgate.yaml --json report.json --report report.html
 ```
 
 The quickstart candidate improves mean quality but newly fails `safety_valid` on one case, so the decision is **FAIL** (exit 1).
+
+`--report` writes a single standalone HTML file with no scripts and no external assets. Open it locally or attach it to a CI artifact. Like the JSON report, it contains scores, checks and case IDs, and never raw prompts or outputs.
 
 Policy notes:
 - Every metric declares `direction: maximize | minimize`.
@@ -48,6 +51,7 @@ with EvalRun(
 report = compare("evals/baseline", "evals/candidate", policy="evalgate.yaml")
 print(report.summary())
 report.to_json("report.json")
+report.to_html("report.html")
 ```
 
 - Values are validated as you record them. Duplicate `case_id`s raise.

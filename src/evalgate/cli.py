@@ -13,7 +13,13 @@ from rich.console import Console
 
 from evalgate._version import __version__
 from evalgate.api import compare as run_compare
-from evalgate.io import InputError, load_run, write_json_report
+from evalgate.io import (
+    InputError,
+    load_run,
+    write_html_report,
+    write_json_report,
+    write_policy_template,
+)
 from evalgate.reporting.terminal import render, render_diagnostics
 from evalgate.validation import validate_run
 
@@ -80,10 +86,30 @@ def compare(
     json_out: Annotated[
         Path | None, typer.Option("--json", help="Write the machine-readable report here.")
     ] = None,
+    html_out: Annotated[
+        Path | None, typer.Option("--report", help="Write a standalone HTML report here.")
+    ] = None,
 ) -> None:
     """Compare a candidate run against a baseline under a release policy."""
     report = run_compare(baseline, candidate, policy)
     render(report, console)
     if json_out:
         write_json_report(report, json_out)
+    if html_out:
+        write_html_report(report, html_out)
     raise typer.Exit(EXIT_CODES[report.status])
+
+
+@app.command()
+@_fail_closed
+def init(
+    path: Annotated[Path, typer.Argument()] = Path("evalgate.yaml"),
+    force: Annotated[bool, typer.Option("--force", help="Overwrite an existing file.")] = False,
+) -> None:
+    """Write a documented example release policy."""
+    try:
+        write_policy_template(path, force)
+    except FileExistsError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(EXIT_INVALID) from exc
+    console.print(f"wrote {path}: edit metrics and checks to match your cases.jsonl")
