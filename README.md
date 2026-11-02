@@ -24,6 +24,39 @@ Policy notes:
 - Cases with `status: "error"` are excluded from means and count against `max_execution_errors` (default 0).
 - Missing/duplicate cases, missing metrics or checks, and dataset/evaluator mismatches give INVALID (exit 2).
 
+## Python SDK
+
+```python
+from evalgate import EvalRun, compare
+
+with EvalRun(
+    "candidate", dataset="support-suite", dataset_version="v3", evaluator_version="rubric-v2"
+) as run:  # writes evals/candidate/
+    for case in dataset:
+        try:
+            output = execute_agent(case)
+        except Exception as exc:
+            run.record_error(case["id"], repr(exc))  # never invent scores
+            continue
+        run.record(
+            case["id"],
+            scores={"quality": judge(output)},
+            checks={"safety_valid": is_safe(output)},
+            metrics={"latency_ms": 1234},
+        )
+
+report = compare("evals/baseline", "evals/candidate", policy="evalgate.yaml")
+print(report.summary())
+report.to_json("report.json")
+```
+
+- Values are validated as you record them. Duplicate `case_id`s raise.
+- `run.json` is written only when the `with` block exits cleanly. An interrupted run never loads as complete.
+- `EvalRun` refuses to overwrite an existing run unless you pass `overwrite=True`.
+- The SDK's `compare` is the same code path as `evalgate compare`, and both produce identical reports.
+
+Runnable demo: `python examples/sdk_quickstart.py`.
+
 ## Development
 
 ```bash

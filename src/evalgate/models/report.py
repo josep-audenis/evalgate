@@ -1,5 +1,6 @@
 """Structured comparison results and decision. Reports render these; JSON export dumps them."""
 
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel
@@ -80,3 +81,22 @@ class Report(BaseModel):
     diagnostics: list[Diagnostic] = []
     comparison: Comparison | None = None
     rules: list[RuleResult] = []
+
+    # SDK conveniences; imported lazily so models stay free of I/O and rendering deps.
+    def summary(self) -> str:
+        """The same text the CLI prints."""
+        from io import StringIO
+
+        from rich.console import Console
+
+        from evalgate.reporting.terminal import render
+
+        console = Console(file=StringIO(), width=100, record=True)
+        render(self, console)
+        return console.export_text()
+
+    def to_json(self, path: str | Path) -> None:
+        """Write the same JSON the CLI writes with `--json`."""
+        from evalgate.io.writer import write_json_report
+
+        write_json_report(self, Path(path))

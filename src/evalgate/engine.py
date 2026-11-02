@@ -1,6 +1,6 @@
 """The one decision pipeline shared by CLI and SDK: validate -> compare -> apply policy."""
 
-from evalgate import __version__
+from evalgate._version import __version__
 from evalgate.comparison import compare
 from evalgate.models import Diagnostic, Policy, Report, Run
 from evalgate.policies import evaluate_policy
