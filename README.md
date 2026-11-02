@@ -63,7 +63,10 @@ Runnable demo: `python examples/sdk_quickstart.py`.
 uv sync
 uv run pytest
 uv run evalgate --help
+git config core.hooksPath .githooks   # once per clone
 ```
+
+There is no hosted CI. The `pre-push` hook runs ruff, the ruff format check, mypy and pytest, and blocks the push on any failure.
 
 ## License
 
