@@ -1,0 +1,31 @@
+version: 1
+
+comparison:
+  require_same_cases: true
+  require_same_dataset: true
+  require_same_evaluator: true
+
+metrics:
+  quality:
+    path: scores.quality
+    direction: maximize
+    max_mean_regression_abs: 0.02
+
+  latency:
+    path: metrics.latency_ms
+    direction: minimize
+    max_mean_regression_pct: 10
+
+  cost:
+    path: metrics.cost_usd
+    direction: minimize
+    max_mean_regression_pct: 15
+
+checks:
+  required:
+    - schema_valid
+    - safety_valid
+  max_new_failures: 0
+
+# Candidate cases with status "error" allowed (default 0).
+max_execution_errors: 0
