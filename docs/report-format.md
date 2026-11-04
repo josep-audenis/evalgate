@@ -49,6 +49,7 @@ Codes:
 | `regressed_cases[]`, `improved_cases[]` | list | Per case and metric, changes in the worse or better direction: `case_id`, `metric`, `baseline`, `candidate`, `delta_abs`. Sorted by metric, then largest change first |
 | `newly_failing_checks[]`, `newly_passing_checks[]` | list | `{case_id, check}` pairs that flipped between runs (compared cases only) |
 | `candidate_failing_checks[]` | list | Every `{case_id, check}` that is false in an `ok` candidate case |
+| `check_stats[]` | list | Per check present in both runs of a compared case: `check`, `cases`, `baseline_failures`, `candidate_failures`, `newly_failing`, `newly_passing`, `p_value` (below). Sorted by check |
 | `categories[]` | list | Per `metadata.category` (taken from the baseline) and metric: `category`, `metric`, `cases`, `baseline_mean`, `candidate_mean`, `delta_abs` |
 
 `delta_abs` is always candidate minus baseline. Whether that is better or worse depends on `direction`.
@@ -67,6 +68,10 @@ Confidence interval for the paired mean change `delta_abs`.
 
 The bootstrap uses a fixed seed, so the interval is deterministic. **Assumptions:** cases are independent, and a candidate case is paired with the baseline case of the same `case_id`. On small, skewed samples the percentile bootstrap can be too narrow: in a check with 40 cases from an exponential distribution, it covered about 90% instead of the nominal 95%.
 
+### `check_stats[].p_value`
+
+One-sided exact McNemar test of whether the candidate fails the check more often than the baseline. It uses only discordant pairs: if nothing changed, each flip is equally likely to go either way, so `p = P(X >= newly_failing)` for `X ~ Binomial(newly_failing + newly_passing, 1/2)`. The value is computed in log space and matches exact integer arithmetic to about 1e-12. A p of 1 when nothing newly failed is correct. With few flips the test can't reach significance (3 of 3 newly failing gives p = 0.125), so a large p means "no evidence", not "no regression".
+
 ## `rules[]`
 
 | Field | Type | Meaning |
@@ -76,4 +81,4 @@ The bootstrap uses a fixed seed, so the interval is deterministic. **Assumptions
 | `message` | string | Human explanation with the measured values. Do not parse it |
 | `conclusive` | bool \| null | Metric rules only: true when the whole CI of the regression lies on one side of the threshold, over at least 2 cases. null for other rules |
 
-Rule identifiers: `max_execution_errors`, `metrics.<name>.max_mean_regression_abs`, `metrics.<name>.max_mean_regression_pct`, `checks.required.<check>`, `checks.max_new_failures`.
+Rule identifiers: `max_execution_errors`, `metrics.<name>.max_mean_regression_abs`, `metrics.<name>.max_mean_regression_pct`, `checks.required.<check>`, `checks.max_new_failures`, `checks.significant_regression.<check>` (only with `checks.fail_on_significant_regression: true`; fails when `p_value < 1 - statistics.confidence`).

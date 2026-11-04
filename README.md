@@ -134,6 +134,7 @@ Further rules:
 - Every metric declares its direction and at least one threshold.
 - The policy is strict. Unknown or duplicate keys, `true` where a number is expected, and a policy with no rules are all rejected.
 - Each metric's mean change comes with a confidence interval (95% by default, `statistics.confidence`). A rule whose interval spans its threshold is reported as *inconclusive*. With `statistics: {require_conclusive: true}`, an inconclusive pass becomes a FAIL. Statistics can tighten a decision, never loosen it.
+- Each check also reports how many cases newly fail and newly pass, with a one-sided exact McNemar p-value. With `checks.fail_on_significant_regression: true`, a significant increase in failures is a FAIL. That's useful when checks flip noisily and `max_new_failures: 0` is too strict.
 - There is no weighted overall score. Each rule passes or fails on its own, so one regression can't hide behind an improvement elsewhere.
 
 ## Use in CI
@@ -152,7 +153,6 @@ Exit codes make EvalGate a drop-in CI step. See [CI integration](https://github.
 Version 0.1.0 (alpha). EvalGate compares results your pipeline already produced. It does **not** run your application, call LLM judges, or host datasets.
 
 Not yet included:
-- statistical tests for pass/fail checks (CIs cover mean metric changes only)
 - repeated-run comparison
 - adapters for other eval frameworks
 

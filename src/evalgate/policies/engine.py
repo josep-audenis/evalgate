@@ -135,4 +135,16 @@ def evaluate_policy(
                 f"(max {policy.checks.max_new_failures})" + (f": {_cases(new)}" if new else ""),
             )
         )
+    if policy.checks.fail_on_significant_regression:
+        alpha = 1 - policy.statistics.confidence
+        for s in comparison.check_stats:
+            rules.append(
+                RuleResult(
+                    rule=f"checks.significant_regression.{s.check}",
+                    passed=s.p_value >= alpha,
+                    message=f"{s.check}: {s.newly_failing} newly failing, "
+                    f"{s.newly_passing} newly passing over {s.cases} case(s); "
+                    f"one-sided McNemar p={s.p_value:.3g} (alpha {alpha:.3g})",
+                )
+            )
     return rules, diagnostics

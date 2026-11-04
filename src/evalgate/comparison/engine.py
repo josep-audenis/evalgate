@@ -3,12 +3,13 @@
 from collections import defaultdict
 from statistics import fmean
 
-from evalgate.comparison.stats import mean_diff_ci
+from evalgate.comparison.stats import mcnemar_p, mean_diff_ci
 from evalgate.models import (
     CaseDelta,
     CaseResult,
     CategoryDelta,
     CheckChange,
+    CheckStat,
     Comparison,
     ConfidenceInterval,
     MetricDelta,
@@ -88,12 +89,19 @@ def compare(
 
     newly_failing: list[CheckChange] = []
     newly_passing: list[CheckChange] = []
+    # check -> [cases, baseline failures, candidate failures, newly failing, newly passing]
+    counts: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0, 0, 0])
     for b_case, c_case in pairs:
         for check in sorted(b_case.checks.keys() & c_case.checks.keys()):
             was, now = b_case.checks[check], c_case.checks[check]
+            n = counts[check]
+            n[0] += 1
+            n[1] += not was
+            n[2] += not now
             if was != now:
                 flip = CheckChange(case_id=b_case.case_id, check=check)
                 (newly_failing if was else newly_passing).append(flip)
+                n[3 if was else 4] += 1
 
     return Comparison(
         matched_cases=len(matched),
@@ -105,6 +113,18 @@ def compare(
         improved_cases=sorted(improved, key=order),
         newly_failing_checks=newly_failing,
         newly_passing_checks=newly_passing,
+        check_stats=[
+            CheckStat(
+                check=check,
+                cases=n[0],
+                baseline_failures=n[1],
+                candidate_failures=n[2],
+                newly_failing=n[3],
+                newly_passing=n[4],
+                p_value=mcnemar_p(n[3], n[4]),
+            )
+            for check, n in sorted(counts.items())
+        ],
         candidate_failing_checks=[
             CheckChange(case_id=i, check=check)
             for i in sorted(cand)

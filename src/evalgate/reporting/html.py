@@ -204,6 +204,40 @@ def render_html(report: Report) -> str:
             parts.append(_section("Improved cases", _case_deltas(cmp.improved_cases, "better")))
         if cmp.newly_passing_checks:
             parts.append(_section("Newly passing checks", _checks(cmp.newly_passing_checks)))
+        if cmp.check_stats:
+            parts.append(
+                _section(
+                    "Checks",
+                    _table(
+                        [
+                            "check",
+                            "cases",
+                            "baseline fails",
+                            "candidate fails",
+                            "newly failing",
+                            "newly passing",
+                            "p (McNemar)",
+                        ],
+                        (
+                            [
+                                escape(s.check),
+                                str(s.cases),
+                                str(s.baseline_failures),
+                                str(s.candidate_failures),
+                                f'<span class="{"worse" if s.newly_failing else "muted"}">'
+                                f"{s.newly_failing}</span>",
+                                str(s.newly_passing),
+                                f"{s.p_value:.3g}",
+                            ]
+                            for s in cmp.check_stats
+                        ),
+                        {1, 2, 3, 4, 5, 6},
+                    )
+                    + '<p class="muted">p: one-sided exact McNemar test that the candidate '
+                    "fails the check more often, using only cases that flipped. A large p can "
+                    "also mean too few flips to tell.</p>",
+                )
+            )
         if cmp.categories:
             parts.append(
                 _section(
