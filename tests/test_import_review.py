@@ -99,3 +99,13 @@ def test_documented_mapping_example_is_valid(tmp_path: Path) -> None:
     m = load_mapping(write(tmp_path, "m.yaml", block))
     assert m.manifest.application_version == "1.4" and m.repeat == "attempt"
     assert MAPPING["version"] == m.version
+
+
+def test_unnamed_column_and_padded_header_hint(tmp_path: Path) -> None:
+    src = write(tmp_path, "r.csv", "id,q,ok,cat,\na,0.5,yes,x,\n")  # trailing comma: unnamed column
+    assert import_results(src, mapping(tmp_path), tmp_path / "o").ignored_fields == [
+        "(unnamed column)"
+    ]
+    src = write(tmp_path, "p.csv", "id, q,ok,cat\na,0.5,yes,x\n")
+    with pytest.raises(InputError, match="surrounding spaces: ' q'"):
+        import_results(src, mapping(tmp_path), tmp_path / "p")

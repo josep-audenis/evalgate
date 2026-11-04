@@ -59,7 +59,7 @@ metadata: {category: topic}
 
 ## Conversion rules (fail closed)
 
-- **Numbers** (`scores`, `metrics`) must be JSON numbers or plain ASCII decimal text such as `0.9`, `-3` or `1e-3`. `true`, `"abc"`, `nan`, `inf`, `1_000`, `1,200` and non-ASCII digits are errors.
+- **Numbers** (`scores`, `metrics`) must be JSON numbers or plain ASCII decimal text such as `0.9`, `-3` or `1e-3`. `true`, `"abc"`, `nan`, `inf`, `1_000`, `1,200` and non-ASCII digits are errors. Export numbers **without thousands separators**. An unquoted `1,200` is caught only when it changes the field count. If another column is empty at the same time, the count still matches and the values shift unnoticed, so no CSV parser can detect it.
 - **Checks** accept `true/false`, `yes/no`, `pass/fail`, `passed/failed` and `1/0`, in any case. Anything else is an error, never a guess.
 - **Empty cells and missing fields** leave that value out. If your policy needs it, `compare` then reports `metric_missing` or `check_missing` (INVALID). Nothing is filled in.
 - **Status** values must be `ok`/`error` or be mapped in `status_values`. An unknown value is an error. For `error` records, scores are ignored and the case counts against `max_execution_errors`.

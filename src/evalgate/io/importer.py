@@ -264,11 +264,15 @@ def import_results(
     # A mapped field absent from every record is almost always a typo in the mapping.
     absent = sorted(f for f in _mapped_fields(m) if all(_get(r, f) is _MISSING for r in records))
     if absent:
+        padded = sorted({k for r in records for k in r if k != k.strip()})
+        hint = (
+            f" (fields with surrounding spaces: {', '.join(map(repr, padded))})" if padded else ""
+        )
         raise InputError(
             [
                 _error(
                     "import_field_missing",
-                    f"{source}: mapped field(s) not found in any record: {', '.join(absent)}",
+                    f"{source}: mapped field(s) not found in any record: {', '.join(absent)}{hint}",
                 )
             ]
         )
@@ -286,7 +290,9 @@ def import_results(
     summary = ImportSummary(
         cases=len({r["case_id"] for r in rows}),
         repeats=repeats or 1,
-        ignored_fields=sorted({k for r in records for k in r} - _referenced(m)),
+        ignored_fields=sorted(
+            k or "(unnamed column)" for k in {k for r in records for k in r} - _referenced(m)
+        ),
     )
     manifest = m.manifest.model_dump(exclude={"run_id"})
     try:
