@@ -22,7 +22,9 @@ Runnable example: [examples/import-csv](../examples/import-csv). It imports two 
 | JSON | a top-level list of objects | `.json` extension |
 | JSONL | one object per line | `.jsonl` extension |
 
-If the extension doesn't match, set `format: csv | json | jsonl` in the mapping. For JSON and JSONL, a field can be a dotted path into nested objects (`output.scores.quality`). An exact key match always wins, so CSV headers that contain dots still work.
+If the extension doesn't match, set `format: csv | json | jsonl` in the mapping. For JSON and JSONL, a field can be a dotted path into nested objects (`output.scores.quality`). Paths go through objects only, not lists. An exact key match always wins, so CSV headers that contain dots still work.
+
+Duplicate CSV column names and duplicate JSON keys are rejected, since otherwise the last one would silently win. Every CSV row must have exactly as many fields as the header, so an unquoted `1,200` can't shift the columns.
 
 ## Mapping file
 
@@ -36,7 +38,7 @@ manifest:                   # becomes run.json
   dataset_version: v2
   evaluator_version: judge-v1
   application: faq-bot      # optional
-  application_version: 1.4  # optional
+  application_version: "1.4"  # optional (quote version-like values)
 
 case_id: id                 # required: field holding the stable case ID
 repeat: attempt             # optional: 0-based repeat index (see repeated runs)
@@ -57,17 +59,19 @@ metadata: {category: topic}
 
 ## Conversion rules (fail closed)
 
-- **Numbers** (`scores`, `metrics`) must parse as finite numbers. `true`, `"abc"`, `nan` and `inf` are errors.
+- **Numbers** (`scores`, `metrics`) must be JSON numbers or plain ASCII decimal text such as `0.9`, `-3` or `1e-3`. `true`, `"abc"`, `nan`, `inf`, `1_000`, `1,200` and non-ASCII digits are errors.
 - **Checks** accept `true/false`, `yes/no`, `pass/fail`, `passed/failed` and `1/0`, in any case. Anything else is an error, never a guess.
 - **Empty cells and missing fields** leave that value out. If your policy needs it, `compare` then reports `metric_missing` or `check_missing` (INVALID). Nothing is filled in.
 - **Status** values must be `ok`/`error` or be mapped in `status_values`. An unknown value is an error. For `error` records, scores are ignored and the case counts against `max_execution_errors`.
-- **Every** bad record is reported with its record number (1-based). If any record fails, **nothing is written**.
+- **`case_id`** must be text or an integer. Booleans, objects and lists are errors.
+- **A mapped field that appears in no record at all** is an error (`import_field_missing`), because it's almost always a typo in the mapping.
+- **Every** bad record is reported with its record number (1-based). If any record fails, **no run files are written** (`run.json`, `cases.jsonl`).
 - Duplicate case IDs (or duplicate case ID + repeat pairs) are errors.
 - `--overwrite` is needed to replace an existing run. An existing run stays intact if the import fails.
 
 ## Privacy
 
-Only mapped fields are imported. Unmapped columns, typically prompts and model outputs, are never copied into the run. The command lists them as `not imported (unmapped)` so you can check.
+Only mapped fields are imported. Unmapped columns, typically prompts and model outputs, are never copied into the run. The command lists unmapped top-level fields as `not imported (unmapped)` so you can check. A mapped `metadata` field holding an object is copied whole, so don't map an object that contains prompts.
 
 ## Repeated runs
 

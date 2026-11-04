@@ -20,7 +20,7 @@ class ImportManifest(_Strict):
     dataset_version: str = Field(min_length=1)
     evaluator_version: str = Field(min_length=1)
     application: str | None = None
-    application_version: str | None = None
+    application_version: str | None = None  # quote it in YAML: 1.4 is a number
 
 
 class ImportMapping(_Strict):
