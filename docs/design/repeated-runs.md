@@ -1,6 +1,6 @@
 # Design: repeated runs
 
-Status: **approved** (2026-11-04). Not implemented yet.
+Status: **implemented** (approved 2026-11-04).
 
 ## Problem
 

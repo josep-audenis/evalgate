@@ -82,6 +82,14 @@ evalgate compare evals/baseline evals/candidate --policy evalgate.yaml \
 - `--json` writes a stable, documented report: see [report format](https://github.com/josep-audenis/evalgate/blob/main/docs/report-format.md).
 - Neither report contains raw prompts or outputs.
 
+### Repeated runs
+
+LLM outputs vary from run to run. To measure that noise, evaluate each case several times: add `"repeat": 0`, `1`, … to each line of `cases.jsonl`, set `"schema_version": "1.1"`, and optionally declare `"repeats": 3` in `run.json`. In the SDK, use `EvalRun(..., repeats=3)` and `run.record(case_id, repeat=i, ...)`.
+
+- **How repeats are combined per case:** metrics are averaged, a check passes only if it passes in every repeat, and any errored repeat makes the case an error. Means, intervals and rules then run on cases, so 3 repeats × 100 cases is still 100 cases, never 300.
+- **Fail closed:** a missing or duplicated repeat makes the result INVALID.
+- **Report:** shows how much each metric varies between repeats within a case, and each check's pass rate.
+
 ## Python SDK
 
 ```python
@@ -153,7 +161,6 @@ Exit codes make EvalGate a drop-in CI step. See [CI integration](https://github.
 Version 0.2.0 (alpha). See the [changelog](https://github.com/josep-audenis/evalgate/blob/main/CHANGELOG.md). EvalGate compares results your pipeline already produced. It does **not** run your application, call LLM judges, or host datasets.
 
 Not yet included:
-- repeated-run comparison (several runs per version of a nondeterministic system)
 - adapters for other eval frameworks
 
 Planned work is in the [spec](https://github.com/josep-audenis/evalgate/blob/main/docs/SPEC.md).

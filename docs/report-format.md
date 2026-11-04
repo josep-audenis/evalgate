@@ -34,7 +34,7 @@
 
 Codes:
 - **Loading:** `run_dir_missing`, `file_missing`, `file_unreadable`, `schema`, `no_cases`, `policy_yaml`
-- **Validation:** `duplicate_case_id`, `dataset_mismatch`, `evaluator_mismatch`, `case_mismatch`, `no_comparable_cases`, `too_few_cases`, `small_sample` (warning), `metric_missing`, `check_missing`
+- **Validation:** `duplicate_case_id`, `repeat_mixed`, `repeat_schema`, `repeat_incomplete`, `dataset_mismatch`, `evaluator_mismatch`, `case_mismatch`, `no_comparable_cases`, `too_few_cases`, `small_sample` (warning), `metric_missing`, `check_missing`
 - **Evaluation:** `pct_undefined`, `numeric_overflow`
 
 ## `comparison`
@@ -50,6 +50,7 @@ Codes:
 | `newly_failing_checks[]`, `newly_passing_checks[]` | list | `{case_id, check}` pairs that flipped between runs (compared cases only) |
 | `candidate_failing_checks[]` | list | Every `{case_id, check}` that is false in an `ok` candidate case |
 | `check_stats[]` | list | Per check present in both runs of a compared case: `check`, `cases`, `baseline_failures`, `candidate_failures`, `newly_failing`, `newly_passing`, `p_value` (below). Sorted by check |
+| `repeats` | object \| null | Only when a run has more than one repeat per case (below). null otherwise |
 | `categories[]` | list | Per `metadata.category` (taken from the baseline) and metric: `category`, `metric`, `cases`, `baseline_mean`, `candidate_mean`, `delta_abs` |
 
 `delta_abs` is always candidate minus baseline. Whether that is better or worse depends on `direction`.
@@ -71,6 +72,16 @@ The bootstrap uses a fixed seed, so the interval is deterministic. **Assumptions
 ### `check_stats[].p_value`
 
 One-sided exact McNemar test of whether the candidate fails the check more often than the baseline. It uses only discordant pairs: if nothing changed, each flip is equally likely to go either way, so `p = P(X >= newly_failing)` for `X ~ Binomial(newly_failing + newly_passing, 1/2)`. The value is computed in log space and matches exact integer arithmetic to a relative error below 1e-10. A p of 1 when nothing newly failed is correct. With few flips the test can't reach significance (3 of 3 newly failing gives p = 0.125), so a large p means "no evidence", not "no regression". Each check is tested separately, so with many checks a chance FAIL somewhere is more likely; that errs toward failing, never toward passing.
+
+### `comparison.repeats`
+
+Repeated runs (schema `"1.1"`) are combined per case before comparing: metric values are averaged over a case's repeats, a check passes only if it passes in every repeat, and any errored repeat makes the case an error. All other fields therefore describe **cases**, never repeats, and repeats never increase the sample size. See [design/repeated-runs.md](design/repeated-runs.md).
+
+| Field | Type | Meaning |
+|---|---|---|
+| `baseline_repeats`, `candidate_repeats` | int | Repeats per case in each run (1 when a run has none) |
+| `checks[]` | list | `check`, `baseline_pass_rate`, `candidate_pass_rate`: mean over compared cases of the fraction of a case's repeats that pass. Shows flakiness that the strict per-case outcome hides |
+| `metrics[]` | list | `name`, `baseline_sd`, `candidate_sd`: mean over compared cases of the SD across a case's repeats (null for a run with 1 repeat). The size of run-to-run noise |
 
 ## `rules[]`
 

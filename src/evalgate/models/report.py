@@ -81,6 +81,29 @@ class CheckStat(BaseModel):
     p_value: float
 
 
+class RepeatCheck(BaseModel):
+    check: str
+    # Mean over compared cases of each case's fraction of passing repeats.
+    baseline_pass_rate: float
+    candidate_pass_rate: float
+
+
+class RepeatMetric(BaseModel):
+    name: str
+    # Mean over compared cases of the SD across a case's repeats. None when that run has k=1.
+    baseline_sd: float | None
+    candidate_sd: float | None
+
+
+class RepeatSummary(BaseModel):
+    """Run-to-run noise. Present only when a run has more than one repeat per case."""
+
+    baseline_repeats: int
+    candidate_repeats: int
+    checks: list[RepeatCheck]
+    metrics: list[RepeatMetric]
+
+
 class Comparison(BaseModel):
     matched_cases: int
     compared_cases: int  # matched cases with `status: ok` in both runs
@@ -94,6 +117,7 @@ class Comparison(BaseModel):
     candidate_failing_checks: list[CheckChange]
     check_stats: list[CheckStat]
     categories: list[CategoryDelta]
+    repeats: RepeatSummary | None = None
 
 
 class RuleResult(BaseModel):

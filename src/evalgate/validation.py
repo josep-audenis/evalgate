@@ -1,9 +1,9 @@
 """Pure validation of runs and run pairs. Any `error` diagnostic makes the comparison INVALID."""
 
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Iterable
 
-from evalgate.models import Diagnostic, Policy, Run
+from evalgate.models import SCHEMA_VERSION_REPEATS, Diagnostic, Policy, Run
 
 _MAX_IDS_SHOWN = 5
 # shortcut: fixed rule-of-thumb sample size, replace with interval-based checks (bootstrap CIs).
@@ -21,11 +21,46 @@ def _diag(error: bool, code: str, message: str) -> Diagnostic:
 
 
 def validate_run(run: Run, label: str = "run") -> list[Diagnostic]:
-    counts = Counter(c.case_id for c in run.cases)
-    dupes = [case_id for case_id, n in counts.items() if n > 1]
+    """Structure of one run, including repeats (see docs/design/repeated-runs.md)."""
+    out: list[Diagnostic] = []
+    manifest = run.manifest
+    with_repeat = sum(c.repeat is not None for c in run.cases)
+    if with_repeat and with_repeat != len(run.cases):
+        out.append(_diag(True, "repeat_mixed", f"{label}: some cases have `repeat`, others don't"))
+    uses_repeats = with_repeat > 0 or manifest.repeats is not None
+    if uses_repeats and manifest.schema_version != SCHEMA_VERSION_REPEATS:
+        out.append(
+            _diag(
+                True,
+                "repeat_schema",
+                f"{label}: repeats require schema_version {SCHEMA_VERSION_REPEATS!r}",
+            )
+        )
+    if out:
+        return out
+
+    counts = Counter((c.case_id, c.repeat) for c in run.cases)
+    dupes = {case_id for (case_id, _), n in counts.items() if n > 1}
     if dupes:
-        return [_diag(True, "duplicate_case_id", f"{label}: duplicate case_id: {_ids(dupes)}")]
-    return []
+        what = "(case_id, repeat)" if with_repeat else "case_id"
+        return [_diag(True, "duplicate_case_id", f"{label}: duplicate {what}: {_ids(dupes)}")]
+
+    if uses_repeats:
+        by_case: dict[str, list[int]] = defaultdict(list)
+        for c in run.cases:
+            by_case[c.case_id].append(c.repeat if c.repeat is not None else 0)
+        k = manifest.repeats or max(len(r) for r in by_case.values())
+        bad = [i for i, r in by_case.items() if sorted(r) != list(range(k))]
+        if bad:
+            out.append(
+                _diag(
+                    True,
+                    "repeat_incomplete",
+                    f"{label}: {len(bad)} case(s) do not have exactly repeats 0..{k - 1}: "
+                    + _ids(bad),
+                )
+            )
+    return out
 
 
 def validate_pair(baseline: Run, candidate: Run, policy: Policy) -> list[Diagnostic]:

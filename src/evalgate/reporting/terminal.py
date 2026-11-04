@@ -34,6 +34,28 @@ def render(report: Report, console: Console) -> None:
             f"{len(cmp.candidate_errors)} candidate errors",
             highlight=False,
         )
+        rep = cmp.repeats
+        if rep:
+            console.print(
+                f"repeats per case: baseline {rep.baseline_repeats}, "
+                f"candidate {rep.candidate_repeats} (cases are the unit of analysis)",
+                highlight=False,
+            )
+            for rm in rep.metrics:
+                sds = [
+                    f"{s:.4g}" if s is not None else "n/a"
+                    for s in (rm.baseline_sd, rm.candidate_sd)
+                ]
+                console.print(
+                    f"  noise {e(rm.name)}: within-case SD {sds[0]} -> {sds[1]}", highlight=False
+                )
+            for rc in rep.checks:
+                if min(rc.baseline_pass_rate, rc.candidate_pass_rate) < 1:
+                    console.print(
+                        f"  pass rate {e(rc.check)}: {rc.baseline_pass_rate:.1%} -> "
+                        f"{rc.candidate_pass_rate:.1%}",
+                        highlight=False,
+                    )
         if cmp.metrics:
             table = Table(box=None, pad_edge=False)
             # 4 significant digits keep the table within 80 columns (CI logs); JSON is exact.
