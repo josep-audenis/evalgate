@@ -1,5 +1,5 @@
 [project]
-name = "evalgate"
+name = "evalgate-ai"
 dynamic = ["version"]
 description = "Local-first AI regression testing and release decision engine."
 readme = "README.md"
@@ -44,6 +44,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.version]
 path = "src/evalgate/_version.py"
+
+# Distribution is evalgate-ai (PyPI name), but the import package stays `evalgate`.
+[tool.hatch.build.targets.wheel]
+packages = ["src/evalgate"]
 
 [tool.ruff]
 line-length = 100

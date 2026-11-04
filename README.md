@@ -26,10 +26,10 @@ Average quality went up, but one case started failing a safety check, so the can
 ## Install
 
 ```bash
-pip install evalgate
+pip install evalgate-ai
 ```
 
-Requires Python 3.11 or newer.
+The package is published as `evalgate-ai`. It imports as `evalgate`, and the command is `evalgate`. Requires Python 3.11 or newer.
 
 ## Quickstart
 
