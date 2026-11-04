@@ -70,7 +70,7 @@ The bootstrap uses a fixed seed, so the interval is deterministic. **Assumptions
 
 ### `check_stats[].p_value`
 
-One-sided exact McNemar test of whether the candidate fails the check more often than the baseline. It uses only discordant pairs: if nothing changed, each flip is equally likely to go either way, so `p = P(X >= newly_failing)` for `X ~ Binomial(newly_failing + newly_passing, 1/2)`. The value is computed in log space and matches exact integer arithmetic to about 1e-12. A p of 1 when nothing newly failed is correct. With few flips the test can't reach significance (3 of 3 newly failing gives p = 0.125), so a large p means "no evidence", not "no regression".
+One-sided exact McNemar test of whether the candidate fails the check more often than the baseline. It uses only discordant pairs: if nothing changed, each flip is equally likely to go either way, so `p = P(X >= newly_failing)` for `X ~ Binomial(newly_failing + newly_passing, 1/2)`. The value is computed in log space and matches exact integer arithmetic to a relative error below 1e-10. A p of 1 when nothing newly failed is correct. With few flips the test can't reach significance (3 of 3 newly failing gives p = 0.125), so a large p means "no evidence", not "no regression". Each check is tested separately, so with many checks a chance FAIL somewhere is more likely; that errs toward failing, never toward passing.
 
 ## `rules[]`
 
@@ -81,4 +81,4 @@ One-sided exact McNemar test of whether the candidate fails the check more often
 | `message` | string | Human explanation with the measured values. Do not parse it |
 | `conclusive` | bool \| null | Metric rules only: true when the whole CI of the regression lies on one side of the threshold, over at least 2 cases. null for other rules |
 
-Rule identifiers: `max_execution_errors`, `metrics.<name>.max_mean_regression_abs`, `metrics.<name>.max_mean_regression_pct`, `checks.required.<check>`, `checks.max_new_failures`, `checks.significant_regression.<check>` (only with `checks.fail_on_significant_regression: true`; fails when `p_value < 1 - statistics.confidence`).
+Rule identifiers: `max_execution_errors`, `metrics.<name>.max_mean_regression_abs`, `metrics.<name>.max_mean_regression_pct`, `checks.required.<check>`, `checks.max_new_failures`, `checks.significant_regression.<check>` (only with `checks.fail_on_significant_regression: true`, which must be combined with another rule; fails when `p_value < 1 - statistics.confidence`).

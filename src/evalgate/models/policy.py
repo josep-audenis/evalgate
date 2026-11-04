@@ -76,12 +76,9 @@ class Policy(_Strict):
     @model_validator(mode="after")
     def _has_rules(self) -> Self:
         checks = self.checks
-        if not (
-            self.metrics
-            or checks.required
-            or checks.max_new_failures is not None
-            or checks.fail_on_significant_regression
-        ):
+        if not (self.metrics or checks.required or checks.max_new_failures is not None):
+            # fail_on_significant_regression alone doesn't count: with few flips it can never
+            # fail (4 of 4 newly failing gives p=0.0625), so it would pass small regressions.
             raise ValueError("policy has no metrics or checks rules; it would pass anything")
         return self
 

@@ -58,8 +58,9 @@ def runs(flips_fail: int, flips_pass: int, stable: int = 20) -> tuple[Any, Any]:
 
 
 def policy(**checks: Any) -> Policy:
+    # Keeps POLICY's metric rules: the significance flag alone is not a valid policy.
     return Policy.model_validate(
-        POLICY | {"metrics": {}, "checks": {"fail_on_significant_regression": False} | checks}
+        POLICY | {"checks": {"fail_on_significant_regression": False} | checks}
     )
 
 
@@ -96,14 +97,25 @@ def test_alpha_follows_statistics_confidence() -> None:
     data = runs(9, 2)  # p ~= 0.033
     p = Policy.model_validate(
         POLICY
-        | {"metrics": {}, "checks": {"fail_on_significant_regression": True}}
+        | {"checks": {"fail_on_significant_regression": True}}
         | {"statistics": {"confidence": 0.99}}
     )
     assert evaluate(*data, p).status == "PASS"  # 0.033 >= alpha 0.01
     assert evaluate(*data, policy(fail_on_significant_regression=True)).status == "FAIL"
 
 
-def test_flag_alone_is_a_valid_policy_and_strictly_typed() -> None:
-    Policy.model_validate({"version": 1, "checks": {"fail_on_significant_regression": True}})
+def test_flag_alone_is_rejected_because_it_cannot_fail_small_runs() -> None:
+    with pytest.raises(ValidationError, match="no metrics or checks rules"):
+        Policy.model_validate({"version": 1, "checks": {"fail_on_significant_regression": True}})
+    # Why: 4 of 4 cases newly failing still gives p = 0.0625 > 0.05.
+    assert mcnemar_p(4, 0) == pytest.approx(0.0625)
+
+
+def test_flag_with_another_rule_is_valid_and_strictly_typed() -> None:
+    Policy.model_validate(
+        {"version": 1, "checks": {"fail_on_significant_regression": True, "max_new_failures": 3}}
+    )
     with pytest.raises(ValidationError):
-        Policy.model_validate({"version": 1, "checks": {"fail_on_significant_regression": "yes"}})
+        Policy.model_validate(
+            {"version": 1, "checks": {"fail_on_significant_regression": "yes", "required": ["x"]}}
+        )
