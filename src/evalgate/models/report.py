@@ -68,6 +68,19 @@ class CategoryDelta(BaseModel):
     delta_abs: float
 
 
+class CheckStat(BaseModel):
+    """One check over compared cases where it is present in both runs."""
+
+    check: str
+    cases: int
+    baseline_failures: int
+    candidate_failures: int
+    newly_failing: int
+    newly_passing: int
+    # One-sided exact McNemar test that the candidate fails this check more often.
+    p_value: float
+
+
 class Comparison(BaseModel):
     matched_cases: int
     compared_cases: int  # matched cases with `status: ok` in both runs
@@ -79,6 +92,7 @@ class Comparison(BaseModel):
     newly_failing_checks: list[CheckChange]
     newly_passing_checks: list[CheckChange]
     candidate_failing_checks: list[CheckChange]
+    check_stats: list[CheckStat]
     categories: list[CategoryDelta]
 
 

@@ -65,6 +65,15 @@ def render(report: Report, console: Console) -> None:
                     f"  {e(d.case_id)} {e(d.metric)}: {d.baseline:.6g} -> {d.candidate:.6g}",
                     highlight=False,
                 )
+        flipped = [s for s in cmp.check_stats if s.newly_failing or s.newly_passing]
+        if flipped:
+            console.print("check flips (one-sided McNemar p):")
+            for s in flipped:
+                console.print(
+                    f"  {e(s.check)}: {s.newly_failing} newly failing, "
+                    f"{s.newly_passing} newly passing, p={s.p_value:.3g}",
+                    highlight=False,
+                )
         if cmp.newly_failing_checks:
             console.print(f"newly failing checks ({len(cmp.newly_failing_checks)}):")
             for ch in cmp.newly_failing_checks[:_TOP]:

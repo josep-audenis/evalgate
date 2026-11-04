@@ -51,6 +51,10 @@ class StatisticsRules(_Strict):
 class CheckRules(_Strict):
     required: list[str] = []
     max_new_failures: Annotated[int, Field(ge=0)] | None = None
+    # FAIL a check whose newly-failing excess is statistically significant (one-sided exact
+    # McNemar, alpha = 1 - statistics.confidence). Too few flips can't reach significance,
+    # so pair it with max_new_failures rather than relying on it alone.
+    fail_on_significant_regression: bool = False
 
 
 class Policy(_Strict):
@@ -71,7 +75,10 @@ class Policy(_Strict):
 
     @model_validator(mode="after")
     def _has_rules(self) -> Self:
-        if not (self.metrics or self.checks.required or self.checks.max_new_failures is not None):
+        checks = self.checks
+        if not (self.metrics or checks.required or checks.max_new_failures is not None):
+            # fail_on_significant_regression alone doesn't count: with few flips it can never
+            # fail (4 of 4 newly failing gives p=0.0625), so it would pass small regressions.
             raise ValueError("policy has no metrics or checks rules; it would pass anything")
         return self
 
@@ -108,6 +115,8 @@ checks:
   required:              # must pass in every candidate case that ran
     - schema_valid
   max_new_failures: 0    # checks that passed in baseline and fail in candidate
+  # fail_on_significant_regression: true  # FAIL if a check's new failures significantly
+  #                                       # exceed its new passes (exact McNemar test)
 
 # Uncertainty: each metric change gets a confidence interval in the report.
 statistics:

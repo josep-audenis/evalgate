@@ -1,7 +1,7 @@
-"""Confidence interval for the paired mean difference. Pure, deterministic, stdlib only."""
+"""Paired statistics: mean-difference CI and McNemar test. Pure, deterministic, stdlib only."""
 
 import random
-from math import ceil, floor, fsum, sqrt
+from math import ceil, exp, floor, fsum, lgamma, log, sqrt
 from statistics import NormalDist, stdev
 from typing import Literal
 
@@ -33,3 +33,22 @@ def mean_diff_ci(diffs: list[float], confidence: float) -> tuple[float, float, C
     low = means[floor(alpha / 2 * RESAMPLES)]
     high = means[ceil((1 - alpha / 2) * RESAMPLES) - 1]
     return low, high, "bootstrap", RESAMPLES
+
+
+def mcnemar_p(newly_failing: int, newly_passing: int) -> float:
+    """One-sided exact McNemar p-value for "the candidate fails this check more often".
+
+    Only discordant pairs carry information. Under H0 (no change) each flip is equally likely
+    to go either way, so newly_failing ~ Binomial(newly_failing + newly_passing, 1/2) and
+    p = P(X >= newly_failing). Summed in log space so large counts neither overflow nor slow down.
+    """
+    n = newly_failing + newly_passing
+    if newly_failing == 0:
+        return 1.0
+    log_half_n = n * log(0.5)
+    log_terms = [
+        lgamma(n + 1) - lgamma(k + 1) - lgamma(n - k + 1) + log_half_n
+        for k in range(newly_failing, n + 1)
+    ]
+    peak = max(log_terms)
+    return min(1.0, exp(peak) * fsum(exp(t - peak) for t in log_terms))
