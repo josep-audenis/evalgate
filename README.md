@@ -150,10 +150,10 @@ Exit codes make EvalGate a drop-in CI step. See [CI integration](https://github.
 
 ## Status and scope
 
-Version 0.1.0 (alpha). EvalGate compares results your pipeline already produced. It does **not** run your application, call LLM judges, or host datasets.
+Version 0.2.0 (alpha). See the [changelog](https://github.com/josep-audenis/evalgate/blob/main/CHANGELOG.md). EvalGate compares results your pipeline already produced. It does **not** run your application, call LLM judges, or host datasets.
 
 Not yet included:
-- repeated-run comparison
+- repeated-run comparison (several runs per version of a nondeterministic system)
 - adapters for other eval frameworks
 
 Planned work is in the [spec](https://github.com/josep-audenis/evalgate/blob/main/docs/SPEC.md).
