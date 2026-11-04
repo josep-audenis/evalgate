@@ -36,19 +36,28 @@ def render(report: Report, console: Console) -> None:
         )
         if cmp.metrics:
             table = Table(box=None, pad_edge=False)
-            for col in ("metric", "direction", "baseline", "candidate", "delta", "delta %"):
-                table.add_column(col, justify="left" if col in ("metric", "direction") else "right")
+            # 4 significant digits keep the table within 80 columns (CI logs); JSON is exact.
+            cols = ("metric", "goal", "baseline", "candidate", "delta", "delta %", "CI of delta")
+            for col in cols:
+                table.add_column(col, justify="left" if col in ("metric", "goal") else "right")
             for m in cmp.metrics:
                 pct = "n/a" if m.delta_pct is None else f"{m.delta_pct:+.2f}%"
                 table.add_row(
                     e(m.name),
-                    m.direction,
-                    f"{m.baseline_mean:.6g}",
-                    f"{m.candidate_mean:.6g}",
-                    f"{m.delta_abs:+.6g}",
+                    m.direction[:3],
+                    f"{m.baseline_mean:.4g}",
+                    f"{m.candidate_mean:.4g}",
+                    f"{m.delta_abs:+.4g}",
                     pct,
+                    f"[{m.ci.low:+.4g}, {m.ci.high:+.4g}]",
                 )
             console.print(table)
+            ci = cmp.metrics[0].ci
+            console.print(
+                f"[dim]CI: {ci.confidence:.0%} interval of the mean delta ({ci.method}, "
+                f"{cmp.compared_cases} paired cases)[/]",
+                highlight=False,
+            )
         if cmp.regressed_cases:
             console.print(f"regressed cases ({len(cmp.regressed_cases)}, top {_TOP}):")
             for d in cmp.regressed_cases[:_TOP]:

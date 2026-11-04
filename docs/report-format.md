@@ -22,7 +22,7 @@
 | `comparison` | object \| null | Measured differences (below). null when the result is INVALID before comparing |
 | `rules` | list | One result per policy rule (below). Empty when the result is INVALID before evaluating |
 
-**Decision rule:** any diagnostic with `level: "error"` makes the status `INVALID`. Otherwise, any rule with `passed: false` makes it `FAIL`. Otherwise the status is `PASS`.
+**Decision rule:** with `statistics.require_conclusive: true`, a metric rule passes only if it is also `conclusive`. Then: any diagnostic with `level: "error"` makes the status `INVALID`. Otherwise, any rule with `passed: false` makes it `FAIL`. Otherwise the status is `PASS`.
 
 ## `diagnostics[]`
 
@@ -45,13 +45,27 @@ Codes:
 | `compared_cases` | int | Matched cases with `status: "ok"` in both runs. All means are computed over these |
 | `baseline_errors` | list[str] | Matched case IDs with `status: "error"` in the baseline |
 | `candidate_errors` | list[str] | Candidate case IDs with `status: "error"`, including unmatched ones |
-| `metrics[]` | list | Per policy metric: `name`, `path`, `direction`, `cases`, `baseline_mean`, `candidate_mean`, `delta_abs` (candidate minus baseline), `delta_pct` (null when the baseline mean is 0) |
+| `metrics[]` | list | Per policy metric: `name`, `path`, `direction`, `cases`, `baseline_mean`, `candidate_mean`, `delta_abs` (candidate minus baseline), `delta_pct` (null when the baseline mean is 0), `ci` (below) |
 | `regressed_cases[]`, `improved_cases[]` | list | Per case and metric, changes in the worse or better direction: `case_id`, `metric`, `baseline`, `candidate`, `delta_abs`. Sorted by metric, then largest change first |
 | `newly_failing_checks[]`, `newly_passing_checks[]` | list | `{case_id, check}` pairs that flipped between runs (compared cases only) |
 | `candidate_failing_checks[]` | list | Every `{case_id, check}` that is false in an `ok` candidate case |
 | `categories[]` | list | Per `metadata.category` (taken from the baseline) and metric: `category`, `metric`, `cases`, `baseline_mean`, `candidate_mean`, `delta_abs` |
 
 `delta_abs` is always candidate minus baseline. Whether that is better or worse depends on `direction`.
+
+### `metrics[].ci`
+
+Confidence interval for the paired mean change `delta_abs`.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `confidence` | float | Interval level, 0.5–0.999 (`policy.statistics.confidence`, default 0.95) |
+| `low`, `high` | float | Bounds for `delta_abs` |
+| `pct_low`, `pct_high` | float \| null | Bounds as a percent of the baseline mean, which is treated as fixed. null when that mean is 0 |
+| `method` | `"bootstrap"` \| `"normal"` | Percentile bootstrap over paired cases for up to 2000 cases. Above that, the normal approximation (CLT), which is what the bootstrap converges to |
+| `resamples` | int | Bootstrap resamples (1000), or 0 for `normal` |
+
+The bootstrap uses a fixed seed, so the interval is deterministic. **Assumptions:** cases are independent, and a candidate case is paired with the baseline case of the same `case_id`. On small, skewed samples the percentile bootstrap can be too narrow: in a check with 40 cases from an exponential distribution, it covered about 90% instead of the nominal 95%.
 
 ## `rules[]`
 
@@ -60,5 +74,6 @@ Codes:
 | `rule` | string | Rule identifier (below) |
 | `passed` | bool | Whether the candidate satisfies it |
 | `message` | string | Human explanation with the measured values. Do not parse it |
+| `conclusive` | bool \| null | Metric rules only: true when the whole CI of the regression lies on one side of the threshold, over at least 2 cases. null for other rules |
 
 Rule identifiers: `max_execution_errors`, `metrics.<name>.max_mean_regression_abs`, `metrics.<name>.max_mean_regression_pct`, `checks.required.<check>`, `checks.max_new_failures`.

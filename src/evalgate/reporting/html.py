@@ -153,17 +153,21 @@ def render_html(report: Report) -> str:
                     _num(m.candidate_mean),
                     f'<span class="{css}">{_num(m.delta_abs, sign=True)}</span>',
                     f'<span class="{css}">{pct}</span>',
+                    f"[{_num(m.ci.low, sign=True)}, {_num(m.ci.high, sign=True)}]",
                 ]
             )
         if metric_rows:
+            ci = cmp.metrics[0].ci
+            headers = ["metric", "direction", "cases", "baseline", "candidate", "delta", "%"]
             parts.append(
                 _section(
                     "Metrics",
-                    _table(
-                        ["metric", "direction", "cases", "baseline", "candidate", "delta", "%"],
-                        metric_rows,
-                        {2, 3, 4, 5, 6},
-                    ),
+                    _table([*headers, "CI of delta"], metric_rows, {2, 3, 4, 5, 6, 7})
+                    + f'<p class="muted">CI: {ci.confidence:.0%} confidence interval of the mean '
+                    f"change over {cmp.compared_cases} paired cases ({escape(ci.method)}"
+                    + (f", {ci.resamples} resamples" if ci.resamples else "")
+                    + "). An interval that spans the threshold means the data cannot tell "
+                    "whether the limit is met.</p>",
                 )
             )
         if report.rules:

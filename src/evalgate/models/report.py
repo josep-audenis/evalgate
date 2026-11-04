@@ -19,6 +19,21 @@ class Diagnostic(BaseModel):
     message: str
 
 
+class ConfidenceInterval(BaseModel):
+    """CI for `delta_abs` (paired mean difference).
+
+    Percent bounds divide by the observed baseline mean, i.e. treat it as fixed.
+    """
+
+    confidence: float
+    low: float
+    high: float
+    pct_low: float | None  # None when the baseline mean is 0
+    pct_high: float | None
+    method: Literal["bootstrap", "normal"]
+    resamples: int  # 0 for the normal method
+
+
 class MetricDelta(BaseModel):
     name: str
     path: str
@@ -28,6 +43,7 @@ class MetricDelta(BaseModel):
     candidate_mean: float
     delta_abs: float
     delta_pct: float | None  # None when the baseline mean is 0
+    ci: ConfidenceInterval
 
 
 class CaseDelta(BaseModel):
@@ -70,6 +86,8 @@ class RuleResult(BaseModel):
     rule: str
     passed: bool
     message: str
+    # Metric rules: whether the whole CI lies on one side of the threshold. None otherwise.
+    conclusive: bool | None = None
 
 
 REPORT_VERSION: Literal["1"] = "1"

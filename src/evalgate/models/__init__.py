@@ -1,11 +1,18 @@
 """Pydantic models: run manifest, case result, release policy, report."""
 
-from evalgate.models.policy import CheckRules, ComparisonRules, MetricRule, Policy
+from evalgate.models.policy import (
+    CheckRules,
+    ComparisonRules,
+    MetricRule,
+    Policy,
+    StatisticsRules,
+)
 from evalgate.models.report import (
     CaseDelta,
     CategoryDelta,
     CheckChange,
     Comparison,
+    ConfidenceInterval,
     Diagnostic,
     MetricDelta,
     Report,
@@ -19,6 +26,7 @@ __all__ = [
     "CaseDelta",
     "CaseResult",
     "CategoryDelta",
+    "ConfidenceInterval",
     "CheckChange",
     "CheckRules",
     "Comparison",
@@ -31,5 +39,6 @@ __all__ = [
     "RuleResult",
     "Run",
     "RunManifest",
+    "StatisticsRules",
     "Status",
 ]
