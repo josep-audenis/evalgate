@@ -90,6 +90,16 @@ LLM outputs vary from run to run. To measure that noise, evaluate each case seve
 - **Fail closed:** a missing or duplicated repeat makes the result INVALID.
 - **Report:** shows how much each metric varies between repeats within a case, and each check's pass rate.
 
+### Importing from other tools
+
+Already have results from another tool as CSV, JSON or JSONL? Describe the columns once in a mapping file and convert:
+
+```bash
+evalgate import results.csv --mapping mapping.yaml --out evals/candidate --run-id candidate-v2
+```
+
+Bad records are all reported, and nothing is written unless every record converts. Unmapped columns, such as prompts and outputs, are never copied. See [importing](https://github.com/josep-audenis/evalgate/blob/main/docs/importing.md).
+
 ## Python SDK
 
 ```python
@@ -161,7 +171,7 @@ Exit codes make EvalGate a drop-in CI step. See [CI integration](https://github.
 Version 0.2.0 (alpha). See the [changelog](https://github.com/josep-audenis/evalgate/blob/main/CHANGELOG.md). EvalGate compares results your pipeline already produced. It does **not** run your application, call LLM judges, or host datasets.
 
 Not yet included:
-- adapters for other eval frameworks
+- dedicated adapters for specific tools (promptfoo, DeepEval); the generic importer covers their CSV/JSON exports
 
 Planned work is in the [spec](https://github.com/josep-audenis/evalgate/blob/main/docs/SPEC.md).
 

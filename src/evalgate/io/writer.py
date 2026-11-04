@@ -98,7 +98,8 @@ class EvalRun:
         self._file.close()
         self._file = None
         if exc_type is not None:
-            return  # the partial file is never loaded; any previous run stays intact
+            self._partial.unlink(missing_ok=True)  # never loaded; any previous run stays intact
+            return
         # Old run.json goes first so old manifest + new cases can never load together.
         (self.path / "run.json").unlink(missing_ok=True)
         os.replace(self._partial, self.path / "cases.jsonl")
