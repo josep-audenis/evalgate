@@ -1,32 +1,86 @@
 # EvalGate
 
-Local-first AI regression testing and release decision engine.
+**Local-first regression testing and release decisions for AI applications.**
 
-EvalGate compares a baseline evaluation run against a candidate, finds what improved and what regressed, applies your release policy, and returns an explainable **PASS / FAIL / INVALID** with CI-friendly exit codes (`0` / `1` / `2`). Fully offline, no LLM API key needed.
+You changed a prompt, model, tool or retrieval step. Your eval pipeline produced scores for the old version and the new one. EvalGate answers three questions:
 
-> Status: early development (Phase 1, core comparison engine). See [docs/SPEC.md](docs/SPEC.md).
+1. **What changed?**
+2. **What got worse?**
+3. **Is this version acceptable to release?**
 
-## Usage
+It compares a *baseline* run against a *candidate* run case by case and applies your release policy. It returns an explainable **PASS / FAIL / INVALID**, with exit codes `0 / 1 / 2` for CI. It runs fully offline, with no LLM API key, account or database.
 
-Each run is a directory with `run.json` (manifest) and `cases.jsonl` (one case per line). See [examples/quickstart](examples/quickstart) and the spec's data model (§5) for the format.
-
-```bash
-evalgate init                      # writes a documented evalgate.yaml to edit
-evalgate validate examples/quickstart/candidate
-evalgate compare examples/quickstart/baseline examples/quickstart/candidate \
-  --policy examples/quickstart/evalgate.yaml --json report.json --report report.html
+```text
+$ evalgate compare evals/baseline evals/candidate --policy evalgate.yaml
+baseline-v1 -> candidate-v2  dataset regression-suite@v3  evaluator rubric-v2
+cases: 4 matched, 4 compared, 0 baseline errors, 0 candidate errors
+metric   direction  baseline  candidate     delta  delta %
+quality  maximize        0.8      0.865    +0.065   +8.12%
+...
+FAIL checks.required.safety_valid: required check 'safety_valid' failed in 1 case(s): abuse-001/safety_valid
+decision: FAIL
 ```
 
-The quickstart candidate improves mean quality but newly fails `safety_valid` on one case, so the decision is **FAIL** (exit 1).
+Average quality went up, but one case started failing a safety check, so the candidate does not ship.
 
-`--report` writes a single standalone HTML file with no scripts and no external assets. Open it locally or attach it to a CI artifact. Like the JSON report, it contains scores, checks and case IDs, and never raw prompts or outputs.
+## Install
 
-Policy notes:
-- Every metric declares `direction: maximize | minimize` and at least one threshold.
-- The policy is strict: unknown or duplicate keys, `true` where a number is expected, and a policy with no metric or check rules are all rejected.
-- `max_mean_regression_pct` is undefined when the baseline mean is 0; add `max_mean_regression_abs` or the result is INVALID.
-- Cases with `status: "error"` are excluded from means and count against `max_execution_errors` (default 0). This includes candidate cases with no baseline match.
-- Missing/duplicate cases, missing metrics or checks, and dataset/evaluator mismatches give INVALID (exit 2).
+```bash
+pip install evalgate
+```
+
+Requires Python 3.11 or newer.
+
+## Quickstart
+
+**1. Write each run as a directory.** Use `run.json` for identity and `cases.jsonl` with one JSON object per test case:
+
+```json
+{"schema_version": "1.0", "run_id": "candidate-v2", "dataset_id": "regression-suite",
+ "dataset_version": "v3", "evaluator_version": "rubric-v2"}
+```
+
+```json
+{"case_id": "refund-001", "status": "ok", "scores": {"quality": 0.91},
+ "checks": {"safety_valid": true}, "metrics": {"latency_ms": 3000, "cost_usd": 0.012},
+ "metadata": {"category": "billing"}}
+```
+
+If the pipeline failed on a case, record `"status": "error"` instead of inventing scores. Or let the Python SDK below write these files for you.
+
+**2. Create a policy:**
+
+```bash
+evalgate init          # writes a commented evalgate.yaml
+```
+
+```yaml
+version: 1
+metrics:
+  quality:
+    path: scores.quality
+    direction: maximize          # explicit: EvalGate never assumes higher is better
+    max_mean_regression_abs: 0.02
+  latency:
+    path: metrics.latency_ms
+    direction: minimize
+    max_mean_regression_pct: 10
+checks:
+  required: [safety_valid]       # must pass in every candidate case
+  max_new_failures: 0            # nothing that passed before may fail now
+```
+
+**3. Compare:**
+
+```bash
+evalgate validate evals/candidate
+evalgate compare evals/baseline evals/candidate --policy evalgate.yaml \
+  --json report.json --report report.html
+```
+
+- `--report` writes one standalone HTML file: no scripts and no external assets.
+- `--json` writes a stable, documented report: see [report format](https://github.com/josep-audenis/evalgate/blob/main/docs/report-format.md).
+- Neither report contains raw prompts or outputs.
 
 ## Python SDK
 
@@ -55,23 +109,56 @@ report.to_json("report.json")
 report.to_html("report.html")
 ```
 
-- Values are validated as you record them. Duplicate `case_id`s raise.
-- `run.json` is written only when the `with` block exits cleanly. An interrupted run never loads as complete.
-- `EvalRun` refuses to overwrite an existing run unless you pass `overwrite=True`. Even then, the old run is replaced only when the new one finishes cleanly.
-- The SDK's `compare` is the same code path as `evalgate compare`, and both produce identical reports.
+- **Validation:** values are checked as you record them. Duplicate `case_id`s raise an error.
+- **Crash safety:** `run.json` is written only when the `with` block exits cleanly, so an interrupted run never loads as complete.
+- **Overwrites:** `EvalRun` won't replace an existing run unless you pass `overwrite=True`. Even then, the old run is replaced only when the new one finishes cleanly.
+- **Same results as the CLI:** the SDK's `compare` is the same code path as `evalgate compare`, and the reports are identical.
 
-Runnable demo: `python examples/sdk_quickstart.py`.
+## How decisions are made
 
-## Development
+- **INVALID (exit 2):** a trustworthy decision is impossible. Causes:
+  - missing or duplicate cases
+  - a dataset or evaluator version mismatch
+  - missing metrics or checks
+  - malformed files
+  - a percent threshold on a metric whose baseline mean is 0
 
-```bash
-uv sync
-uv run pytest
-uv run evalgate --help
-git config core.hooksPath .githooks   # once per clone
-```
+  Invalid input never produces a PASS.
+- **FAIL (exit 1):** the comparison is valid, but at least one policy rule is violated.
+- **PASS (exit 0):** the comparison is valid and every rule holds.
 
-There is no hosted CI. The `pre-push` hook runs ruff, the ruff format check, mypy and pytest, and blocks the push on any failure.
+Further rules:
+- Means are computed over cases that ran successfully in both runs.
+- Cases with `status: "error"` count against `max_execution_errors` (default 0) and never count as successes.
+- Every metric declares its direction and at least one threshold.
+- The policy is strict. Unknown or duplicate keys, `true` where a number is expected, and a policy with no rules are all rejected.
+- There is no weighted overall score. Each rule passes or fails on its own, so one regression can't hide behind an improvement elsewhere.
+
+## Use in CI
+
+Exit codes make EvalGate a drop-in CI step. See [CI integration](https://github.com/josep-audenis/evalgate/blob/main/docs/ci.md) for a GitHub Actions example.
+
+## Examples
+
+[examples/](https://github.com/josep-audenis/evalgate/tree/main/examples) has runnable scenarios:
+- a safety regression hidden by better averages
+- a quality gain that blows the cost and latency budget
+- an SDK eval loop with a timed-out case
+
+## Status and scope
+
+Version 0.1.0 (alpha). EvalGate compares results your pipeline already produced. It does **not** run your application, call LLM judges, or host datasets.
+
+Not yet included:
+- statistical uncertainty (confidence intervals)
+- repeated-run comparison
+- adapters for other eval frameworks
+
+Planned work is in the [spec](https://github.com/josep-audenis/evalgate/blob/main/docs/SPEC.md).
+
+## Contributing
+
+See [CONTRIBUTING.md](https://github.com/josep-audenis/evalgate/blob/main/CONTRIBUTING.md).
 
 ## License
 

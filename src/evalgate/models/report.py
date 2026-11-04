@@ -72,7 +72,12 @@ class RuleResult(BaseModel):
     message: str
 
 
+REPORT_VERSION = "1"
+
+
 class Report(BaseModel):
+    # Bumped on breaking changes to this JSON shape; see docs/report-format.md.
+    report_version: Literal["1"] = REPORT_VERSION
     evalgate_version: str
     status: Status
     baseline: RunManifest | None = None

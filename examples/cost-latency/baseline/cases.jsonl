@@ -1,0 +1,6 @@
+{"case_id": "faq-001", "status": "ok", "scores": {"quality": 0.82}, "checks": {"grounded": true}, "metrics": {"latency_ms": 900, "cost_usd": 0.002}, "metadata": {"category": "faq"}}
+{"case_id": "faq-002", "status": "ok", "scores": {"quality": 0.79}, "checks": {"grounded": true}, "metrics": {"latency_ms": 850, "cost_usd": 0.002}, "metadata": {"category": "faq"}}
+{"case_id": "lookup-001", "status": "ok", "scores": {"quality": 0.74}, "checks": {"grounded": true}, "metrics": {"latency_ms": 1600, "cost_usd": 0.004}, "metadata": {"category": "lookup"}}
+{"case_id": "lookup-002", "status": "ok", "scores": {"quality": 0.7}, "checks": {"grounded": true}, "metrics": {"latency_ms": 1700, "cost_usd": 0.004}, "metadata": {"category": "lookup"}}
+{"case_id": "reasoning-001", "status": "ok", "scores": {"quality": 0.61}, "checks": {"grounded": true}, "metrics": {"latency_ms": 2400, "cost_usd": 0.006}, "metadata": {"category": "reasoning"}}
+{"case_id": "reasoning-002", "status": "ok", "scores": {"quality": 0.58}, "checks": {"grounded": true}, "metrics": {"latency_ms": 2600, "cost_usd": 0.006}, "metadata": {"category": "reasoning"}}
