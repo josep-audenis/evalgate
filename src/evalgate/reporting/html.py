@@ -204,6 +204,41 @@ def render_html(report: Report) -> str:
             parts.append(_section("Improved cases", _case_deltas(cmp.improved_cases, "better")))
         if cmp.newly_passing_checks:
             parts.append(_section("Newly passing checks", _checks(cmp.newly_passing_checks)))
+        if cmp.repeats:
+            rep = cmp.repeats
+
+            def sd(x: float | None) -> str:
+                return "n/a" if x is None else _num(x)
+
+            parts.append(
+                _section(
+                    "Repeats",
+                    f"<p>{rep.baseline_repeats} repeat(s) per case in the baseline, "
+                    f"{rep.candidate_repeats} in the candidate. Repeats are combined per case "
+                    "(metric mean; a check passes only if every repeat passes; any errored repeat "
+                    "makes the case an error), so cases remain the unit of analysis.</p>"
+                    + _table(
+                        ["metric", "baseline within-case SD", "candidate within-case SD"],
+                        (
+                            [escape(m.name), sd(m.baseline_sd), sd(m.candidate_sd)]
+                            for m in rep.metrics
+                        ),
+                        {1, 2},
+                    )
+                    + _table(
+                        ["check", "baseline pass rate", "candidate pass rate"],
+                        (
+                            [
+                                escape(c.check),
+                                f"{c.baseline_pass_rate:.1%}",
+                                f"{c.candidate_pass_rate:.1%}",
+                            ]
+                            for c in rep.checks
+                        ),
+                        {1, 2},
+                    ),
+                )
+            )
         if cmp.check_stats:
             parts.append(
                 _section(

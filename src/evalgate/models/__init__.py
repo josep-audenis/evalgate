@@ -16,14 +16,24 @@ from evalgate.models.report import (
     ConfidenceInterval,
     Diagnostic,
     MetricDelta,
+    RepeatCheck,
+    RepeatMetric,
+    RepeatSummary,
     Report,
     RuleResult,
     Status,
 )
-from evalgate.models.run import SCHEMA_VERSION, CaseResult, Run, RunManifest
+from evalgate.models.run import (
+    SCHEMA_VERSION,
+    SCHEMA_VERSION_REPEATS,
+    CaseResult,
+    Run,
+    RunManifest,
+)
 
 __all__ = [
     "SCHEMA_VERSION",
+    "SCHEMA_VERSION_REPEATS",
     "CaseDelta",
     "CaseResult",
     "CategoryDelta",
@@ -37,6 +47,9 @@ __all__ = [
     "MetricDelta",
     "MetricRule",
     "Policy",
+    "RepeatCheck",
+    "RepeatMetric",
+    "RepeatSummary",
     "Report",
     "RuleResult",
     "Run",

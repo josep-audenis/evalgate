@@ -5,6 +5,8 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictBool
 
 SCHEMA_VERSION = "1.0"
+# 1.1 adds repeated runs (`repeat` per case, `repeats` in the manifest); 1.0 files still load.
+SCHEMA_VERSION_REPEATS = "1.1"
 
 # Strict: rejects bools and numeric strings; finite only, so NaN/inf never reach a mean.
 Number = Annotated[float, Field(strict=True, allow_inf_nan=False)]
@@ -27,13 +29,15 @@ class RunManifest(BaseModel):
 
     model_config = ConfigDict(extra="allow", frozen=True)
 
-    schema_version: Literal["1.0"]
+    schema_version: Literal["1.0", "1.1"]
     run_id: NonEmptyStr
     dataset_id: NonEmptyStr
     dataset_version: NonEmptyStr
     evaluator_version: NonEmptyStr
     application: str | None = None
     application_version: str | None = None
+    # Expected repeats per case (schema 1.1). Unset: inferred from the cases.
+    repeats: Annotated[int, Field(strict=True, ge=1)] | None = None
 
 
 class CaseResult(BaseModel):
@@ -43,6 +47,8 @@ class CaseResult(BaseModel):
 
     case_id: NonEmptyStr
     status: Literal["ok", "error"]
+    # Which evaluation of this case, 0..k-1 (schema 1.1). Unset: the case was run once.
+    repeat: Annotated[int, Field(strict=True, ge=0)] | None = None
     scores: dict[str, Number] = {}
     checks: dict[str, Check] = {}
     metrics: dict[str, Number] = {}

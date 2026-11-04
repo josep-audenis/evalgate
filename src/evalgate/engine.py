@@ -4,6 +4,7 @@ import math
 
 from evalgate._version import __version__
 from evalgate.comparison import compare
+from evalgate.comparison.repeats import collapse, repeat_summary
 from evalgate.models import Comparison, Diagnostic, Policy, Report, Run
 from evalgate.policies import evaluate_policy
 from evalgate.validation import validate_pair, validate_run
@@ -24,6 +25,10 @@ def _all_finite(c: Comparison) -> bool:
     ]
     values += [d.delta_abs for d in (*c.regressed_cases, *c.improved_cases)]
     values += [x for g in c.categories for x in (g.baseline_mean, g.candidate_mean, g.delta_abs)]
+    if c.repeats:
+        values += [
+            x for m in c.repeats.metrics for x in (m.baseline_sd, m.candidate_sd) if x is not None
+        ]
     return all(math.isfinite(x) for x in values)
 
 
@@ -37,22 +42,34 @@ def invalid_report(diagnostics: list[Diagnostic], **identity: object) -> Report:
 def evaluate(baseline: Run, candidate: Run, policy: Policy) -> Report:
     """Decide PASS / FAIL / INVALID. Never PASS on input that failed validation."""
     identity = {"baseline": baseline.manifest, "candidate": candidate.manifest, "policy": policy}
+    overflow = Diagnostic(
+        level="error",
+        code="numeric_overflow",
+        message="metric values too large to average or subtract (result is not finite)",
+    )
     diagnostics = validate_run(baseline, "baseline") + validate_run(candidate, "candidate")
-    if not _has_errors(diagnostics):
-        diagnostics += validate_pair(baseline, candidate, policy)
+    if _has_errors(diagnostics):
+        return invalid_report(diagnostics, **identity)
+    try:
+        # Repeats become one case each, so everything below works on cases (SPEC 9.2).
+        base, cand = collapse(baseline), collapse(candidate)
+    except OverflowError:  # fsum over finite values can only overflow
+        return invalid_report([*diagnostics, overflow], **identity)
+    diagnostics += validate_pair(base, cand, policy)
     if _has_errors(diagnostics):
         return invalid_report(diagnostics, **identity)
 
+    b, c = {x.case_id: x for x in base.cases}, {x.case_id: x for x in cand.cases}
+    compared = sorted(i for i in b.keys() & c.keys() if b[i].status == c[i].status == "ok")
     try:
-        comparison = compare(baseline, candidate, policy.metrics, policy.statistics.confidence)
+        comparison: Comparison | None = compare(
+            base, cand, policy.metrics, policy.statistics.confidence
+        ).model_copy(
+            update={"repeats": repeat_summary(baseline, candidate, compared, policy.metrics)}
+        )
     except (OverflowError, ValueError):  # ValueError: inf - inf in fsum, StatisticsError
         comparison = None
     if comparison is None or not _all_finite(comparison):
-        overflow = Diagnostic(
-            level="error",
-            code="numeric_overflow",
-            message="metric values too large to average or subtract (result is not finite)",
-        )
         return invalid_report([*diagnostics, overflow], **identity)
 
     rules, rule_diagnostics = evaluate_policy(comparison, policy)
