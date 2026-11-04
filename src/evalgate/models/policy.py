@@ -17,6 +17,8 @@ class ComparisonRules(_Strict):
     require_same_cases: bool = True
     require_same_dataset: bool = True
     require_same_evaluator: bool = True
+    # Cases `ok` in both runs needed for a decision; fewer -> INVALID. Unset: warn below 30.
+    min_compared_cases: Annotated[int, Field(ge=1)] | None = None
 
 
 class MetricRule(_Strict):
@@ -74,6 +76,8 @@ comparison:
   require_same_cases: true      # every case_id must exist in both runs
   require_same_dataset: true    # same dataset_id and dataset_version
   require_same_evaluator: true  # same evaluator_version
+  # min_compared_cases: 30     # fewer cases ok in both runs -> INVALID.
+                                # Unset: only a warning below 30 cases.
 
 # Compared metrics. `path` is scores.<name> or metrics.<name> in cases.jsonl.
 # `direction` is required: EvalGate never assumes higher is better.

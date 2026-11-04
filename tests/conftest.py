@@ -14,6 +14,8 @@ MANIFEST = {
 
 POLICY: dict[str, Any] = {
     "version": 1,
+    # Fixtures are deliberately tiny; opt out of the small-sample warning (tested separately).
+    "comparison": {"min_compared_cases": 1},
     "metrics": {
         "quality": {
             "path": "scores.quality",
@@ -45,7 +47,8 @@ def make_run(cases: list[dict[str, Any]], **manifest: Any) -> Run:
 
 
 def make_policy(**over: Any) -> Policy:
-    return Policy.model_validate(POLICY | over)
+    comparison = POLICY["comparison"] | over.pop("comparison", {})
+    return Policy.model_validate(POLICY | over | {"comparison": comparison})
 
 
 def write_run(path: Path, cases: list[dict[str, Any]], **manifest: Any) -> Path:

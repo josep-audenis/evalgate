@@ -6,6 +6,8 @@ from collections.abc import Iterable
 from evalgate.models import Diagnostic, Policy, Run
 
 _MAX_IDS_SHOWN = 5
+# shortcut: fixed rule-of-thumb sample size, replace with interval-based checks (bootstrap CIs).
+SMALL_SAMPLE = 30
 
 
 def _ids(ids: Iterable[str]) -> str:
@@ -67,8 +69,28 @@ def validate_pair(baseline: Run, candidate: Run, policy: Policy) -> list[Diagnos
             )
 
     matched = sorted(base.keys() & cand.keys())
-    if not any(base[i].status == cand[i].status == "ok" for i in matched):
+    compared = sum(base[i].status == cand[i].status == "ok" for i in matched)
+    if not compared:
         out.append(_diag(True, "no_comparable_cases", "no case is `ok` in both runs"))
+    elif rules.min_compared_cases is not None:
+        if compared < rules.min_compared_cases:
+            out.append(
+                _diag(
+                    True,
+                    "too_few_cases",
+                    f"{compared} case(s) compared; policy requires at least "
+                    f"{rules.min_compared_cases}",
+                )
+            )
+    elif compared < SMALL_SAMPLE:
+        out.append(
+            _diag(
+                False,
+                "small_sample",
+                f"only {compared} case(s) compared; mean differences may be noise. "
+                "Set comparison.min_compared_cases to enforce a minimum",
+            )
+        )
 
     # Every compared metric must exist wherever the case ran; a gap would bias the mean.
     for name, rule in sorted(policy.metrics.items()):
