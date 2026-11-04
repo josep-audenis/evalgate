@@ -53,7 +53,7 @@ def evaluate(baseline: Run, candidate: Run, policy: Policy) -> Report:
     try:
         # Repeats become one case each, so everything below works on cases (SPEC 9.2).
         base, cand = collapse(baseline), collapse(candidate)
-    except (OverflowError, ValueError):
+    except OverflowError:  # fsum over finite values can only overflow
         return invalid_report([*diagnostics, overflow], **identity)
     diagnostics += validate_pair(base, cand, policy)
     if _has_errors(diagnostics):

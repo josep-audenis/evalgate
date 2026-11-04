@@ -89,8 +89,8 @@ def repeat_summary(
         sds = []
         for i in compared:
             values = [r.value(rule.path) for r in groups[i]]
-            if None in values:  # validate_pair guarantees presence in compared cases
-                raise ValueError(f"{i}: missing {rule.path} in a repeat")
+            if None in values:  # unreachable: validation requires the same fields in every repeat
+                raise RuntimeError(f"internal error: {i} missing {rule.path} in a repeat")
             sds.append(stdev(v for v in values if v is not None))
         return fmean(sds)
 

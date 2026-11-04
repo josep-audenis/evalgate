@@ -2,8 +2,9 @@
 
 from collections import Counter, defaultdict
 from collections.abc import Iterable
+from typing import Any
 
-from evalgate.models import SCHEMA_VERSION_REPEATS, Diagnostic, Policy, Run
+from evalgate.models import SCHEMA_VERSION_REPEATS, CaseResult, Diagnostic, Policy, Run
 
 _MAX_IDS_SHOWN = 5
 # shortcut: fixed rule-of-thumb sample size, replace with interval-based checks (bootstrap CIs).
@@ -58,6 +59,39 @@ def validate_run(run: Run, label: str = "run") -> list[Diagnostic]:
                     "repeat_incomplete",
                     f"{label}: {len(bad)} case(s) do not have exactly repeats 0..{k - 1}: "
                     + _ids(bad),
+                )
+            )
+
+        # Repeats that ran must report the same fields: combining drops a field missing from
+        # any repeat, which could hide a failure (a check present only in some repeats).
+        def fields(c: CaseResult) -> tuple[frozenset[str], ...]:
+            return frozenset(c.scores), frozenset(c.metrics), frozenset(c.checks)
+
+        ok: dict[str, list[CaseResult]] = defaultdict(list)
+        for c in run.cases:
+            if c.status == "ok":
+                ok[c.case_id].append(c)
+        uneven = [i for i, reps in ok.items() if len({fields(r) for r in reps}) > 1]
+        if uneven:
+            out.append(
+                _diag(
+                    True,
+                    "repeat_inconsistent",
+                    f"{label}: {len(uneven)} case(s) whose repeats report different scores, "
+                    f"metrics or checks: {_ids(uneven)}",
+                )
+            )
+        meta: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for c in run.cases:
+            meta[c.case_id].append(c.metadata)
+        differing = [i for i, ms in meta.items() if any(m != ms[0] for m in ms)]
+        if differing:
+            out.append(
+                _diag(
+                    False,
+                    "repeat_metadata",
+                    f"{label}: {len(differing)} case(s) with different metadata across repeats; "
+                    f"repeat 0's metadata (e.g. category) is used: {_ids(differing)}",
                 )
             )
     return out

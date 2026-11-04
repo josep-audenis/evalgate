@@ -34,7 +34,7 @@
 
 Codes:
 - **Loading:** `run_dir_missing`, `file_missing`, `file_unreadable`, `schema`, `no_cases`, `policy_yaml`
-- **Validation:** `duplicate_case_id`, `repeat_mixed`, `repeat_schema`, `repeat_incomplete`, `dataset_mismatch`, `evaluator_mismatch`, `case_mismatch`, `no_comparable_cases`, `too_few_cases`, `small_sample` (warning), `metric_missing`, `check_missing`
+- **Validation:** `duplicate_case_id`, `repeat_mixed`, `repeat_schema`, `repeat_incomplete`, `repeat_inconsistent`, `repeat_metadata` (warning), `dataset_mismatch`, `evaluator_mismatch`, `case_mismatch`, `no_comparable_cases`, `too_few_cases`, `small_sample` (warning), `metric_missing`, `check_missing`
 - **Evaluation:** `pct_undefined`, `numeric_overflow`
 
 ## `comparison`

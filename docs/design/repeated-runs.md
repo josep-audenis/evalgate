@@ -25,7 +25,7 @@ One run directory still holds one version. Repeats are extra lines in `cases.jso
 ```
 
 - `run.json` gains an optional `repeats: k`, which declares the expected number of repeats per case.
-- `schema_version` becomes `"1.1"`. Version `"1.0"` files keep working unchanged. Older EvalGate versions will reject a `"1.1"` file with a clear schema error, rather than misreading the repeats as duplicates.
+- `schema_version` becomes `"1.1"`. Version `"1.0"` files keep working unchanged, except that `repeat` (on a case) and `repeats` (in `run.json`) are now reserved names. A 1.0 file that used them as custom metadata is now rejected or INVALID, never misread. Older EvalGate versions will reject a `"1.1"` file with a clear schema error, rather than misreading the repeats as duplicates.
 
 I chose this over several run directories per version (for example `compare base1 base2 --vs cand1 cand2`). It keeps the CLI, the SDK and the "one directory per version" model unchanged, and a single file can't be half-uploaded across directories.
 
@@ -34,6 +34,7 @@ I chose this over several run directories per version (for example `compare base
 The result is INVALID when:
 - a (`case_id`, `repeat`) pair appears twice
 - some lines of a run have `repeat` and others don't
+- the repeats of a case that ran don't all report the same scores, metrics and checks (`repeat_inconsistent`). Combining would otherwise drop a field missing from one repeat, which could hide a failure.
 - repeat numbers are not exactly `0 … k-1` for every case, using the declared `repeats` if present, otherwise the largest observed count
 
 A missing repeat counts as a missing evaluation and is never silently averaged around.
@@ -48,7 +49,7 @@ The baseline and candidate may use different `k` (say 3 and 5). Each case is sti
 | check | passes only if it passes in **every** repeat (strict) |
 | check pass rate (new, report only) | fraction of the case's repeats that pass |
 | `status` | `error` if **any** repeat errored |
-| `metadata` | taken from repeat 0 |
+| `metadata` | taken from repeat 0 (a `repeat_metadata` warning if repeats differ) |
 
 The combined cases then go through the existing pipeline unchanged.
 

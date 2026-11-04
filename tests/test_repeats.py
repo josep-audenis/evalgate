@@ -88,7 +88,41 @@ def test_collapse_means_strict_checks_and_errors() -> None:
 
 def test_metric_missing_in_one_repeat_is_invalid() -> None:
     run = make_run([rep("a", 0), rep("a", 1, scores={})], **V11)
-    assert codes(evaluate(run, run, make_policy())) == {"metric_missing"}
+    assert codes(evaluate(run, run, make_policy())) == {"repeat_inconsistent"}
+
+
+def test_check_in_some_repeats_only_cannot_hide_a_failure() -> None:
+    # Review finding: a check absent from one repeat on both sides used to vanish -> PASS,
+    # while the same data as a plain run FAILs.
+    base = make_run(
+        [
+            rep("a", 0, checks={"safety_valid": True, "x": True}),
+            rep("a", 1, checks={"safety_valid": True}),
+        ],
+        **V11,
+    )
+    cand = make_run(
+        [
+            rep("a", 0, checks={"safety_valid": True, "x": False}),
+            rep("a", 1, checks={"safety_valid": True}),
+        ],
+        **V11,
+    )
+    report = evaluate(base, cand, make_policy())
+    assert report.status == "INVALID" and codes(report) == {"repeat_inconsistent"}
+
+
+def test_errored_repeat_without_fields_is_not_inconsistent() -> None:
+    run = make_run([rep("a", 0), {"case_id": "a", "repeat": 1, "status": "error"}], **V11)
+    assert "repeat_inconsistent" not in codes(evaluate(run, run, make_policy()))
+
+
+def test_differing_metadata_warns() -> None:
+    run = make_run(
+        [rep("a", 0, metadata={"category": "x"}), rep("a", 1, metadata={"category": "y"})], **V11
+    )
+    report = evaluate(run, run, make_policy())
+    assert ("warning", "repeat_metadata") in {(d.level, d.code) for d in report.diagnostics}
 
 
 def test_single_repeat_matches_plain_run() -> None:
@@ -223,3 +257,4 @@ def test_plain_sdk_run_still_writes_schema_1_0(tmp_path: Path) -> None:
     with EvalRun("r", path=tmp_path / "r", **IDS) as run:
         run.record("a", scores={"quality": 0.9})
     assert load_run(tmp_path / "r").manifest.schema_version == MANIFEST["schema_version"]
+    assert "repeats" not in (tmp_path / "r" / "run.json").read_text()
