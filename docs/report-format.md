@@ -59,7 +59,7 @@ Confidence interval for the paired mean change `delta_abs`.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `confidence` | float | Interval level, e.g. 0.95 (`policy.statistics.confidence`) |
+| `confidence` | float | Interval level, 0.5–0.999 (`policy.statistics.confidence`, default 0.95) |
 | `low`, `high` | float | Bounds for `delta_abs` |
 | `pct_low`, `pct_high` | float \| null | Bounds as a percent of the baseline mean, which is treated as fixed. null when that mean is 0 |
 | `method` | `"bootstrap"` \| `"normal"` | Percentile bootstrap over paired cases for up to 2000 cases. Above that, the normal approximation (CLT), which is what the bootstrap converges to |
@@ -74,6 +74,6 @@ The bootstrap uses a fixed seed, so the interval is deterministic. **Assumptions
 | `rule` | string | Rule identifier (below) |
 | `passed` | bool | Whether the candidate satisfies it |
 | `message` | string | Human explanation with the measured values. Do not parse it |
-| `conclusive` | bool \| null | Metric rules only: true when the whole CI of the regression lies on one side of the threshold. null for other rules |
+| `conclusive` | bool \| null | Metric rules only: true when the whole CI of the regression lies on one side of the threshold, over at least 2 cases. null for other rules |
 
 Rule identifiers: `max_execution_errors`, `metrics.<name>.max_mean_regression_abs`, `metrics.<name>.max_mean_regression_pct`, `checks.required.<check>`, `checks.max_new_failures`.

@@ -133,7 +133,7 @@ Further rules:
 - Cases with `status: "error"` count against `max_execution_errors` (default 0) and never count as successes.
 - Every metric declares its direction and at least one threshold.
 - The policy is strict. Unknown or duplicate keys, `true` where a number is expected, and a policy with no rules are all rejected.
-- Each metric's mean change comes with a 95% confidence interval. A rule whose interval spans its threshold is reported as *inconclusive*. With `statistics: {require_conclusive: true}`, an inconclusive pass becomes a FAIL. Statistics can tighten a decision, never loosen it.
+- Each metric's mean change comes with a confidence interval (95% by default, `statistics.confidence`). A rule whose interval spans its threshold is reported as *inconclusive*. With `statistics: {require_conclusive: true}`, an inconclusive pass becomes a FAIL. Statistics can tighten a decision, never loosen it.
 - There is no weighted overall score. Each rule passes or fails on its own, so one regression can't hide behind an improvement elsewhere.
 
 ## Use in CI

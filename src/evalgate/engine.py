@@ -45,7 +45,7 @@ def evaluate(baseline: Run, candidate: Run, policy: Policy) -> Report:
 
     try:
         comparison = compare(baseline, candidate, policy.metrics, policy.statistics.confidence)
-    except OverflowError:
+    except (OverflowError, ValueError):  # ValueError: inf - inf in fsum, StatisticsError
         comparison = None
     if comparison is None or not _all_finite(comparison):
         overflow = Diagnostic(

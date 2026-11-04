@@ -20,6 +20,7 @@ def _metric_rule(
     unit: str,
     confidence: float,
     require_conclusive: bool,
+    cases: int,
 ) -> RuleResult:
     """Threshold rule on the mean change. Regression is positive when worse, either direction."""
     # `+ 0.0` turns -0.0 from negating zero into 0.0, so messages never show "-0".
@@ -27,7 +28,8 @@ def _metric_rule(
     reg_low, reg_high = (-ci[1] + 0.0, -ci[0] + 0.0) if maximize else ci
     within = regression <= limit + _EPS
     # Conclusive: the whole interval lies on one side of the limit.
-    conclusive = reg_high <= limit + _EPS if within else reg_low > limit + _EPS
+    # One case has no variance: its zero-width interval proves nothing.
+    conclusive = cases >= 2 and (reg_high <= limit + _EPS if within else reg_low > limit + _EPS)
     passed = within and (conclusive or not require_conclusive)
 
     fmt = ".4g" if unit else ".6g"
@@ -75,6 +77,7 @@ def evaluate_policy(
                     "",
                     d.ci.confidence,
                     policy.statistics.require_conclusive,
+                    d.cases,
                 )
             )
         if rule.max_mean_regression_pct is not None:
@@ -107,6 +110,7 @@ def evaluate_policy(
                     "%",
                     d.ci.confidence,
                     policy.statistics.require_conclusive,
+                    d.cases,
                 )
             )
 

@@ -148,3 +148,28 @@ def test_pct_bounds_scale_abs_bounds() -> None:
 def test_statistics_policy_validation(bad: dict[str, Any]) -> None:
     with pytest.raises(ValidationError):
         policy(**bad)
+
+
+# --- review findings on PR #9 ----------------------------------------------------------
+
+
+def test_non_finite_diffs_are_invalid_not_a_crash() -> None:
+    base = make_run([case("a", -1.7e308), case("b", 1.7e308)])
+    cand = make_run([case("a", 1.7e308), case("b", -1.7e308)])
+    report = evaluate(base, cand, policy())
+    assert report.status == "INVALID"
+    assert [d.code for d in report.diagnostics] == ["numeric_overflow"]
+
+
+def test_single_case_is_never_conclusive() -> None:
+    one = make_run([case("a", 0.9)])
+    report = evaluate(one, one, policy(require_conclusive=True))
+    rule = quality_rule(report)
+    assert rule.conclusive is False and not rule.passed and report.status == "FAIL"
+    assert evaluate(one, one, policy()).status == "PASS"  # report-only default unchanged
+
+
+@pytest.mark.parametrize("conf", [0.4999, 0.9991, 0.9999999999999999])
+def test_confidence_outside_supported_range_rejected(conf: float) -> None:
+    with pytest.raises(ValidationError):
+        policy(confidence=conf)

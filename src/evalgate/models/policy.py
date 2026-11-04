@@ -41,7 +41,8 @@ class MetricRule(_Strict):
 
 class StatisticsRules(_Strict):
     # Confidence level of the interval reported for each metric's mean change.
-    confidence: Annotated[float, Field(gt=0, lt=1)] = 0.95
+    # 0.5..0.999: outside this range the interval is degenerate or numerically unstable.
+    confidence: Annotated[float, Field(ge=0.5, le=0.999)] = 0.95
     # true: a metric rule passes only if the whole interval is within its threshold. This can
     # only turn a PASS into a FAIL, never the reverse.
     require_conclusive: bool = False
