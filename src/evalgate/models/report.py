@@ -72,7 +72,7 @@ class RuleResult(BaseModel):
     message: str
 
 
-REPORT_VERSION = "1"
+REPORT_VERSION: Literal["1"] = "1"
 
 
 class Report(BaseModel):
