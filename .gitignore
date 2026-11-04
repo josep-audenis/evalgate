@@ -12,3 +12,7 @@ graphify-out
 CLAUDE.md
 
 evals/
+
+# Local secrets (e.g. TWINE_PASSWORD); never commit or package them
+.env
+.env.*
