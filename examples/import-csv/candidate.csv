@@ -1,0 +1,6 @@
+id,topic,prompt,response,judge_score,latency,has_citation,outcome,error_message
+q1,billing,How do I get a refund?,Settings > Billing > Refund.,0.88,940,yes,success,
+q2,billing,Can I change my plan?,Yes. Plans page.,0.85,900,yes,success,
+q3,account,How do I reset my password?,Use the reset link.,0.93,780,no,success,
+q4,account,Delete my account?,Settings > Privacy > Delete.,0.79,1000,yes,success,
+q5,shipping,Where is my order?,,,,,timeout,upstream API timed out

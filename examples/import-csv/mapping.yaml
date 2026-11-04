@@ -1,0 +1,28 @@
+# How examples/import-csv/*.csv map onto an EvalGate run.
+# Keys on the left are EvalGate names; values are CSV column names.
+version: 1
+
+manifest:                 # run_id is passed with --run-id (one mapping, two runs)
+  dataset_id: faq-suite
+  dataset_version: v2
+  evaluator_version: judge-v1
+  application: faq-bot
+
+case_id: id
+status: outcome
+status_values:            # the tool's words -> ok / error
+  success: ok
+  timeout: error
+  crashed: error
+error: error_message
+
+scores:
+  quality: judge_score
+metrics:
+  latency_ms: latency
+checks:
+  cites_source: has_citation   # true/false, yes/no, 1/0, pass/fail
+metadata:
+  category: topic
+
+# Unmapped columns (prompt, response) are never imported.

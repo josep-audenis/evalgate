@@ -10,6 +10,7 @@ from typing import Annotated, ParamSpec
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 
 from evalgate._version import __version__
 from evalgate.api import compare as run_compare
@@ -20,6 +21,7 @@ from evalgate.io import (
     write_json_report,
     write_policy_template,
 )
+from evalgate.io.importer import import_results
 from evalgate.reporting.terminal import render, render_diagnostics
 from evalgate.validation import validate_run
 
@@ -114,3 +116,36 @@ def init(
         typer.echo(str(exc), err=True)
         raise typer.Exit(EXIT_INVALID) from exc
     console.print(f"wrote {path}: edit metrics and checks to match your cases.jsonl")
+
+
+@app.command(name="import")
+@_fail_closed
+def import_(
+    source: Path,
+    mapping: Annotated[Path, typer.Option("--mapping", help="Mapping YAML for the source file.")],
+    out: Annotated[Path, typer.Option("--out", help="Run directory to write.")],
+    run_id: Annotated[
+        str | None, typer.Option("--run-id", help="Overrides manifest.run_id in the mapping.")
+    ] = None,
+    overwrite: Annotated[
+        bool, typer.Option("--overwrite", help="Replace an existing run.")
+    ] = False,
+) -> None:
+    """Convert a CSV / JSON / JSONL results file into an EvalGate run directory."""
+    try:
+        summary = import_results(source, mapping, out, run_id=run_id, overwrite=overwrite)
+    except InputError as exc:
+        render_diagnostics(exc.diagnostics, console)
+        console.print("[bold yellow]INVALID[/]: nothing was written")
+        raise typer.Exit(EXIT_INVALID) from exc
+    console.print(
+        f"[bold green]imported[/]: {summary.cases} cases"
+        + (f" x {summary.repeats} repeats" if summary.repeats > 1 else "")
+        + f" -> {escape(str(out))}",
+        highlight=False,
+    )
+    if summary.ignored_fields:
+        console.print(
+            f"[dim]not imported (unmapped): {escape(', '.join(summary.ignored_fields))}[/]",
+            highlight=False,
+        )
