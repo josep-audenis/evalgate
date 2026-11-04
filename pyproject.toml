@@ -1,17 +1,36 @@
 [project]
-name = "evalgate"
-version = "0.0.1"
+name = "evalgate-ai"
+dynamic = ["version"]
 description = "Local-first AI regression testing and release decision engine."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [{ name = "Josep Audenis" }]
+keywords = ["llm", "evaluation", "regression-testing", "release-gate", "ci"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Quality Assurance",
+    "Typing :: Typed",
+]
 dependencies = [
     "typer>=0.12",
     "rich>=13",
     "pydantic>=2.6",
     "pyyaml>=6",
 ]
+
+[project.urls]
+Homepage = "https://github.com/josep-audenis/evalgate"
+Repository = "https://github.com/josep-audenis/evalgate"
+Issues = "https://github.com/josep-audenis/evalgate/issues"
 
 [project.scripts]
 evalgate = "evalgate.cli:app"
@@ -22,6 +41,13 @@ dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.10", "types-pyyaml"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/evalgate/_version.py"
+
+# Distribution is evalgate-ai (PyPI name), but the import package stays `evalgate`.
+[tool.hatch.build.targets.wheel]
+packages = ["src/evalgate"]
 
 [tool.ruff]
 line-length = 100
