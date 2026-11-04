@@ -129,6 +129,7 @@ report.to_html("report.html")
 
 Further rules:
 - Means are computed over cases that ran successfully in both runs.
+- With fewer than 30 such cases, the report warns that differences may be noise. Set `comparison.min_compared_cases` to turn a too-small sample into INVALID.
 - Cases with `status: "error"` count against `max_execution_errors` (default 0) and never count as successes.
 - Every metric declares its direction and at least one threshold.
 - The policy is strict. Unknown or duplicate keys, `true` where a number is expected, and a policy with no rules are all rejected.
@@ -150,7 +151,7 @@ Exit codes make EvalGate a drop-in CI step. See [CI integration](https://github.
 Version 0.1.0 (alpha). EvalGate compares results your pipeline already produced. It does **not** run your application, call LLM judges, or host datasets.
 
 Not yet included:
-- statistical uncertainty (confidence intervals)
+- statistical uncertainty (confidence intervals). Small samples are only flagged
 - repeated-run comparison
 - adapters for other eval frameworks
 
