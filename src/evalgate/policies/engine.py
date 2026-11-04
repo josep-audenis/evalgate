@@ -10,6 +10,38 @@ def _cases(changes: list[CheckChange]) -> str:
     return ", ".join(f"{c.case_id}/{c.check}" for c in changes)
 
 
+def _metric_rule(
+    rule: str,
+    means: str,
+    delta: float,
+    ci: tuple[float, float],
+    limit: float,
+    maximize: bool,
+    unit: str,
+    confidence: float,
+    require_conclusive: bool,
+) -> RuleResult:
+    """Threshold rule on the mean change. Regression is positive when worse, either direction."""
+    # `+ 0.0` turns -0.0 from negating zero into 0.0, so messages never show "-0".
+    regression = (-delta if maximize else delta) + 0.0
+    reg_low, reg_high = (-ci[1] + 0.0, -ci[0] + 0.0) if maximize else ci
+    within = regression <= limit + _EPS
+    # Conclusive: the whole interval lies on one side of the limit.
+    conclusive = reg_high <= limit + _EPS if within else reg_low > limit + _EPS
+    passed = within and (conclusive or not require_conclusive)
+
+    fmt = ".4g" if unit else ".6g"
+    message = (
+        f"{means}, regression {max(0.0, regression):{fmt}}{unit} (max {limit:g}{unit}); "
+        f"{confidence:.0%} CI of regression [{reg_low:{fmt}}{unit}, {reg_high:{fmt}}{unit}]"
+    )
+    if not conclusive:
+        message += " - inconclusive"
+        if within and require_conclusive:
+            message += ": the interval exceeds the limit (statistics.require_conclusive)"
+    return RuleResult(rule=rule, passed=passed, message=message, conclusive=conclusive)
+
+
 def evaluate_policy(
     comparison: Comparison, policy: Policy
 ) -> tuple[list[RuleResult], list[Diagnostic]]:
@@ -29,16 +61,20 @@ def evaluate_policy(
     deltas = {d.name: d for d in comparison.metrics}
     for name, rule in sorted(policy.metrics.items()):
         d = deltas[name]
-        # Positive = worse, whatever the direction.
-        regression = -d.delta_abs if rule.direction == "maximize" else d.delta_abs
+        means = f"{name} mean {d.baseline_mean:.6g} -> {d.candidate_mean:.6g}"
+        maximize = rule.direction == "maximize"
         if rule.max_mean_regression_abs is not None:
-            limit = rule.max_mean_regression_abs
             rules.append(
-                RuleResult(
-                    rule=f"metrics.{name}.max_mean_regression_abs",
-                    passed=regression <= limit + _EPS,
-                    message=f"{name} mean {d.baseline_mean:.6g} -> {d.candidate_mean:.6g}, "
-                    f"regression {max(0.0, regression):.6g} (max {limit:g})",
+                _metric_rule(
+                    f"metrics.{name}.max_mean_regression_abs",
+                    means,
+                    d.delta_abs,
+                    (d.ci.low, d.ci.high),
+                    rule.max_mean_regression_abs,
+                    maximize,
+                    "",
+                    d.ci.confidence,
+                    policy.statistics.require_conclusive,
                 )
             )
         if rule.max_mean_regression_pct is not None:
@@ -59,13 +95,18 @@ def evaluate_policy(
                     )
                 )
                 continue
-            regression_pct = -d.delta_pct if rule.direction == "maximize" else d.delta_pct
+            assert d.ci.pct_low is not None and d.ci.pct_high is not None  # baseline mean != 0
             rules.append(
-                RuleResult(
-                    rule=f"metrics.{name}.max_mean_regression_pct",
-                    passed=regression_pct <= limit + _EPS,
-                    message=f"{name} mean {d.baseline_mean:.6g} -> {d.candidate_mean:.6g}, "
-                    f"regression {max(0.0, regression_pct):.4g}% (max {limit:g}%)",
+                _metric_rule(
+                    f"metrics.{name}.max_mean_regression_pct",
+                    means,
+                    d.delta_pct,
+                    (d.ci.pct_low, d.ci.pct_high),
+                    limit,
+                    maximize,
+                    "%",
+                    d.ci.confidence,
+                    policy.statistics.require_conclusive,
                 )
             )
 

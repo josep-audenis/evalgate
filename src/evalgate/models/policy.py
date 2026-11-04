@@ -39,6 +39,14 @@ class MetricRule(_Strict):
         return self
 
 
+class StatisticsRules(_Strict):
+    # Confidence level of the interval reported for each metric's mean change.
+    confidence: Annotated[float, Field(gt=0, lt=1)] = 0.95
+    # true: a metric rule passes only if the whole interval is within its threshold. This can
+    # only turn a PASS into a FAIL, never the reverse.
+    require_conclusive: bool = False
+
+
 class CheckRules(_Strict):
     required: list[str] = []
     max_new_failures: Annotated[int, Field(ge=0)] | None = None
@@ -49,6 +57,7 @@ class Policy(_Strict):
     comparison: ComparisonRules = ComparisonRules()
     metrics: dict[str, MetricRule] = {}
     checks: CheckRules = CheckRules()
+    statistics: StatisticsRules = StatisticsRules()
     # Candidate cases with `status: error`. Default 0: pipeline failures never pass silently.
     max_execution_errors: Annotated[int, Field(ge=0)] = 0
 
@@ -98,6 +107,11 @@ checks:
   required:              # must pass in every candidate case that ran
     - schema_valid
   max_new_failures: 0    # checks that passed in baseline and fail in candidate
+
+# Uncertainty: each metric change gets a confidence interval in the report.
+statistics:
+  confidence: 0.95
+  require_conclusive: false   # true: a rule passes only if its whole CI is within the limit
 
 # Candidate cases with status "error" (pipeline failures) allowed.
 max_execution_errors: 0

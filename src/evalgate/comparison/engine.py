@@ -3,16 +3,22 @@
 from collections import defaultdict
 from statistics import fmean
 
+from evalgate.comparison.stats import mean_diff_ci
 from evalgate.models import (
     CaseDelta,
     CaseResult,
     CategoryDelta,
     CheckChange,
     Comparison,
+    ConfidenceInterval,
     MetricDelta,
     MetricRule,
     Run,
 )
+
+
+def _pct(x: float, base_mean: float) -> float | None:
+    return x / abs(base_mean) * 100 if base_mean != 0 else None
 
 
 def _worse(delta: float, rule: MetricRule) -> bool:
@@ -26,7 +32,9 @@ def _value(case: CaseResult, rule: MetricRule) -> float:
     return value
 
 
-def compare(baseline: Run, candidate: Run, metrics: dict[str, MetricRule]) -> Comparison:
+def compare(
+    baseline: Run, candidate: Run, metrics: dict[str, MetricRule], confidence: float = 0.95
+) -> Comparison:
     """Compare matched cases. Means and deltas use only cases `ok` in both runs."""
     base = {c.case_id: c for c in baseline.cases}
     cand = {c.case_id: c for c in candidate.cases}
@@ -42,6 +50,7 @@ def compare(baseline: Run, candidate: Run, metrics: dict[str, MetricRule]) -> Co
         base_mean = fmean(b for b, _ in values)
         cand_mean = fmean(c for _, c in values)
         delta = cand_mean - base_mean
+        low, high, method, resamples = mean_diff_ci([c - b for b, c in values], confidence)
         metric_deltas.append(
             MetricDelta(
                 name=name,
@@ -51,7 +60,16 @@ def compare(baseline: Run, candidate: Run, metrics: dict[str, MetricRule]) -> Co
                 baseline_mean=base_mean,
                 candidate_mean=cand_mean,
                 delta_abs=delta,
-                delta_pct=delta / abs(base_mean) * 100 if base_mean != 0 else None,
+                delta_pct=_pct(delta, base_mean),
+                ci=ConfidenceInterval(
+                    confidence=confidence,
+                    low=low,
+                    high=high,
+                    pct_low=_pct(low, base_mean),
+                    pct_high=_pct(high, base_mean),
+                    method=method,
+                    resamples=resamples,
+                ),
             )
         )
         for (b_case, _), (b, c) in zip(pairs, values, strict=True):

@@ -16,6 +16,12 @@ def _has_errors(diagnostics: list[Diagnostic]) -> bool:
 def _all_finite(c: Comparison) -> bool:
     values = [x for m in c.metrics for x in (m.baseline_mean, m.candidate_mean, m.delta_abs)]
     values += [m.delta_pct for m in c.metrics if m.delta_pct is not None]
+    values += [
+        x
+        for m in c.metrics
+        for x in (m.ci.low, m.ci.high, m.ci.pct_low, m.ci.pct_high)
+        if x is not None
+    ]
     values += [d.delta_abs for d in (*c.regressed_cases, *c.improved_cases)]
     values += [x for g in c.categories for x in (g.baseline_mean, g.candidate_mean, g.delta_abs)]
     return all(math.isfinite(x) for x in values)
@@ -38,7 +44,7 @@ def evaluate(baseline: Run, candidate: Run, policy: Policy) -> Report:
         return invalid_report(diagnostics, **identity)
 
     try:
-        comparison = compare(baseline, candidate, policy.metrics)
+        comparison = compare(baseline, candidate, policy.metrics, policy.statistics.confidence)
     except OverflowError:
         comparison = None
     if comparison is None or not _all_finite(comparison):
