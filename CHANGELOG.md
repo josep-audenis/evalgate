@@ -2,7 +2,7 @@
 
 All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change behaviour; anything that does is listed under **Changed**.
 
-## Unreleased
+## 0.4.0
 
 Per-category limits, documented statistics (SPEC Phase 4 complete) and a promptfoo adapter. Policies without category limits get the same decisions as in 0.3.0.
 
@@ -17,6 +17,11 @@ Per-category limits, documented statistics (SPEC Phase 4 complete) and a promptf
   - Case ids come from the test description by default (`--case-id vars.<name>` / `metadata.<name>`); missing or duplicate ids are errors. Files with several providers or prompts need `--provider` (label, then id) / `--prompt` (prompt id or prefix); prompt text is never shown.
   - Provider and grader errors become `status: error` cases with a fixed message; an unknown `failureReason` is rejected. Prompts, outputs and error messages are never copied, and vars only when chosen as the case id.
 - **[docs/statistics.md](docs/statistics.md):** methods, assumptions and limits of the intervals, McNemar test, category limits and sample-size checks.
+
+### Changed
+
+- **JSON report:** the echoed policy shows the new `max_category_regression_abs` / `_pct` fields of each metric (as `null` when unset), and `comparison.categories[]` has the new `delta_pct` and `ci` fields. Both are additions; nothing was removed or renamed.
+- **`evalgate import`:** `--mapping` is no longer a required option, since `--from promptfoo` replaces it. Passing neither still exits 2, now with an `INVALID` message naming both options.
 
 ## 0.3.0
 
