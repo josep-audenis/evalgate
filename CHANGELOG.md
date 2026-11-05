@@ -2,7 +2,7 @@
 
 All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change behaviour; anything that does is listed under **Changed**.
 
-## Unreleased
+## 0.5.0
 
 DeepEval adapter: with promptfoo, two external result formats now import without rewriting records (SPEC Phase 5 acceptance).
 
@@ -15,7 +15,7 @@ DeepEval adapter: with promptfoo, two external result formats now import without
 
 ### Changed
 
-- **`evalgate import --case-id`** has no fixed default in the CLI any more: each adapter applies its own (`description` for promptfoo, `name` for DeepEval). Behaviour for promptfoo is unchanged.
+- **`evalgate import --case-id`** has no fixed default in the CLI any more: each adapter applies its own (`description` for promptfoo, `name` for DeepEval). Behaviour for promptfoo is unchanged. `--case-id` together with `--mapping`, which 0.4.0 silently ignored, is now rejected (exit 2), like the other adapter-only options. An empty `--case-id ""` is an error instead of meaning the default.
 
 ## 0.4.0
 
