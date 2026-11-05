@@ -89,7 +89,7 @@ def test_conversational_test_cases(tmp_path: Path) -> None:
 def test_default_names_rejected_metadata_case_id_works(tmp_path: Path) -> None:
     data = fixture("baseline")
     case(data, "maybe refund")["name"] = "test_case_3"
-    with pytest.raises(InputError, match="position-based test_case_<n>"):
+    with pytest.raises(InputError, match="position-based default"):
         import_deepeval(write(tmp_path, data), tmp_path / "x", **MANIFEST)
     for n, c in enumerate(data["testCases"]):
         c["metadata"] = {"ticket": 10 + n}
@@ -168,3 +168,64 @@ def test_cli_from_deepeval(tmp_path: Path) -> None:
     assert result.exit_code == 2 and "only apply with --from promptfoo" in result.output
     result = runner.invoke(app, [*base, "--from", "deepeval", "--overwrite", *flags[:2]])
     assert result.exit_code == 2 and "--from deepeval needs" in result.output
+
+
+# Review findings (PR #18): real files from deepeval 4.3.3.
+
+
+@pytest.mark.parametrize(
+    ("name", "default"),
+    [
+        ("unnamed_conversational", "conversational_test_case_0"),  # evaluate(), no name
+        ("pytest_parametrize", "test_bot[test_case0]"),  # deepeval test run + parametrize
+    ],
+)
+def test_position_based_default_names_rejected(tmp_path: Path, name: str, default: str) -> None:
+    assert default in (FIXTURES / f"{name}.json").read_text(encoding="utf-8")
+    with pytest.raises(InputError, match="position-based default"):
+        import_deepeval(FIXTURES / f"{name}.json", tmp_path / "x", **MANIFEST)
+
+
+@pytest.mark.parametrize("name", ["test_case_10", "conversational_test_case_2", "t[test_case3]"])
+def test_default_name_patterns(tmp_path: Path, name: str) -> None:
+    data = fixture("baseline")
+    case(data, "greeting")["name"] = name
+    with pytest.raises(InputError, match="position-based default"):
+        import_deepeval(write(tmp_path, data), tmp_path / "x", **MANIFEST)
+
+
+def test_metric_that_raised_under_deepeval_test_run_is_an_error(tmp_path: Path) -> None:
+    # `deepeval test run` records a raising metric as success false with no score, no error.
+    import_deepeval(FIXTURES / "test_run_error.json", tmp_path / "run", **MANIFEST)
+    cases = {c.case_id: c for c in load_run(tmp_path / "run").cases}
+    assert cases["BOOM"].status == "error"
+    assert cases["ok"].status == "ok" and cases["ok"].checks == {"K": True, "pass": True}
+
+
+def test_flaky_metric_gives_score_but_no_check(tmp_path: Path) -> None:
+    data = fixture("baseline")
+    case(data, "greeting")["metricsData"][0]["flaky"] = True
+    import_deepeval(write(tmp_path, data), tmp_path / "run", **MANIFEST)
+    got = next(c for c in load_run(tmp_path / "run").cases if c.case_id == "greeting")
+    assert KEYWORD in got.scores and KEYWORD not in got.checks
+
+
+def test_thresholded_metric_without_success_rejected(tmp_path: Path) -> None:
+    data = fixture("baseline")
+    del case(data, "greeting")["metricsData"][0]["success"]
+    with pytest.raises(InputError, match="success must be true/false"):
+        import_deepeval(write(tmp_path, data), tmp_path / "x", **MANIFEST)
+
+
+def test_cli_case_id_metadata_and_empty(tmp_path: Path) -> None:
+    data = fixture("baseline")
+    for n, c in enumerate(data["testCases"]):
+        c["metadata"] = {"row": n}
+    src = write(tmp_path, data)
+    flags = ["--dataset", "d", "--dataset-version", "1", "--evaluator-version", "e"]
+    runner = CliRunner()
+    base = ["import", str(src), "--from", "deepeval", *flags]
+    ok = runner.invoke(app, [*base, "--out", str(tmp_path / "a"), "--case-id", "metadata.row"])
+    assert ok.exit_code == 0, ok.output
+    empty = runner.invoke(app, [*base, "--out", str(tmp_path / "b"), "--case-id", ""])
+    assert empty.exit_code == 2  # an empty --case-id is an error, never the default

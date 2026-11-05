@@ -1,0 +1,70 @@
+{
+  "testCases": [],
+  "conversationalTestCases": [
+    {
+      "name": "conversational_test_case_0",
+      "success": true,
+      "metricsData": [
+        {
+          "name": "Turns",
+          "threshold": 0.5,
+          "success": true,
+          "score": 0.7,
+          "strictMode": false,
+          "flaky": false
+        }
+      ],
+      "runDuration": 0.002107800217345357,
+      "turns": [
+        {
+          "role": "user",
+          "content": "secret hi",
+          "order": 0
+        }
+      ],
+      "order": 0,
+      "flaky": false
+    },
+    {
+      "name": "conversational_test_case_1",
+      "success": true,
+      "metricsData": [
+        {
+          "name": "Turns",
+          "threshold": 0.5,
+          "success": true,
+          "score": 0.7,
+          "strictMode": false,
+          "flaky": false
+        }
+      ],
+      "runDuration": 0.0017640001606196165,
+      "turns": [
+        {
+          "role": "user",
+          "content": "secret yo",
+          "order": 0
+        }
+      ],
+      "order": 1,
+      "flaky": false
+    }
+  ],
+  "metricsScores": [
+    {
+      "metric": "Turns",
+      "scores": [
+        0.7,
+        0.7
+      ],
+      "passes": 2,
+      "fails": 0,
+      "errors": 0
+    }
+  ],
+  "prompts": [],
+  "testPassed": 2,
+  "testFailed": 0,
+  "runDuration": 0.01799409999512136,
+  "official": false
+}

@@ -1,0 +1,58 @@
+{
+  "testFile": "test_err.py",
+  "testCases": [
+    {
+      "name": "ok",
+      "input": "ok",
+      "actualOutput": "a",
+      "flaky": false,
+      "success": true,
+      "metricsData": [
+        {
+          "name": "K",
+          "threshold": 0.5,
+          "success": true,
+          "score": 0.8,
+          "strictMode": false,
+          "flaky": false
+        }
+      ],
+      "runDuration": 0.0,
+      "order": 0
+    },
+    {
+      "name": "BOOM",
+      "input": "BOOM",
+      "actualOutput": "a",
+      "flaky": false,
+      "success": false,
+      "metricsData": [
+        {
+          "name": "K",
+          "threshold": 0.5,
+          "success": false,
+          "strictMode": false,
+          "flaky": false
+        }
+      ],
+      "runDuration": 0,
+      "order": 1
+    }
+  ],
+  "conversationalTestCases": [],
+  "metricsScores": [
+    {
+      "metric": "K",
+      "scores": [
+        0.8
+      ],
+      "passes": 1,
+      "fails": 0,
+      "errors": 1
+    }
+  ],
+  "testPassed": 1,
+  "testFailed": 1,
+  "runDuration": 1.5798818999901414,
+  "official": false
+}

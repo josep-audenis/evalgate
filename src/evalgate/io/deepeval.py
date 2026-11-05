@@ -5,8 +5,8 @@ Reads the JSON DeepEval writes with `DisplayConfig(results_folder=...)` /
 (checked against deepeval 4.3). Each test case (single-turn or conversational) becomes a case:
 
 - case_id: the test case `name`, or `metadata.<key>`. DeepEval's default names
-  (`test_case_<n>`, from the position) are rejected: they change when cases are added or moved.
-- status: `error` when any metric errored (its message is not copied)
+  (`test_case_<n>` and similar, from the position) are rejected: they change when cases move.
+- status: `error` when any metric errored (`error` set, or a threshold without a score)
 - scores: each metric's score, under the metric name
 - checks: `pass` (the test case passed) and, per metric with a threshold, whether it passed
 - metrics: `latency_ms` (from `completionTime`), `cost` (`tokenCost`), `tokens`
@@ -26,7 +26,9 @@ from evalgate.io.promptfoo import _fail, _number, _scalars
 from evalgate.io.reader import InputError, _error, _parse, _read_text
 from evalgate.models.mapping import ImportManifest
 
-_DEFAULT_NAME = re.compile(r"test_case_\d+")
+# Position-based names DeepEval assigns to unnamed test cases: `test_case_<n>`,
+# `conversational_test_case_<n>`, and pytest's parametrize ids under `deepeval test run`.
+_DEFAULT_NAME = re.compile(r"(conversational_)?test_case_\d+|.*\[test_case\d+\]")
 
 
 def _test_run(source: Path) -> dict[str, Any]:
@@ -64,8 +66,9 @@ def _convert(case: dict[str, Any], field: str) -> dict[str, Any]:
     case_id = _case_id(case, field)
     if case_id is None:
         problems.append(
-            f"no usable case id in {field} (give each test case a name of its own, not "
-            "DeepEval's position-based test_case_<n>, or use --case-id metadata.<key>)"
+            f"no usable case id in {field} (give each test case a name of its own, not a "
+            "position-based default like test_case_<n> or test_x[test_case0], "
+            "or use --case-id metadata.<key>)"
         )
     out: dict[str, Any] = {"case_id": case_id, "metadata": _scalars(case.get("metadata") or {})}
 
@@ -83,7 +86,12 @@ def _convert(case: dict[str, Any], field: str) -> dict[str, Any]:
     if clash:
         problems.append("a metric is called 'pass', which clashes with the overall check")
 
-    if any(m.get("error") for m in metrics_data):
+    # Errored: `error` set (ignore_errors), or a thresholded metric without a score, which is
+    # how `deepeval test run` records a metric that raised.
+    if any(
+        m.get("error") or (m.get("threshold") is not None and "score" not in m)
+        for m in metrics_data
+    ):
         # Fixed text: DeepEval error messages can quote inputs, outputs or local paths.
         out |= {"status": "error", "error": "deepeval metric error; details not imported"}
     else:
@@ -96,10 +104,11 @@ def _convert(case: dict[str, Any], field: str) -> dict[str, Any]:
                     problems.append(f"{name}: score must be a finite number, got {m['score']!r}")
                 else:
                     scores[name] = score
-            if m.get("threshold") is not None and "success" in m:
-                if not isinstance(m["success"], bool):
-                    problems.append(f"{name}: success must be true/false")
-                checks[name] = m["success"] is True
+            # Flaky metrics don't decide DeepEval's pass/fail either: score only.
+            if m.get("threshold") is not None and not m.get("flaky"):
+                if not isinstance(m.get("success"), bool):
+                    problems.append(f"{name}: success must be true/false, got {m.get('success')!r}")
+                checks[name] = m.get("success") is True
         if "success" in case:
             if not isinstance(case["success"], bool):
                 problems.append(f"success must be true/false, got {case['success']!r}")

@@ -1,0 +1,61 @@
+{
+  "testFile": "test_param.py",
+  "testCases": [
+    {
+      "name": "test_bot[test_case0]",
+      "input": "q1",
+      "actualOutput": "a1",
+      "flaky": false,
+      "success": true,
+      "metricsData": [
+        {
+          "name": "K",
+          "threshold": 0.5,
+          "success": true,
+          "score": 0.8,
+          "strictMode": false,
+          "flaky": false
+        }
+      ],
+      "runDuration": 0.0,
+      "order": 0
+    },
+    {
+      "name": "test_bot[test_case1]",
+      "input": "q2",
+      "actualOutput": "a2",
+      "flaky": false,
+      "success": true,
+      "metricsData": [
+        {
+          "name": "K",
+          "threshold": 0.5,
+          "success": true,
+          "score": 0.8,
+          "strictMode": false,
+          "flaky": false
+        }
+      ],
+      "runDuration": 0,
+      "order": 1
+    }
+  ],
+  "conversationalTestCases": [],
+  "metricsScores": [
+    {
+      "metric": "K",
+      "scores": [
+        0.8,
+        0.8
+      ],
+      "passes": 2,
+      "fails": 0,
+      "errors": 0
+    }
+  ],
+  "identifier": "nightly-7",
+  "testPassed": 2,
+  "testFailed": 0,
+  "runDuration": 0.9162701999302953,
+  "official": false
+}

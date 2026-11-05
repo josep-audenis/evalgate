@@ -11,7 +11,7 @@ from deepeval.evaluate.configs import DisplayConfig
 evaluate(test_cases, metrics, display_config=DisplayConfig(results_folder="deepeval-results"))
 ```
 
-For `deepeval test run`, set `DEEPEVAL_RESULTS_FOLDER=deepeval-results` instead. Each run writes `deepeval-results/test_run_<timestamp>.json`. Import that file. `.deepeval/.latest_run_full.json` also works. `.deepeval/.latest_test_run.json` doesn't, since after a Confident AI upload it only holds a link.
+For `deepeval test run`, set `DEEPEVAL_RESULTS_FOLDER=deepeval-results` instead. Each run writes `deepeval-results/test_run_<timestamp>.json`. Import that file. `.deepeval/.latest_run_full.json` also works. `.deepeval/.latest_test_run.json` works only when you're not logged in to Confident AI; after an upload it holds just a link. With `DEEPEVAL_LOCAL_STORE=sqlite`, DeepEval writes no JSON file at all, so there is nothing to import.
 
 ```bash
 evalgate import deepeval-results/test_run_20261105_101500.json --from deepeval \
@@ -40,9 +40,9 @@ Each test case becomes one case. Single-turn (`testCases`) and conversational (`
 | EvalGate | From DeepEval |
 |---|---|
 | `case_id` | the test case `name` (or `--case-id metadata.<key>`, below) |
-| `status: error` | any metric of the test case errored (its `error` is set, as with `ignore_errors`). The error text is replaced with a fixed message, since it can quote inputs, outputs or local paths. |
+| `status: error` | any metric of the test case errored: its `error` is set (with `ignore_errors`), or it has a threshold but no score (how `deepeval test run` records a metric that raised). The error text is replaced with a fixed message, since it can quote inputs, outputs or local paths. |
 | `scores.<metric>` | each metric's `score`, under the metric's name |
-| `checks.<metric>` | whether the metric passed, for metrics with a threshold |
+| `checks.<metric>` | whether the metric passed, for metrics with a threshold. Flaky metrics get a score but no check, since they don't decide DeepEval's pass/fail either. |
 | `checks.pass` | whether the test case passed (DeepEval's `success`) |
 | `metrics.latency_ms` | `completionTime` × 1000, if you set `completion_time` on the test case |
 | `metrics.cost`, `metrics.tokens` | `tokenCost`; `inputTokenCount` + `outputTokenCount`. Only when present. Negative values are rejected. |
@@ -66,11 +66,13 @@ checks:
 
 Metric names that contain a dot are rejected, since a policy path couldn't name them.
 
+Metrics skipped by `skip_on_missing_params` are left out of DeepEval's file altogether. If a policy uses such a metric, the comparison is INVALID (`metric_missing` or `check_missing`) rather than decided on the cases that happen to have it.
+
 ## Case identity
 
 EvalGate matches baseline and candidate cases by `case_id`, so it has to be stable and unique. The default is the test case `name`. Give every test case a name of its own: `LLMTestCase(name="refund policy", ...)`.
 
-If you don't, DeepEval names test cases `test_case_0`, `test_case_1`, … by position. Those names change when cases are added, removed or reordered, which would silently compare the wrong cases, so the import rejects them. Use `--case-id metadata.<key>` to take the id from a metadata field instead, for example a ticket or dataset row id.
+If you don't, DeepEval names test cases by position: `test_case_0`, `conversational_test_case_0`, and under `deepeval test run` with `@pytest.mark.parametrize("test_case", ...)`, pytest ids like `test_bot[test_case0]`. Those names change when cases are added, removed or reordered, which would silently compare the wrong cases, so the import rejects them. Set `name=` on each test case, pass `ids=` to `parametrize`, or use `--case-id metadata.<key>` to take the id from a metadata field, for example a ticket or dataset row id.
 
 ## Fail closed
 

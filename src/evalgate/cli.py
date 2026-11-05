@@ -173,7 +173,7 @@ def import_(
     --from deepeval, with --dataset, --dataset-version and --evaluator-version.
     """
     adapter_only = {
-        "--case-id": case_id,
+        "--case-id": case_id is not None,
         "--provider": provider,
         "--prompt": prompt,
     }
@@ -210,7 +210,7 @@ def import_(
                 dataset_version=dataset_version,
                 evaluator_version=evaluator_version,
                 run_id=run_id,
-                case_id=case_id or "description",
+                case_id="description" if case_id is None else case_id,
                 provider=provider,
                 prompt=prompt,
                 overwrite=overwrite,
@@ -224,7 +224,7 @@ def import_(
                 dataset_version=dataset_version,
                 evaluator_version=evaluator_version,
                 run_id=run_id,
-                case_id=case_id or "name",
+                case_id="name" if case_id is None else case_id,
                 overwrite=overwrite,
             )
         else:
