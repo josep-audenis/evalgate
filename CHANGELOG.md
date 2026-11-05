@@ -2,6 +2,33 @@
 
 All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change behaviour; anything that does is listed under **Changed**.
 
+## 0.3.0
+
+Repeated runs and importing (SPEC Phase 4 completion, Phase 5 start). Runs without repeats get the same decisions as in 0.2.0.
+
+### Added
+
+- **Repeated runs.** Evaluate each case several times per version, so run-to-run noise in nondeterministic systems is measured instead of mistaken for change.
+  - **Format:** add `"repeat": 0..k-1` to each line of `cases.jsonl`, use `"schema_version": "1.1"`, and optionally declare `"repeats": k` in `run.json`.
+  - **Combining:** each case's repeats are combined into one case. Metrics are averaged, a check passes only if it passes in every repeat, and any errored repeat makes the case an error.
+  - **Analysis:** means, intervals, rules, McNemar and sample-size checks then count **cases, never repeats** (SPEC §9.2).
+  - **Fail closed:** missing, duplicated or mixed repeats, and repeats of a case that report different fields, are INVALID (`repeat_incomplete`, `duplicate_case_id`, `repeat_mixed`, `repeat_inconsistent`, `repeat_schema`). A `repeat_metadata` warning flags repeats with different metadata.
+  - **Report:** `comparison.repeats` gives k per run, per-check pass rates and each metric's within-case SD (the noise level). The terminal and HTML show them.
+  - **SDK:** `EvalRun(..., repeats=k)` with `record(..., repeat=i)` and `record_error(..., repeat=i)`.
+  - Design: [docs/design/repeated-runs.md](docs/design/repeated-runs.md).
+- **Generic importer.** `evalgate import SOURCE --mapping mapping.yaml --out DIR [--run-id ID] [--overwrite]` (also `evalgate.import_results`) converts CSV, JSON or JSONL results from other tools into a run directory, using a strict mapping file.
+  - **Fail closed:** values must be valid numbers or explicit true/false; rows must match the CSV header; duplicate columns or keys and mapped fields absent from every record are errors. Every bad record is reported, and no run files are written unless all records convert.
+  - **Privacy:** only mapped fields are imported, so unmapped prompts and outputs are never copied.
+  - Docs: [docs/importing.md](docs/importing.md).
+- **New examples:** `examples/repeats` (a flaky safety check behind an unchanged average) and `examples/import-csv`.
+
+### Changed
+
+- **`repeat` (on a case) and `repeats` (in `run.json`) are now reserved names.** A 0.2.0 run file that used them as custom metadata is now rejected or INVALID, never misread.
+- **A failed or interrupted `EvalRun`** (including a failed import) now deletes its `.cases.jsonl.partial` file. Any previous run in that directory is still left untouched.
+
+The JSON report is still `report_version: "1"`, because `comparison.repeats` is an added field.
+
 ## 0.2.0
 
 Statistics release (SPEC Phase 4). The new statistical rules are opt-in, and they can only make a decision stricter, never looser. Existing 0.1.0 policies are still accepted. With them, decisions are the same as in 0.1.0, with one fail-closed exception listed under **Changed**.

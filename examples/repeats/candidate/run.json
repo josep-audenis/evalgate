@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.1",
+  "run_id": "chat-v6",
+  "application": "support-chat",
+  "application_version": "v6.0.0-rc1",
+  "dataset_id": "support-suite",
+  "dataset_version": "v4",
+  "evaluator_version": "judge-v2",
+  "repeats": 3
+}
