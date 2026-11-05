@@ -14,8 +14,8 @@ Per-category limits, documented statistics (SPEC Phase 4 complete) and a promptf
 - **Category intervals.** `comparison.categories[]` gains `delta_pct` and `ci` (same shape as `metrics[].ci`). The HTML report shows the interval.
 - **promptfoo adapter.** `evalgate import results.json --from promptfoo --out DIR --dataset ... --dataset-version ... --evaluator-version ...` (also `evalgate.import_promptfoo`) imports a `promptfoo eval -o` file (results format version 3) without a mapping. See [docs/promptfoo.md](docs/promptfoo.md).
   - Overall score and named metrics become scores; test pass and per-metric assertion results become checks; latency, cost and tokens become metrics (left out for cached responses); test metadata is kept; `--repeat` runs become repeated runs.
-  - Case ids come from the test description by default (`--case-id vars.<name>` / `metadata.<name>`); missing or duplicate ids are errors. Files with several providers or prompts need `--provider` / `--prompt`.
-  - Provider and grader errors become `status: error` cases, keeping only the first line of the message. Prompts, vars and outputs are never copied.
+  - Case ids come from the test description by default (`--case-id vars.<name>` / `metadata.<name>`); missing or duplicate ids are errors. Files with several providers or prompts need `--provider` (label, then id) / `--prompt` (prompt id or prefix); prompt text is never shown.
+  - Provider and grader errors become `status: error` cases with a fixed message; an unknown `failureReason` is rejected. Prompts, outputs and error messages are never copied, and vars only when chosen as the case id.
 - **[docs/statistics.md](docs/statistics.md):** methods, assumptions and limits of the intervals, McNemar test, category limits and sample-size checks.
 
 ## 0.3.0

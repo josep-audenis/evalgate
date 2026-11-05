@@ -51,8 +51,9 @@ def test_plain_results_map_to_cases(tmp_path: Path) -> None:
     greeting = cases["greeting"]  # assertion failure: an ok case with failing checks
     assert greeting.status == "ok" and greeting.checks["pass"] is False
     assert greeting.checks["mentions_refund"] is False
-    crash = cases["crash"]  # provider error: status error, first line only (no stack trace)
-    assert (crash.status, crash.error) == ("error", "Error: provider exploded")
+    crash = cases["crash"]  # provider error; its message (with a stack trace) is not copied
+    assert crash.status == "error" and crash.error is not None
+    assert "exploded" not in crash.error
 
 
 def test_prompts_vars_and_outputs_are_never_copied(tmp_path: Path) -> None:
@@ -90,7 +91,7 @@ def test_end_to_end_compare_catches_a_new_failure(tmp_path: Path) -> None:
 
 
 def test_several_providers_need_a_choice(tmp_path: Path) -> None:
-    with pytest.raises(InputError, match="model-a.*model-b") as exc:
+    with pytest.raises(InputError, match="model-b.*model-a") as exc:
         import_promptfoo(FIXTURES / "multi.json", tmp_path / "x", **MANIFEST)
     assert codes(exc) == ["import_select"]
     assert not (tmp_path / "x").exists()
@@ -194,3 +195,107 @@ def test_cli_from_promptfoo(tmp_path: Path) -> None:
     ):
         result = runner.invoke(app, [*base, "--overwrite", *args])
         assert result.exit_code == 2 and message in result.output.replace("\n", " "), args
+
+
+# Review findings (PR #16).
+
+
+@pytest.mark.parametrize("reason", [None, 3, "2", True])
+def test_unknown_failure_reason_rejected_not_guessed(tmp_path: Path, reason: Any) -> None:
+    data = fixture("plain")
+    crash = next(r for r in rows(data) if r["failureReason"] == 2)
+    if reason is None:
+        del crash["failureReason"]
+    else:
+        crash["failureReason"] = reason
+    with pytest.raises(InputError, match="failureReason must be 0, 1 or 2"):
+        import_promptfoo(write(tmp_path, data), tmp_path / "x", **MANIFEST)
+
+
+def test_error_messages_never_copied(tmp_path: Path) -> None:
+    data = fixture("plain")
+    crash = next(r for r in rows(data) if r["failureReason"] == 2)
+    crash["error"] = "API said no for prompt: Answer: secret at C:/Users/me/keys.txt"
+    refund = next(r for r in rows(data) if r["testCase"]["description"] == "refund policy")
+    refund["gradingResult"]["metadata"] = {"graderError": True}
+    refund["error"] = "grader down at /home/me/.env"
+    import_promptfoo(write(tmp_path, data), tmp_path / "run", **MANIFEST)
+    text = (tmp_path / "run" / "cases.jsonl").read_text(encoding="utf-8")
+    assert "secret" not in text and "keys.txt" not in text and ".env" not in text
+    assert "promptfoo grader error" in text
+
+
+def test_selection_messages_hide_prompt_text_and_resolve_ambiguity(tmp_path: Path) -> None:
+    data = fixture("multi")
+    a, b = rows(data)  # a: id flaky-echo label model-a; b: id echo label model-b
+    b["provider"]["label"] = "flaky-echo"  # b's label is a's id
+    for r in (a, b):
+        r["prompt"]["label"] = "p.txt: SECRET SYSTEM PROMPT {{q}}"
+    src = write(tmp_path, data)
+    with pytest.raises(InputError) as exc:
+        import_promptfoo(src, tmp_path / "x", **MANIFEST)
+    assert "SECRET" not in exc.value.diagnostics[0].message
+    # Label wins: "flaky-echo" picks b (labelled so), "model-a" picks a.
+    import_promptfoo(src, tmp_path / "b", **MANIFEST, provider="flaky-echo")
+    assert load_run(tmp_path / "b").cases[0].metrics["cost"] == 0.0
+    import_promptfoo(src, tmp_path / "a", **MANIFEST, provider="model-a")
+    assert load_run(tmp_path / "a").cases[0].metrics["cost"] == 0.001
+
+
+def test_same_label_providers_picked_by_id(tmp_path: Path) -> None:
+    data = fixture("multi")
+    for r in rows(data):
+        r["provider"]["label"] = "m"
+    src = write(tmp_path, data)
+    with pytest.raises(InputError) as exc:
+        import_promptfoo(src, tmp_path / "x", **MANIFEST, provider="m")
+    assert codes(exc) == ["import_select"]
+    import_promptfoo(src, tmp_path / "e", **MANIFEST, provider="echo")
+    assert load_run(tmp_path / "e").cases[0].metrics["cost"] == 0.0
+
+
+def test_prompt_selected_by_id_prefix(tmp_path: Path) -> None:
+    data = fixture("multi")
+    a, b = rows(data)
+    b["provider"] = dict(a["provider"])
+    b["promptId"] = "f" * 64
+    src = write(tmp_path, data)
+    with pytest.raises(InputError, match="several provider/prompt"):
+        import_promptfoo(src, tmp_path / "x", **MANIFEST)
+    import_promptfoo(src, tmp_path / "p", **MANIFEST, prompt="ffffffff")
+    assert load_run(tmp_path / "p").cases[0].metrics["cost"] == 0.0
+    with pytest.raises(InputError, match="nothing matches"):  # too short to be a prefix
+        import_promptfoo(src, tmp_path / "q", **MANIFEST, prompt="fff")
+
+
+def test_metadata_case_id_int_ids_and_non_finite_metadata(tmp_path: Path) -> None:
+    data = fixture("plain")
+    for n, r in enumerate(rows(data)):
+        r["testCase"]["metadata"] |= {"ticket": 100 + n, "weight": float("nan")}
+    import_promptfoo(write(tmp_path, data), tmp_path / "run", **MANIFEST, case_id="metadata.ticket")
+    cases = load_run(tmp_path / "run").cases
+    assert sorted(c.case_id for c in cases) == ["100", "101", "102"]
+    assert all("weight" not in c.metadata for c in cases)
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda r: r.update(provider="echo"),
+        lambda r: r["testCase"].update(metadata=["x"]),
+        lambda r: r.update(namedScores=[1]),
+        lambda r: r["gradingResult"].update(componentResults=["x"]),
+    ],
+)
+def test_malformed_rows_are_input_errors(tmp_path: Path, mutate: Any) -> None:
+    data = fixture("plain")
+    mutate(next(r for r in rows(data) if r["testCase"]["description"] == "refund policy"))
+    with pytest.raises(InputError):
+        import_promptfoo(write(tmp_path, data), tmp_path / "x", **MANIFEST)
+
+
+def test_negative_latency_rejected(tmp_path: Path) -> None:
+    data = fixture("plain")
+    next(r for r in rows(data) if r["failureReason"] != 2)["latencyMs"] = -5
+    with pytest.raises(InputError, match="must not be negative: latency_ms"):
+        import_promptfoo(write(tmp_path, data), tmp_path / "x", **MANIFEST)

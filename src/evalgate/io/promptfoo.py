@@ -4,13 +4,15 @@ Supports promptfoo's results format version 3 (checked against promptfoo 0.125).
 result row becomes one case (or one repeat of a case with `--repeat`):
 
 - case_id: `testCase.description` by default, or `vars.<name>` / `metadata.<name>`
-- status: `error` when promptfoo reports an error (failureReason 2) or its grader failed
+- status: `error` when promptfoo reports an error (failureReason 2) or its grader failed;
+  the message is not copied (it can hold the prompt, response or local paths)
 - scores: `score` (promptfoo's overall score) and every named metric (`namedScores`)
 - checks: `pass` (the test passed) and, per named metric, whether all its assertions passed
 - metrics: `latency_ms`, `cost`, `tokens` (left out for cached responses)
 - metadata: scalar values of `testCase.metadata` (so `category` works with category limits)
 
-Prompts, vars and outputs are never copied. Fail closed: anything ambiguous is an error.
+Prompts, outputs and error messages are never copied; vars only if chosen as the case id.
+Fail closed: anything ambiguous is an error.
 """
 
 import json
@@ -24,7 +26,8 @@ from evalgate.io.reader import InputError, _error, _parse, _read_text
 from evalgate.models import Diagnostic
 from evalgate.models.mapping import ImportManifest
 
-_ERROR = 2  # promptfoo ResultFailureReason.ERROR
+_ERROR = 2  # promptfoo ResultFailureReason: NONE 0, ASSERT 1, ERROR 2
+_REASONS = (0, 1, 2)
 
 
 def _fail(code: str, message: str) -> InputError:
@@ -54,37 +57,47 @@ def _summary(source: Path) -> tuple[dict[str, Any], str | None]:
     return data, eval_id if isinstance(eval_id, str) and eval_id else None
 
 
-def _target(row: dict[str, Any]) -> tuple[str, str]:
-    provider = row.get("provider") or {}
-    prompt = row.get("prompt") or {}
-    return (
-        str(provider.get("label") or provider.get("id") or "?"),
-        str(prompt.get("label") or row.get("promptId") or "?"),
-    )
+def _provider(row: dict[str, Any]) -> tuple[str, str]:
+    p = row["provider"]
+    return str(p.get("id") or ""), str(p.get("label") or "")
+
+
+def _prompt_id(row: dict[str, Any]) -> str:
+    return str(row.get("promptId") or "")
 
 
 def _select(
     source: Path, rows: list[dict[str, Any]], provider: str | None, prompt: str | None
 ) -> list[dict[str, Any]]:
     """Keep one provider x prompt: an EvalGate run is one version of one system."""
-
-    def matches(row: dict[str, Any]) -> bool:
-        p, q = row.get("provider") or {}, row.get("prompt") or {}
-        return (provider is None or provider in (p.get("label"), p.get("id"))) and (
-            prompt is None or prompt in (q.get("label"), row.get("promptId"))
-        )
-
-    kept = [r for r in rows if matches(r)]
-    targets = sorted({_target(r) for r in kept})
+    kept = rows
+    if provider is not None:
+        # Label first: a label may equal another provider's id; ids tell same-label ones apart.
+        by_label = [r for r in kept if _provider(r)[1] == provider]
+        if len({_provider(r) for r in by_label}) != 1:
+            by_label = [r for r in kept if _provider(r)[0] == provider]
+        kept = by_label
+    if prompt is not None:
+        # Prompt labels default to the full prompt text, so prompts are picked by id prefix.
+        kept = [
+            r
+            for r in kept
+            if (r["prompt"].get("label") == prompt)
+            or (len(prompt) >= 8 and _prompt_id(r).startswith(prompt))
+        ]
+    targets = {(_provider(r), _prompt_id(r)) for r in kept}
     if len(targets) == 1:
         return kept
+    # Never echo prompt text (labels default to it): providers by label/id, prompts by id.
     found = "; ".join(
-        f"provider {p!r} / prompt {q!r}" for p, q in sorted({_target(r) for r in rows})
+        f"provider {label or pid!r} (id {pid!r}) / prompt {prompt_id[:12]!r}"
+        for (pid, label), prompt_id in sorted({(_provider(r), _prompt_id(r)) for r in rows})
     )
     reason = "nothing matches" if not targets else "it holds several provider/prompt combinations"
     raise _fail(
         "import_select",
-        f"{source}: {reason}; pick one with --provider and/or --prompt. Found: {found}",
+        f"{source}: {reason}; pick one with --provider (label or id) and/or --prompt "
+        f"(prompt id, at least 8 characters). Found: {found}",
     )
 
 
@@ -123,7 +136,8 @@ def _convert(row: dict[str, Any], case_field: str) -> dict[str, Any]:
     metadata = {
         k: v
         for k, v in sorted((test.get("metadata") or {}).items())
-        if isinstance(v, str | int | float | bool) and not k.startswith("_")
+        if isinstance(v, str | int | bool) or (isinstance(v, float) and isfinite(v))
+        if not k.startswith("_")
     }
     out: dict[str, Any] = {"case_id": case_id, "metadata": metadata}
     if "repeatIndex" in row:
@@ -133,10 +147,14 @@ def _convert(row: dict[str, Any], case_field: str) -> dict[str, Any]:
         out["repeat"] = repeat
 
     grading = row.get("gradingResult") or {}
-    if row.get("failureReason") == _ERROR or _grader_failed(grading):
-        # promptfoo errors carry a stack trace with local paths: keep the first line only.
-        message = str(row.get("error") or "grader error").strip().splitlines()
-        out |= {"status": "error", "error": message[0] if message else "error"}
+    reason = row.get("failureReason")
+    if isinstance(reason, bool) or reason not in _REASONS:
+        # Unknown reason: can't tell a provider error from a test failure, so don't guess.
+        problems.append(f"failureReason must be 0, 1 or 2, got {reason!r}")
+    elif reason == _ERROR or _grader_failed(grading):
+        # Fixed text: promptfoo's messages can embed the prompt, the response or local paths.
+        kind = "grader error" if _grader_failed(grading) else "error (failureReason 2)"
+        out |= {"status": "error", "error": f"promptfoo {kind}; details not imported"}
     else:
         success = row.get("success")
         if not isinstance(success, bool):
@@ -162,8 +180,11 @@ def _convert(row: dict[str, Any], case_field: str) -> dict[str, Any]:
         cached = (row.get("response") or {}).get("cached") is True
         tokens = (row.get("tokenUsage") or {}).get("total")
         raw = {"latency_ms": row.get("latencyMs"), "cost": row.get("cost"), "tokens": tokens}
-        # Cached responses report no real latency or cost: leave them out, never record 0.
+        # Cached responses replay stored values, not this run's latency or cost: leave them out.
         metrics = {} if cached else {k: n for k, v in raw.items() if (n := _number(v)) is not None}
+        negative = sorted(k for k, v in metrics.items() if v < 0)
+        if negative:
+            problems.append(f"must not be negative: {', '.join(negative)}")
         out |= {"status": "ok", "scores": scores, "checks": checks, "metrics": metrics}
     if problems:
         raise ValueError("; ".join(problems))
@@ -213,8 +234,13 @@ def import_promptfoo(
     raw_rows = summary["results"]
     if not raw_rows:
         raise _fail("no_cases", f"{source}: contains no results")
-    if not all(isinstance(r, dict) for r in raw_rows):
-        raise _fail("import_parse", f"{source}: every result must be an object")
+    shapes = ("provider", "prompt", "testCase")
+    if not all(
+        isinstance(r, dict) and all(isinstance(r.get(k), dict) for k in shapes) for r in raw_rows
+    ):
+        raise _fail(
+            "import_parse", f"{source}: every result must be an object with {', '.join(shapes)}"
+        )
     selected = _select(source, raw_rows, provider, prompt)
     # promptfoo writes rows in completion order: report problems in test order.
     selected.sort(key=lambda r: r["testIdx"] if isinstance(r.get("testIdx"), int) else -1)
@@ -227,6 +253,8 @@ def import_promptfoo(
             rows.append(_convert(row, case_id))
         except ValueError as exc:
             diagnostics.append(_error("import_record", f"{source}: {where}: {exc}"))
+        except (AttributeError, TypeError):  # a field of an unexpected type
+            diagnostics.append(_error("import_record", f"{source}: {where}: unexpected structure"))
     _duplicates(source, rows, case_id, diagnostics)
     if diagnostics:
         raise InputError(diagnostics)
