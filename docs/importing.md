@@ -14,6 +14,8 @@ import_results("results.csv", "mapping.yaml", "evals/candidate", run_id="candida
 
 Runnable example: [examples/import-csv](../examples/import-csv). It imports two CSV exports with one mapping and compares them.
 
+For promptfoo, use the built-in adapter instead: [importing promptfoo results](promptfoo.md).
+
 ## Supported input
 
 | Format | Shape | Chosen by |
