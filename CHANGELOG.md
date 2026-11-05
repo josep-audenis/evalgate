@@ -4,7 +4,7 @@ All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](http
 
 ## Unreleased
 
-Per-category limits and documented statistics (SPEC Phase 4 complete). Policies without category limits get the same decisions as in 0.3.0.
+Per-category limits, documented statistics (SPEC Phase 4 complete) and a promptfoo adapter. Policies without category limits get the same decisions as in 0.3.0.
 
 ### Added
 
@@ -12,6 +12,10 @@ Per-category limits and documented statistics (SPEC Phase 4 complete). Policies 
   - **Fail closed:** a category limit when no compared case has a text `metadata.category` is INVALID (`category_missing`), and so is a compared case whose category is not non-empty text (`category_type`). Uncategorized compared cases give a `category_partial` warning. A percent limit on a category whose baseline mean is 0 follows the same `pct_undefined` rule as metrics.
   - `statistics.require_conclusive` applies to category rules too.
 - **Category intervals.** `comparison.categories[]` gains `delta_pct` and `ci` (same shape as `metrics[].ci`). The HTML report shows the interval.
+- **promptfoo adapter.** `evalgate import results.json --from promptfoo --out DIR --dataset ... --dataset-version ... --evaluator-version ...` (also `evalgate.import_promptfoo`) imports a `promptfoo eval -o` file (results format version 3) without a mapping. See [docs/promptfoo.md](docs/promptfoo.md).
+  - Overall score and named metrics become scores; test pass and per-metric assertion results become checks; latency, cost and tokens become metrics (left out for cached responses); test metadata is kept; `--repeat` runs become repeated runs.
+  - Case ids come from the test description by default (`--case-id vars.<name>` / `metadata.<name>`); missing or duplicate ids are errors. Files with several providers or prompts need `--provider` / `--prompt`.
+  - Provider and grader errors become `status: error` cases, keeping only the first line of the message. Prompts, vars and outputs are never copied.
 - **[docs/statistics.md](docs/statistics.md):** methods, assumptions and limits of the intervals, McNemar test, category limits and sample-size checks.
 
 ## 0.3.0

@@ -17,7 +17,7 @@ import yaml
 from evalgate.io.reader import InputError, _error, _parse, _read_text, _UniqueKeyLoader
 from evalgate.io.writer import EvalRun
 from evalgate.models import Diagnostic
-from evalgate.models.mapping import ImportMapping
+from evalgate.models.mapping import ImportManifest, ImportMapping
 
 _TRUE = {"true", "1", "yes", "pass", "passed"}
 _FALSE = {"false", "0", "no", "fail", "failed"}
@@ -285,24 +285,49 @@ def import_results(
     if diagnostics:
         raise InputError(diagnostics)
 
-    repeats = max(r["repeat"] for r in rows) + 1 if m.repeat is not None else None
+    ignored = sorted(
+        k or "(unnamed column)" for k in {k for r in records for k in r} - _referenced(m)
+    )
+    return write_rows(
+        source, rows, out, run_id, m.manifest, overwrite=overwrite, ignored_fields=ignored
+    )
+
+
+def write_rows(
+    source: Path,
+    rows: list[dict[str, Any]],
+    out: Path,
+    run_id: str,
+    manifest: ImportManifest,
+    *,
+    overwrite: bool,
+    ignored_fields: list[str],
+) -> ImportSummary:
+    """Write converted rows (EvalRun.record() arguments plus `status`) as a run. Shared by adapters.
+
+    Rows carry `repeat` either on every row or on none. Nothing is committed on any error.
+    """
+    repeated = ["repeat" in r for r in rows]
+    if any(repeated) and not all(repeated):
+        raise InputError(
+            [_error("import_record", f"{source}: some records have a repeat, some not")]
+        )
+    repeats = max(r["repeat"] for r in rows) + 1 if all(repeated) else None
     # Computed before writing, so nothing after a successful write can fail.
     summary = ImportSummary(
         cases=len({r["case_id"] for r in rows}),
         repeats=repeats or 1,
-        ignored_fields=sorted(
-            k or "(unnamed column)" for k in {k for r in records for k in r} - _referenced(m)
-        ),
+        ignored_fields=ignored_fields,
     )
-    manifest = m.manifest.model_dump(exclude={"run_id"})
+    diagnostics: list[Diagnostic] = []
     try:
         with EvalRun(
             run_id,
-            dataset=manifest["dataset_id"],
-            dataset_version=manifest["dataset_version"],
-            evaluator_version=manifest["evaluator_version"],
-            application=manifest["application"],
-            application_version=manifest["application_version"],
+            dataset=manifest.dataset_id,
+            dataset_version=manifest.dataset_version,
+            evaluator_version=manifest.evaluator_version,
+            application=manifest.application,
+            application_version=manifest.application_version,
             path=out,
             overwrite=overwrite,
             repeats=repeats,

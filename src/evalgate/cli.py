@@ -23,6 +23,7 @@ from evalgate.io import (
     write_policy_template,
 )
 from evalgate.io.importer import import_results
+from evalgate.io.promptfoo import import_promptfoo
 from evalgate.reporting.terminal import render, render_diagnostics
 from evalgate.validation import validate_run
 
@@ -125,18 +126,90 @@ def init(
 @_fail_closed
 def import_(
     source: Path,
-    mapping: Annotated[Path, typer.Option("--mapping", help="Mapping YAML for the source file.")],
     out: Annotated[Path, typer.Option("--out", help="Run directory to write.")],
+    mapping: Annotated[
+        Path | None, typer.Option("--mapping", help="Mapping YAML (generic CSV / JSON import).")
+    ] = None,
+    from_: Annotated[
+        str | None,
+        typer.Option("--from", help="Source tool with a built-in adapter: promptfoo."),
+    ] = None,
     run_id: Annotated[
-        str | None, typer.Option("--run-id", help="Overrides manifest.run_id in the mapping.")
+        str | None,
+        typer.Option(
+            "--run-id", help="Run id (default: mapping manifest.run_id / promptfoo evalId)."
+        ),
+    ] = None,
+    dataset: Annotated[str | None, typer.Option("--dataset", help="Adapters: dataset id.")] = None,
+    dataset_version: Annotated[
+        str | None, typer.Option("--dataset-version", help="Adapters: dataset version.")
+    ] = None,
+    evaluator_version: Annotated[
+        str | None, typer.Option("--evaluator-version", help="Adapters: evaluator version.")
+    ] = None,
+    case_id: Annotated[
+        str,
+        typer.Option("--case-id", help="promptfoo: description, vars.<name> or metadata.<name>."),
+    ] = "description",
+    provider: Annotated[
+        str | None, typer.Option("--provider", help="promptfoo: provider label or id to import.")
+    ] = None,
+    prompt: Annotated[
+        str | None, typer.Option("--prompt", help="promptfoo: prompt label or id to import.")
     ] = None,
     overwrite: Annotated[
         bool, typer.Option("--overwrite", help="Replace an existing run.")
     ] = False,
 ) -> None:
-    """Convert a CSV / JSON / JSONL results file into an EvalGate run directory."""
+    """Convert results from another tool into an EvalGate run directory.
+
+    Generic: --mapping mapping.yaml (CSV / JSON / JSONL). promptfoo: --from promptfoo with
+    --dataset, --dataset-version and --evaluator-version.
+    """
+    adapter_only = {
+        "--case-id": case_id != "description",
+        "--provider": provider,
+        "--prompt": prompt,
+    }
+    manifest = {
+        "--dataset": dataset,
+        "--dataset-version": dataset_version,
+        "--evaluator-version": evaluator_version,
+    }
+    usage = None
+    if from_ is None:
+        if mapping is None:
+            usage = "pass --mapping for a CSV / JSON file, or --from promptfoo"
+        elif extra := [k for k, v in (manifest | adapter_only).items() if v]:
+            usage = f"{', '.join(extra)} only apply with --from; the mapping sets the manifest"
+    elif from_ != "promptfoo":
+        usage = f"unknown --from {from_!r}; supported: promptfoo"
+    elif mapping is not None:
+        usage = "--mapping and --from are exclusive"
+    elif missing := [k for k, v in manifest.items() if not v]:
+        usage = f"--from promptfoo needs {', '.join(missing)}"
+    if usage:
+        console.print(f"[bold yellow]INVALID[/]: {escape(usage)}")
+        raise typer.Exit(EXIT_INVALID)
+
     try:
-        summary = import_results(source, mapping, out, run_id=run_id, overwrite=overwrite)
+        if from_ == "promptfoo":
+            assert dataset and dataset_version and evaluator_version  # checked above
+            summary = import_promptfoo(
+                source,
+                out,
+                dataset=dataset,
+                dataset_version=dataset_version,
+                evaluator_version=evaluator_version,
+                run_id=run_id,
+                case_id=case_id,
+                provider=provider,
+                prompt=prompt,
+                overwrite=overwrite,
+            )
+        else:
+            assert mapping is not None  # checked above
+            summary = import_results(source, mapping, out, run_id=run_id, overwrite=overwrite)
     except InputError as exc:
         render_diagnostics(exc.diagnostics, console)
         console.print("[bold yellow]INVALID[/]: nothing was written")

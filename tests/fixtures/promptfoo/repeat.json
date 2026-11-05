@@ -1,0 +1,955 @@
+{
+  "evalId": "eval-GaL-2026-11-05T17:16:37",
+  "results": {
+    "version": 3,
+    "timestamp": "2026-11-05T17:16:37.717Z",
+    "prompts": [
+      {
+        "id": "9e882153a7e27d6103c4715abde4ec6b8a04261989f381735d7be5fcf7b62fd8",
+        "raw": "Answer: {{q}}",
+        "label": "Answer: {{q}}",
+        "provider": "candidate-model",
+        "metrics": {
+          "score": 1.67,
+          "testPassCount": 2,
+          "testFailCount": 2,
+          "testErrorCount": 2,
+          "testCacheHitCount": 0,
+          "assertPassCount": 6,
+          "assertFailCount": 2,
+          "totalLatencyMs": 30,
+          "tokenUsage": {
+            "prompt": 92,
+            "completion": 0,
+            "cached": 0,
+            "total": 92,
+            "numRequests": 4,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            },
+            "assertions": {
+              "total": 0,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 0,
+              "numRequests": 0,
+              "completionDetails": {
+                "reasoning": 0,
+                "acceptedPrediction": 0,
+                "rejectedPrediction": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0
+              }
+            }
+          },
+          "namedScores": {
+            "mentions_refund": 2,
+            "quality": 1.34
+          },
+          "namedScoresCount": {
+            "mentions_refund": 4,
+            "quality": 4
+          },
+          "namedScoreWeights": {
+            "mentions_refund": 4,
+            "quality": 4
+          },
+          "cost": 0.004
+        }
+      }
+    ],
+    "results": [
+      {
+        "cost": 0.001,
+        "gradingResult": {
+          "pass": true,
+          "score": 0.635,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "mentions_refund": 1,
+            "quality": 0.27
+          },
+          "namedScoreWeights": {
+            "mentions_refund": 1,
+            "quality": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Assertion passed",
+              "assertion": {
+                "type": "contains",
+                "value": "refunds",
+                "metric": "mentions_refund"
+              }
+            },
+            {
+              "pass": true,
+              "score": 0.27,
+              "reason": "Assertion passed",
+              "assertion": {
+                "type": "javascript",
+                "value": "output.length / 100",
+                "metric": "quality"
+              }
+            }
+          ]
+        },
+        "id": "84876a06-104b-45f7-8fe8-f9b46cc44f63",
+        "latencyMs": 9,
+        "namedScores": {
+          "mentions_refund": 1,
+          "quality": 0.27
+        },
+        "prompt": {
+          "raw": "Answer: refunds take 5 days",
+          "label": "Answer: {{q}}",
+          "config": {}
+        },
+        "promptId": "9e882153a7e27d6103c4715abde4ec6b8a04261989f381735d7be5fcf7b62fd8",
+        "promptIdx": 0,
+        "repeatGroupId": "test-0-vars-0",
+        "repeatIndex": 0,
+        "provider": {
+          "id": "flaky-echo",
+          "label": "candidate-model"
+        },
+        "response": {
+          "output": "Answer: refunds take 5 days",
+          "tokenUsage": {
+            "prompt": 27,
+            "completion": 0,
+            "cached": 0,
+            "total": 27,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            },
+            "assertions": {
+              "total": 0,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 0,
+              "numRequests": 0,
+              "completionDetails": {
+                "reasoning": 0,
+                "acceptedPrediction": 0,
+                "rejectedPrediction": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0
+              }
+            }
+          },
+          "cost": 0.001
+        },
+        "score": 0.635,
+        "success": true,
+        "testCase": {
+          "description": "refund policy",
+          "vars": {
+            "q": "refunds take 5 days"
+          },
+          "metadata": {
+            "category": "billing"
+          },
+          "assert": [
+            {
+              "type": "contains",
+              "value": "refunds",
+              "metric": "mentions_refund"
+            },
+            {
+              "type": "javascript",
+              "value": "output.length / 100",
+              "metric": "quality"
+            }
+          ],
+          "options": {}
+        },
+        "testIdx": 0,
+        "tokenUsage": {
+          "prompt": 27,
+          "completion": 0,
+          "cached": 0,
+          "total": 27,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "q": "refunds take 5 days"
+        },
+        "metadata": {
+          "category": "billing",
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0.001,
+        "gradingResult": {
+          "pass": true,
+          "score": 0.635,
+          "reason": "All assertions passed",
+          "namedScores": {
+            "mentions_refund": 1,
+            "quality": 0.27
+          },
+          "namedScoreWeights": {
+            "mentions_refund": 1,
+            "quality": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Assertion passed",
+              "assertion": {
+                "type": "contains",
+                "value": "refunds",
+                "metric": "mentions_refund"
+              }
+            },
+            {
+              "pass": true,
+              "score": 0.27,
+              "reason": "Assertion passed",
+              "assertion": {
+                "type": "javascript",
+                "value": "output.length / 100",
+                "metric": "quality"
+              }
+            }
+          ]
+        },
+        "id": "38070e1f-887e-43e3-bb72-c7e7ac53f5fe",
+        "latencyMs": 7,
+        "namedScores": {
+          "mentions_refund": 1,
+          "quality": 0.27
+        },
+        "prompt": {
+          "raw": "Answer: refunds take 5 days",
+          "label": "Answer: {{q}}",
+          "config": {}
+        },
+        "promptId": "9e882153a7e27d6103c4715abde4ec6b8a04261989f381735d7be5fcf7b62fd8",
+        "promptIdx": 0,
+        "repeatGroupId": "test-0-vars-0",
+        "repeatIndex": 1,
+        "provider": {
+          "id": "flaky-echo",
+          "label": "candidate-model"
+        },
+        "response": {
+          "output": "Answer: refunds take 5 days",
+          "tokenUsage": {
+            "prompt": 27,
+            "completion": 0,
+            "cached": 0,
+            "total": 27,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            },
+            "assertions": {
+              "total": 0,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 0,
+              "numRequests": 0,
+              "completionDetails": {
+                "reasoning": 0,
+                "acceptedPrediction": 0,
+                "rejectedPrediction": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0
+              }
+            }
+          },
+          "cost": 0.001
+        },
+        "score": 0.635,
+        "success": true,
+        "testCase": {
+          "description": "refund policy",
+          "vars": {
+            "q": "refunds take 5 days"
+          },
+          "metadata": {
+            "category": "billing"
+          },
+          "assert": [
+            {
+              "type": "contains",
+              "value": "refunds",
+              "metric": "mentions_refund"
+            },
+            {
+              "type": "javascript",
+              "value": "output.length / 100",
+              "metric": "quality"
+            }
+          ],
+          "options": {}
+        },
+        "testIdx": 1,
+        "tokenUsage": {
+          "prompt": 27,
+          "completion": 0,
+          "cached": 0,
+          "total": 27,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "q": "refunds take 5 days"
+        },
+        "metadata": {
+          "category": "billing",
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0.001,
+        "error": "Expected output to contain \"goodbye\"",
+        "gradingResult": {
+          "pass": false,
+          "score": 0.2,
+          "reason": "Expected output to contain \"goodbye\"",
+          "namedScores": {
+            "mentions_refund": 0,
+            "quality": 0.4
+          },
+          "namedScoreWeights": {
+            "mentions_refund": 1,
+            "quality": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0
+          },
+          "componentResults": [
+            {
+              "pass": false,
+              "score": 0,
+              "reason": "Expected output to contain \"goodbye\"",
+              "assertion": {
+                "type": "contains",
+                "value": "goodbye",
+                "metric": "mentions_refund"
+              }
+            },
+            {
+              "pass": true,
+              "score": 0.4,
+              "reason": "Assertion passed",
+              "assertion": {
+                "type": "javascript",
+                "value": "0.4",
+                "metric": "quality"
+              }
+            }
+          ]
+        },
+        "id": "d4ba84a4-5e51-45a4-b2c4-e1121789cf1e",
+        "latencyMs": 7,
+        "namedScores": {
+          "mentions_refund": 0,
+          "quality": 0.4
+        },
+        "prompt": {
+          "raw": "Answer: hello there",
+          "label": "Answer: {{q}}",
+          "config": {}
+        },
+        "promptId": "9e882153a7e27d6103c4715abde4ec6b8a04261989f381735d7be5fcf7b62fd8",
+        "promptIdx": 0,
+        "repeatGroupId": "test-1-vars-0",
+        "repeatIndex": 0,
+        "provider": {
+          "id": "flaky-echo",
+          "label": "candidate-model"
+        },
+        "response": {
+          "output": "Answer: hello there",
+          "tokenUsage": {
+            "prompt": 19,
+            "completion": 0,
+            "cached": 0,
+            "total": 19,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            },
+            "assertions": {
+              "total": 0,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 0,
+              "numRequests": 0,
+              "completionDetails": {
+                "reasoning": 0,
+                "acceptedPrediction": 0,
+                "rejectedPrediction": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0
+              }
+            }
+          },
+          "cost": 0.001
+        },
+        "score": 0.2,
+        "success": false,
+        "testCase": {
+          "description": "greeting",
+          "vars": {
+            "q": "hello there"
+          },
+          "metadata": {
+            "category": "chat"
+          },
+          "assert": [
+            {
+              "type": "contains",
+              "value": "goodbye",
+              "metric": "mentions_refund"
+            },
+            {
+              "type": "javascript",
+              "value": "0.4",
+              "metric": "quality"
+            }
+          ],
+          "options": {}
+        },
+        "testIdx": 2,
+        "tokenUsage": {
+          "prompt": 19,
+          "completion": 0,
+          "cached": 0,
+          "total": 19,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "q": "hello there"
+        },
+        "metadata": {
+          "category": "chat",
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 1
+      },
+      {
+        "cost": 0.001,
+        "error": "Expected output to contain \"goodbye\"",
+        "gradingResult": {
+          "pass": false,
+          "score": 0.2,
+          "reason": "Expected output to contain \"goodbye\"",
+          "namedScores": {
+            "mentions_refund": 0,
+            "quality": 0.4
+          },
+          "namedScoreWeights": {
+            "mentions_refund": 1,
+            "quality": 1
+          },
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0
+          },
+          "componentResults": [
+            {
+              "pass": false,
+              "score": 0,
+              "reason": "Expected output to contain \"goodbye\"",
+              "assertion": {
+                "type": "contains",
+                "value": "goodbye",
+                "metric": "mentions_refund"
+              }
+            },
+            {
+              "pass": true,
+              "score": 0.4,
+              "reason": "Assertion passed",
+              "assertion": {
+                "type": "javascript",
+                "value": "0.4",
+                "metric": "quality"
+              }
+            }
+          ]
+        },
+        "id": "05351553-58b7-4a2d-afc1-1bbe1e5c66ae",
+        "latencyMs": 7,
+        "namedScores": {
+          "mentions_refund": 0,
+          "quality": 0.4
+        },
+        "prompt": {
+          "raw": "Answer: hello there",
+          "label": "Answer: {{q}}",
+          "config": {}
+        },
+        "promptId": "9e882153a7e27d6103c4715abde4ec6b8a04261989f381735d7be5fcf7b62fd8",
+        "promptIdx": 0,
+        "repeatGroupId": "test-1-vars-0",
+        "repeatIndex": 1,
+        "provider": {
+          "id": "flaky-echo",
+          "label": "candidate-model"
+        },
+        "response": {
+          "output": "Answer: hello there",
+          "tokenUsage": {
+            "prompt": 19,
+            "completion": 0,
+            "cached": 0,
+            "total": 19,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            },
+            "assertions": {
+              "total": 0,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 0,
+              "numRequests": 0,
+              "completionDetails": {
+                "reasoning": 0,
+                "acceptedPrediction": 0,
+                "rejectedPrediction": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0
+              }
+            }
+          },
+          "cost": 0.001
+        },
+        "score": 0.2,
+        "success": false,
+        "testCase": {
+          "description": "greeting",
+          "vars": {
+            "q": "hello there"
+          },
+          "metadata": {
+            "category": "chat"
+          },
+          "assert": [
+            {
+              "type": "contains",
+              "value": "goodbye",
+              "metric": "mentions_refund"
+            },
+            {
+              "type": "javascript",
+              "value": "0.4",
+              "metric": "quality"
+            }
+          ],
+          "options": {}
+        },
+        "testIdx": 3,
+        "tokenUsage": {
+          "prompt": 19,
+          "completion": 0,
+          "cached": 0,
+          "total": 19,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "q": "hello there"
+        },
+        "metadata": {
+          "category": "chat",
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 1
+      },
+      {
+        "cost": 0,
+        "error": "Error: provider exploded\n    at P.callApi (provider.js:4:40)",
+        "gradingResult": null,
+        "id": "431a4066-b8ef-44d4-940f-a472915ea9b2",
+        "latencyMs": 0,
+        "namedScores": {},
+        "prompt": {
+          "raw": "Answer: BOOM",
+          "label": "Answer: {{q}}",
+          "config": {}
+        },
+        "promptId": "9e882153a7e27d6103c4715abde4ec6b8a04261989f381735d7be5fcf7b62fd8",
+        "promptIdx": 0,
+        "repeatGroupId": "test-2-vars-0",
+        "repeatIndex": 0,
+        "provider": {
+          "id": "flaky-echo",
+          "label": "candidate-model"
+        },
+        "score": 0,
+        "success": false,
+        "testCase": {
+          "description": "crash",
+          "vars": {
+            "q": "BOOM"
+          },
+          "metadata": {
+            "category": "chat"
+          },
+          "assert": [
+            {
+              "type": "contains",
+              "value": "x"
+            }
+          ],
+          "options": {}
+        },
+        "testIdx": 4,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 0,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "q": "BOOM"
+        },
+        "metadata": {
+          "category": "chat"
+        },
+        "failureReason": 2
+      },
+      {
+        "cost": 0,
+        "error": "Error: provider exploded\n    at P.callApi (provider.js:4:40)",
+        "gradingResult": null,
+        "id": "afbbbc23-06a7-4a12-9937-706256f515ba",
+        "latencyMs": 0,
+        "namedScores": {},
+        "prompt": {
+          "raw": "Answer: BOOM",
+          "label": "Answer: {{q}}",
+          "config": {}
+        },
+        "promptId": "9e882153a7e27d6103c4715abde4ec6b8a04261989f381735d7be5fcf7b62fd8",
+        "promptIdx": 0,
+        "repeatGroupId": "test-2-vars-0",
+        "repeatIndex": 1,
+        "provider": {
+          "id": "flaky-echo",
+          "label": "candidate-model"
+        },
+        "score": 0,
+        "success": false,
+        "testCase": {
+          "description": "crash",
+          "vars": {
+            "q": "BOOM"
+          },
+          "metadata": {
+            "category": "chat"
+          },
+          "assert": [
+            {
+              "type": "contains",
+              "value": "x"
+            }
+          ],
+          "options": {}
+        },
+        "testIdx": 5,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 0,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "q": "BOOM"
+        },
+        "metadata": {
+          "category": "chat"
+        },
+        "failureReason": 2
+      }
+    ],
+    "stats": {
+      "successes": 2,
+      "failures": 2,
+      "errors": 2,
+      "tokenUsage": {
+        "prompt": 92,
+        "completion": 0,
+        "cached": 0,
+        "total": 92,
+        "numRequests": 4,
+        "completionDetails": {
+          "reasoning": 0,
+          "acceptedPrediction": 0,
+          "rejectedPrediction": 0,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0
+        },
+        "assertions": {
+          "total": 0,
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "numRequests": 0,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          }
+        }
+      },
+      "durationMs": 90,
+      "evaluationDurationMs": 90
+    },
+    "repeatStability": {
+      "totalGroups": 3,
+      "unstableGroups": 0,
+      "groupsWithErrors": 1,
+      "cachedResults": 0,
+      "groups": [
+        {
+          "repeatGroupId": "test-0-vars-0",
+          "promptIdx": 0,
+          "provider": {
+            "id": "flaky-echo",
+            "label": "candidate-model"
+          },
+          "description": "refund policy",
+          "promptLabel": "Answer: {{q}}",
+          "repetitions": 2,
+          "passed": 2,
+          "failed": 0,
+          "errors": 0,
+          "cached": 0,
+          "unstable": false,
+          "passRate": 1,
+          "passRateConfidenceInterval": {
+            "confidenceLevel": 0.95,
+            "lower": 0.34238022750665303,
+            "upper": 1
+          }
+        },
+        {
+          "repeatGroupId": "test-1-vars-0",
+          "promptIdx": 0,
+          "provider": {
+            "id": "flaky-echo",
+            "label": "candidate-model"
+          },
+          "description": "greeting",
+          "promptLabel": "Answer: {{q}}",
+          "repetitions": 2,
+          "passed": 0,
+          "failed": 2,
+          "errors": 0,
+          "cached": 0,
+          "unstable": false,
+          "passRate": 0,
+          "passRateConfidenceInterval": {
+            "confidenceLevel": 0.95,
+            "lower": 0,
+            "upper": 0.6576197724933469
+          }
+        },
+        {
+          "repeatGroupId": "test-2-vars-0",
+          "promptIdx": 0,
+          "provider": {
+            "id": "flaky-echo",
+            "label": "candidate-model"
+          },
+          "description": "crash",
+          "promptLabel": "Answer: {{q}}",
+          "repetitions": 2,
+          "passed": 0,
+          "failed": 0,
+          "errors": 2,
+          "cached": 0,
+          "unstable": false
+        }
+      ]
+    }
+  },
+  "config": {
+    "description": "redacted for the fixture"
+  },
+  "shareableUrl": null
+}

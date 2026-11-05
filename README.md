@@ -100,6 +100,14 @@ evalgate import results.csv --mapping mapping.yaml --out evals/candidate --run-i
 
 Bad records are all reported, and nothing is written unless every record converts. Unmapped columns, such as prompts and outputs, are never copied. See [importing](https://github.com/josep-audenis/evalgate/blob/main/docs/importing.md).
 
+Using promptfoo? Import its `-o results.json` directly, no mapping needed:
+
+```bash
+evalgate import results.json --from promptfoo --out evals/candidate \n  --dataset support-suite --dataset-version v3 --evaluator-version pf-asserts-1
+```
+
+See [promptfoo](https://github.com/josep-audenis/evalgate/blob/main/docs/promptfoo.md).
+
 ## Python SDK
 
 ```python
@@ -173,7 +181,7 @@ Exit codes make EvalGate a drop-in CI step. See [CI integration](https://github.
 Version 0.3.0 (alpha). See the [changelog](https://github.com/josep-audenis/evalgate/blob/main/CHANGELOG.md). EvalGate compares results your pipeline already produced. It does **not** run your application, call LLM judges, or host datasets.
 
 Not yet included:
-- dedicated adapters for specific tools (promptfoo, DeepEval); the generic importer covers their CSV/JSON exports
+- dedicated adapters for other tools (DeepEval, Langfuse); the generic importer covers their CSV/JSON exports
 
 Planned work is in the [spec](https://github.com/josep-audenis/evalgate/blob/main/docs/SPEC.md).
 

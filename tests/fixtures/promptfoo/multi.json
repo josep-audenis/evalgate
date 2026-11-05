@@ -1,0 +1,400 @@
+{
+  "evalId": "eval-CCj-2026-11-05T17:18:55",
+  "results": {
+    "version": 3,
+    "timestamp": "2026-11-05T17:18:55.554Z",
+    "prompts": [
+      {
+        "id": "9e882153a7e27d6103c4715abde4ec6b8a04261989f381735d7be5fcf7b62fd8",
+        "raw": "Answer: {{q}}",
+        "label": "Answer: {{q}}",
+        "provider": "model-a",
+        "metrics": {
+          "score": 1,
+          "testPassCount": 1,
+          "testFailCount": 0,
+          "testErrorCount": 0,
+          "testCacheHitCount": 0,
+          "assertPassCount": 1,
+          "assertFailCount": 0,
+          "totalLatencyMs": 12,
+          "tokenUsage": {
+            "prompt": 27,
+            "completion": 0,
+            "cached": 0,
+            "total": 27,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            },
+            "assertions": {
+              "total": 0,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 0,
+              "numRequests": 0,
+              "completionDetails": {
+                "reasoning": 0,
+                "acceptedPrediction": 0,
+                "rejectedPrediction": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0
+              }
+            }
+          },
+          "namedScores": {},
+          "namedScoresCount": {},
+          "namedScoreWeights": {},
+          "cost": 0.001
+        }
+      },
+      {
+        "id": "9e882153a7e27d6103c4715abde4ec6b8a04261989f381735d7be5fcf7b62fd8",
+        "raw": "Answer: {{q}}",
+        "label": "Answer: {{q}}",
+        "provider": "model-b",
+        "metrics": {
+          "score": 1,
+          "testPassCount": 1,
+          "testFailCount": 0,
+          "testErrorCount": 0,
+          "testCacheHitCount": 0,
+          "assertPassCount": 1,
+          "assertFailCount": 0,
+          "totalLatencyMs": 10,
+          "tokenUsage": {
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "total": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            },
+            "assertions": {
+              "total": 0,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 0,
+              "numRequests": 0,
+              "completionDetails": {
+                "reasoning": 0,
+                "acceptedPrediction": 0,
+                "rejectedPrediction": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0
+              }
+            }
+          },
+          "namedScores": {},
+          "namedScoresCount": {},
+          "namedScoreWeights": {},
+          "cost": 0
+        }
+      }
+    ],
+    "results": [
+      {
+        "cost": 0.001,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {},
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Assertion passed",
+              "assertion": {
+                "type": "contains",
+                "value": "refunds"
+              }
+            }
+          ]
+        },
+        "id": "01dc5015-df39-4669-b40b-7e8e9166dccc",
+        "latencyMs": 12,
+        "namedScores": {},
+        "prompt": {
+          "raw": "Answer: refunds take 5 days",
+          "label": "Answer: {{q}}",
+          "config": {}
+        },
+        "promptId": "9e882153a7e27d6103c4715abde4ec6b8a04261989f381735d7be5fcf7b62fd8",
+        "promptIdx": 0,
+        "provider": {
+          "id": "flaky-echo",
+          "label": "model-a"
+        },
+        "response": {
+          "output": "Answer: refunds take 5 days",
+          "tokenUsage": {
+            "prompt": 27,
+            "completion": 0,
+            "cached": 0,
+            "total": 27,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            },
+            "assertions": {
+              "total": 0,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 0,
+              "numRequests": 0,
+              "completionDetails": {
+                "reasoning": 0,
+                "acceptedPrediction": 0,
+                "rejectedPrediction": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0
+              }
+            }
+          },
+          "cost": 0.001
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "description": "refund policy",
+          "vars": {
+            "q": "refunds take 5 days"
+          },
+          "assert": [
+            {
+              "type": "contains",
+              "value": "refunds"
+            }
+          ],
+          "options": {},
+          "metadata": {}
+        },
+        "testIdx": 0,
+        "tokenUsage": {
+          "prompt": 27,
+          "completion": 0,
+          "cached": 0,
+          "total": 27,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "q": "refunds take 5 days"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {},
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Assertion passed",
+              "assertion": {
+                "type": "contains",
+                "value": "refunds"
+              }
+            }
+          ]
+        },
+        "id": "073d426c-f01d-48cf-8f94-0c52d7a3b947",
+        "latencyMs": 10,
+        "namedScores": {},
+        "prompt": {
+          "raw": "Answer: refunds take 5 days",
+          "label": "Answer: {{q}}",
+          "config": {}
+        },
+        "promptId": "9e882153a7e27d6103c4715abde4ec6b8a04261989f381735d7be5fcf7b62fd8",
+        "promptIdx": 1,
+        "provider": {
+          "id": "echo",
+          "label": "model-b"
+        },
+        "response": {
+          "output": "Answer: refunds take 5 days",
+          "raw": "Answer: refunds take 5 days",
+          "cost": 0,
+          "cached": false,
+          "tokenUsage": {
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "total": 0,
+            "numRequests": 1,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            },
+            "assertions": {
+              "total": 0,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 0,
+              "numRequests": 0,
+              "completionDetails": {
+                "reasoning": 0,
+                "acceptedPrediction": 0,
+                "rejectedPrediction": 0,
+                "cacheReadInputTokens": 0,
+                "cacheCreationInputTokens": 0
+              }
+            }
+          },
+          "isRefusal": false,
+          "metadata": {}
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "description": "refund policy",
+          "vars": {
+            "q": "refunds take 5 days"
+          },
+          "assert": [
+            {
+              "type": "contains",
+              "value": "refunds"
+            }
+          ],
+          "options": {},
+          "metadata": {}
+        },
+        "testIdx": 0,
+        "tokenUsage": {
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "total": 0,
+          "numRequests": 1,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          },
+          "assertions": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0,
+              "cacheReadInputTokens": 0,
+              "cacheCreationInputTokens": 0
+            }
+          }
+        },
+        "vars": {
+          "q": "refunds take 5 days"
+        },
+        "metadata": {
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      }
+    ],
+    "stats": {
+      "successes": 2,
+      "failures": 0,
+      "errors": 0,
+      "tokenUsage": {
+        "prompt": 27,
+        "completion": 0,
+        "cached": 0,
+        "total": 27,
+        "numRequests": 2,
+        "completionDetails": {
+          "reasoning": 0,
+          "acceptedPrediction": 0,
+          "rejectedPrediction": 0,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0
+        },
+        "assertions": {
+          "total": 0,
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "numRequests": 0,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0,
+            "cacheReadInputTokens": 0,
+            "cacheCreationInputTokens": 0
+          }
+        }
+      },
+      "durationMs": 65,
+      "evaluationDurationMs": 65
+    }
+  },
+  "config": {
+    "description": "redacted for the fixture"
+  },
+  "shareableUrl": null
+}
