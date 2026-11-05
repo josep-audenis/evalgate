@@ -278,7 +278,7 @@ def render_html(report: Report) -> str:
                 _section(
                     "By category",
                     _table(
-                        ["category", "metric", "cases", "baseline", "candidate", "delta"],
+                        ["category", "metric", "cases", "baseline", "candidate", "delta", "CI"],
                         (
                             [
                                 escape(g.category),
@@ -287,10 +287,11 @@ def render_html(report: Report) -> str:
                                 _num(g.baseline_mean),
                                 _num(g.candidate_mean),
                                 _num(g.delta_abs, sign=True),
+                                f"[{_num(g.ci.low, sign=True)}, {_num(g.ci.high, sign=True)}]",
                             ]
                             for g in cmp.categories
                         ),
-                        {2, 3, 4, 5},
+                        {2, 3, 4, 5, 6},
                     ),
                 )
             )

@@ -28,6 +28,10 @@ class MetricRule(_Strict):
     direction: Direction
     max_mean_regression_abs: NonNegative | None = None
     max_mean_regression_pct: NonNegative | None = None
+    # Same limits applied to each `metadata.category` separately, so a regression confined to
+    # one category can't hide behind gains elsewhere. Needs category metadata on the cases.
+    max_category_regression_abs: NonNegative | None = None
+    max_category_regression_pct: NonNegative | None = None
 
     @model_validator(mode="after")
     def _has_threshold(self) -> Self:
@@ -104,6 +108,7 @@ metrics:
     path: scores.quality
     direction: maximize
     max_mean_regression_abs: 0.02   # absolute drop allowed
+    # max_category_regression_abs: 0.05  # same limit per metadata.category
 
   latency:
     path: metrics.latency_ms

@@ -22,7 +22,7 @@
 | `comparison` | object \| null | Measured differences (below). null when the result is INVALID before comparing |
 | `rules` | list | One result per policy rule (below). Empty when the result is INVALID before evaluating |
 
-**Decision rule:** with `statistics.require_conclusive: true`, a metric rule passes only if it is also `conclusive`. Then: any diagnostic with `level: "error"` makes the status `INVALID`. Otherwise, any rule with `passed: false` makes it `FAIL`. Otherwise the status is `PASS`.
+**Decision rule:** with `statistics.require_conclusive: true`, a metric or category rule passes only if it is also `conclusive`. Then: any diagnostic with `level: "error"` makes the status `INVALID`. Otherwise, any rule with `passed: false` makes it `FAIL`. Otherwise the status is `PASS`.
 
 ## `diagnostics[]`
 
@@ -34,8 +34,8 @@
 
 Codes:
 - **Loading:** `run_dir_missing`, `file_missing`, `file_unreadable`, `schema`, `no_cases`, `policy_yaml`
-- **Validation:** `duplicate_case_id`, `repeat_mixed`, `repeat_schema`, `repeat_incomplete`, `repeat_inconsistent`, `repeat_metadata` (warning), `dataset_mismatch`, `evaluator_mismatch`, `case_mismatch`, `no_comparable_cases`, `too_few_cases`, `small_sample` (warning), `metric_missing`, `check_missing`
-- **Evaluation:** `pct_undefined`, `numeric_overflow`
+- **Validation:** `duplicate_case_id`, `repeat_mixed`, `repeat_schema`, `repeat_incomplete`, `repeat_inconsistent`, `repeat_metadata` (warning), `dataset_mismatch`, `evaluator_mismatch`, `case_mismatch`, `no_comparable_cases`, `too_few_cases`, `small_sample` (warning), `metric_missing`, `check_missing`, `category_type`
+- **Evaluation:** `pct_undefined`, `numeric_overflow`, `category_missing`, `category_partial` (warning)
 
 ## `comparison`
 
@@ -51,7 +51,7 @@ Codes:
 | `candidate_failing_checks[]` | list | Every `{case_id, check}` that is false in an `ok` candidate case |
 | `check_stats[]` | list | Per check present in both runs of a compared case: `check`, `cases`, `baseline_failures`, `candidate_failures`, `newly_failing`, `newly_passing`, `p_value` (below). Sorted by check |
 | `repeats` | object \| null | Only when a run has more than one repeat per case (below). null otherwise |
-| `categories[]` | list | Per `metadata.category` (taken from the baseline) and metric: `category`, `metric`, `cases`, `baseline_mean`, `candidate_mean`, `delta_abs` |
+| `categories[]` | list | Per `metadata.category` (taken from the baseline) and metric: `category`, `metric`, `cases`, `baseline_mean`, `candidate_mean`, `delta_abs`, and since 0.4.0 `delta_pct` and `ci` (same shape as `metrics[]`) |
 
 `delta_abs` is always candidate minus baseline. Whether that is better or worse depends on `direction`.
 
@@ -92,4 +92,4 @@ Repeated runs (schema `"1.1"`) are combined per case before comparing: metric va
 | `message` | string | Human explanation with the measured values. Do not parse it |
 | `conclusive` | bool \| null | Metric rules only: true when the whole CI of the regression lies on one side of the threshold, over at least 2 cases. null for other rules |
 
-Rule identifiers: `max_execution_errors`, `metrics.<name>.max_mean_regression_abs`, `metrics.<name>.max_mean_regression_pct`, `checks.required.<check>`, `checks.max_new_failures`, `checks.significant_regression.<check>` (only with `checks.fail_on_significant_regression: true`, which must be combined with another rule; fails when `p_value < 1 - statistics.confidence`).
+Rule identifiers: `max_execution_errors`, `metrics.<name>.max_mean_regression_abs`, `metrics.<name>.max_mean_regression_pct`, `metrics.<name>.categories.<category>.max_category_regression_abs`, `metrics.<name>.categories.<category>.max_category_regression_pct`, `checks.required.<check>`, `checks.max_new_failures`, `checks.significant_regression.<check>` (only with `checks.fail_on_significant_regression: true`, which must be combined with another rule; fails when `p_value < 1 - statistics.confidence`).
