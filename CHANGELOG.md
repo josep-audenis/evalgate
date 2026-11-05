@@ -2,7 +2,7 @@
 
 All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change behaviour; anything that does is listed under **Changed**.
 
-## Unreleased
+## 0.5.0
 
 DeepEval adapter: with promptfoo, two external result formats now import without rewriting records (SPEC Phase 5 acceptance).
 
@@ -10,12 +10,12 @@ DeepEval adapter: with promptfoo, two external result formats now import without
 
 - **DeepEval adapter.** `evalgate import test_run.json --from deepeval --out DIR --dataset ... --dataset-version ... --evaluator-version ...` (also `evalgate.import_deepeval`) imports a DeepEval test run file (`test_run_<timestamp>.json` from a results folder, or `.deepeval/.latest_run_full.json`). Single-turn and conversational test cases are supported. See [docs/deepeval.md](docs/deepeval.md).
   - Metric scores become scores; metric pass/fail (for metrics with a threshold) and test case pass become checks; `completionTime`, `tokenCost` and token counts become `latency_ms`, `cost` and `tokens`; scalar metadata is kept.
-  - Case ids come from the test case `name`, or `--case-id metadata.<key>`. Position-based default names (`test_case_<n>`, `conversational_test_case_<n>`, pytest ids like `test_bot[test_case0]`) and duplicate ids are rejected.
+  - Case ids come from the test case `name`, or `--case-id metadata.<key>`. Position-based default names (`test_case_<n>`, `conversational_test_case_<n>`, pytest ids like `test_bot[test_case0]` or `test_bot[test_case0-gpt]`) and duplicate ids are rejected.
   - A test case with an errored metric (an `error`, or a threshold without a score as `deepeval test run` records it) becomes `status: error` with a fixed message. Flaky metrics get a score but no check. Inputs, outputs, contexts, turns, reasons and error messages are never copied.
 
 ### Changed
 
-- **`evalgate import --case-id`** has no fixed default in the CLI any more: each adapter applies its own (`description` for promptfoo, `name` for DeepEval). Behaviour for promptfoo is unchanged.
+- **`evalgate import --case-id`** has no fixed default in the CLI any more: each adapter applies its own (`description` for promptfoo, `name` for DeepEval). Behaviour for promptfoo is unchanged. `--case-id description` together with `--mapping`, which 0.4.0 silently ignored, is now rejected (exit 2) like any other `--case-id` with `--mapping`.
 
 ## 0.4.0
 

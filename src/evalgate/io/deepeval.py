@@ -27,8 +27,11 @@ from evalgate.io.reader import InputError, _error, _parse, _read_text
 from evalgate.models.mapping import ImportManifest
 
 # Position-based names DeepEval assigns to unnamed test cases: `test_case_<n>`,
-# `conversational_test_case_<n>`, and pytest's parametrize ids under `deepeval test run`.
-_DEFAULT_NAME = re.compile(r"(conversational_)?test_case_\d+|.*\[test_case\d+\]")
+# `conversational_test_case_<n>`, and pytest's parametrize ids under `deepeval test run`
+# (`test_bot[test_case0]`, or `test_bot[test_case0-gpt]` with a second parametrize).
+_DEFAULT_NAME = re.compile(
+    r"(conversational_)?test_case_\d+|.*\[(?:[^\]]*-)?test_case\d+(?:-[^\]]*)?\]"
+)
 
 
 def _test_run(source: Path) -> dict[str, Any]:
@@ -69,6 +72,8 @@ def _convert(case: dict[str, Any], field: str) -> dict[str, Any]:
             f"no usable case id in {field} (give each test case a name of its own, not a "
             "position-based default like test_case_<n> or test_x[test_case0], "
             "or use --case-id metadata.<key>)"
+            if field == "name"
+            else f"no usable case id in {field} (every test case needs a non-empty value there)"
         )
     out: dict[str, Any] = {"case_id": case_id, "metadata": _scalars(case.get("metadata") or {})}
 

@@ -186,7 +186,17 @@ def test_position_based_default_names_rejected(tmp_path: Path, name: str, defaul
         import_deepeval(FIXTURES / f"{name}.json", tmp_path / "x", **MANIFEST)
 
 
-@pytest.mark.parametrize("name", ["test_case_10", "conversational_test_case_2", "t[test_case3]"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "test_case_10",
+        "conversational_test_case_2",
+        "t[test_case3]",
+        "test_bot[test_case0-gpt]",  # a second parametrize adds to the pytest id
+        "test_bot[gpt-test_case1]",
+        "test_bot[a-test_case2-b]",
+    ],
+)
 def test_default_name_patterns(tmp_path: Path, name: str) -> None:
     data = fixture("baseline")
     case(data, "greeting")["name"] = name
@@ -229,3 +239,12 @@ def test_cli_case_id_metadata_and_empty(tmp_path: Path) -> None:
     assert ok.exit_code == 0, ok.output
     empty = runner.invoke(app, [*base, "--out", str(tmp_path / "b"), "--case-id", ""])
     assert empty.exit_code == 2  # an empty --case-id is an error, never the default
+
+
+def test_chosen_names_with_brackets_accepted_and_metadata_hint(tmp_path: Path) -> None:
+    data = fixture("baseline")
+    case(data, "greeting")["name"] = "greeting [v2-test_cases]"  # chosen, not positional
+    import_deepeval(write(tmp_path, data), tmp_path / "ok", **MANIFEST)
+    with pytest.raises(InputError, match="needs a non-empty value") as exc:
+        import_deepeval(write(tmp_path, data), tmp_path / "x", **MANIFEST, case_id="metadata.k")
+    assert "test_case_<n>" not in exc.value.diagnostics[0].message

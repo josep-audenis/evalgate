@@ -72,7 +72,7 @@ Metrics skipped by `skip_on_missing_params` are left out of DeepEval's file alto
 
 EvalGate matches baseline and candidate cases by `case_id`, so it has to be stable and unique. The default is the test case `name`. Give every test case a name of its own: `LLMTestCase(name="refund policy", ...)`.
 
-If you don't, DeepEval names test cases by position: `test_case_0`, `conversational_test_case_0`, and under `deepeval test run` with `@pytest.mark.parametrize("test_case", ...)`, pytest ids like `test_bot[test_case0]`. Those names change when cases are added, removed or reordered, which would silently compare the wrong cases, so the import rejects them. Set `name=` on each test case, pass `ids=` to `parametrize`, or use `--case-id metadata.<key>` to take the id from a metadata field, for example a ticket or dataset row id.
+If you don't, DeepEval names test cases by position: `test_case_0`, `conversational_test_case_0`, and under `deepeval test run` with `@pytest.mark.parametrize("test_case", ...)`, pytest ids like `test_bot[test_case0]` (or `test_bot[test_case0-gpt]` with a second parametrize). Those names change when cases are added, removed or reordered, which would silently compare the wrong cases, so the import rejects them. pytest ids built from another parameter name (`test_bot[case0]`) can't be told apart from names you chose, so they aren't rejected: always pass `ids=` to `parametrize`. Set `name=` on each test case, pass `ids=`, or use `--case-id metadata.<key>` to take the id from a metadata field, for example a ticket or dataset row id.
 
 ## Fail closed
 
