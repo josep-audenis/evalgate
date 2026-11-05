@@ -2,6 +2,21 @@
 
 All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change behaviour; anything that does is listed under **Changed**.
 
+## Unreleased
+
+DeepEval adapter: with promptfoo, two external result formats now import without rewriting records (SPEC Phase 5 acceptance).
+
+### Added
+
+- **DeepEval adapter.** `evalgate import test_run.json --from deepeval --out DIR --dataset ... --dataset-version ... --evaluator-version ...` (also `evalgate.import_deepeval`) imports a DeepEval test run file (`test_run_<timestamp>.json` from a results folder, or `.deepeval/.latest_run_full.json`). Single-turn and conversational test cases are supported. See [docs/deepeval.md](docs/deepeval.md).
+  - Metric scores become scores; metric pass/fail (for metrics with a threshold) and test case pass become checks; `completionTime`, `tokenCost` and token counts become `latency_ms`, `cost` and `tokens`; scalar metadata is kept.
+  - Case ids come from the test case `name`, or `--case-id metadata.<key>`. Position-based default names (`test_case_<n>`, `conversational_test_case_<n>`, pytest ids like `test_bot[test_case0]`) and duplicate ids are rejected.
+  - A test case with an errored metric (an `error`, or a threshold without a score as `deepeval test run` records it) becomes `status: error` with a fixed message. Flaky metrics get a score but no check. Inputs, outputs, contexts, turns, reasons and error messages are never copied.
+
+### Changed
+
+- **`evalgate import --case-id`** has no fixed default in the CLI any more: each adapter applies its own (`description` for promptfoo, `name` for DeepEval). Behaviour for promptfoo is unchanged.
+
 ## 0.4.0
 
 Per-category limits, documented statistics (SPEC Phase 4 complete) and a promptfoo adapter. Policies without category limits get the same decisions as in 0.3.0.

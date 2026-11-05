@@ -1,0 +1,164 @@
+{
+  "testCases": [
+    {
+      "name": "refund policy",
+      "input": "refund?",
+      "actualOutput": "refunds take 5 days",
+      "completionTime": 0.42,
+      "tags": [
+        "smoke"
+      ],
+      "flaky": false,
+      "success": true,
+      "metricsData": [
+        {
+          "name": "Keyword[refunds]",
+          "threshold": 0.5,
+          "success": true,
+          "score": 1.0,
+          "reason": "looked for refunds",
+          "strictMode": false,
+          "flaky": false
+        },
+        {
+          "name": "Length",
+          "threshold": 0.0,
+          "success": true,
+          "score": 0.19,
+          "strictMode": false,
+          "flaky": false
+        }
+      ],
+      "runDuration": 0.007594499969854951,
+      "order": 0,
+      "metadata": {
+        "category": "billing"
+      }
+    },
+    {
+      "name": "greeting",
+      "input": "hi",
+      "actualOutput": "hello there",
+      "completionTime": 0.11,
+      "flaky": false,
+      "success": false,
+      "metricsData": [
+        {
+          "name": "Keyword[refunds]",
+          "threshold": 0.5,
+          "success": false,
+          "score": 0.2,
+          "reason": "looked for refunds",
+          "strictMode": false,
+          "flaky": false
+        },
+        {
+          "name": "Length",
+          "threshold": 0.0,
+          "success": true,
+          "score": 0.11,
+          "strictMode": false,
+          "flaky": false
+        }
+      ],
+      "runDuration": 0.02353090001270175,
+      "order": 1,
+      "metadata": {
+        "category": "chat"
+      }
+    },
+    {
+      "name": "crash",
+      "input": "BOOM",
+      "actualOutput": "x",
+      "flaky": false,
+      "success": false,
+      "metricsData": [
+        {
+          "name": "Keyword[refunds]",
+          "threshold": 0.5,
+          "success": false,
+          "strictMode": false,
+          "flaky": false,
+          "error": "RuntimeError: metric crashed on input 'BOOM' at C:/secret/path"
+        },
+        {
+          "name": "Length",
+          "threshold": 0.0,
+          "success": true,
+          "score": 0.01,
+          "strictMode": false,
+          "flaky": false
+        }
+      ],
+      "runDuration": 0.010451100068166852,
+      "order": 2,
+      "metadata": {
+        "category": "chat"
+      }
+    },
+    {
+      "name": "maybe refund",
+      "input": "unnamed",
+      "actualOutput": "refunds maybe",
+      "flaky": false,
+      "success": true,
+      "metricsData": [
+        {
+          "name": "Keyword[refunds]",
+          "threshold": 0.5,
+          "success": true,
+          "score": 1.0,
+          "reason": "looked for refunds",
+          "strictMode": false,
+          "flaky": false
+        },
+        {
+          "name": "Length",
+          "threshold": 0.0,
+          "success": true,
+          "score": 0.13,
+          "strictMode": false,
+          "flaky": false
+        }
+      ],
+      "runDuration": 0.033472999930381775,
+      "order": 3
+    }
+  ],
+  "conversationalTestCases": [],
+  "metricsScores": [
+    {
+      "metric": "Keyword[refunds]",
+      "scores": [
+        1.0,
+        0.2,
+        1.0
+      ],
+      "passes": 2,
+      "fails": 1,
+      "errors": 1
+    },
+    {
+      "metric": "Length",
+      "scores": [
+        0.19,
+        0.11,
+        0.01,
+        0.13
+      ],
+      "passes": 4,
+      "fails": 0,
+      "errors": 0
+    }
+  ],
+  "hyperparameters": {
+    "model": "echo-1",
+    "prompt": "v3"
+  },
+  "prompts": [],
+  "testPassed": 2,
+  "testFailed": 2,
+  "runDuration": 0.13521850015968084,
+  "official": false
+}

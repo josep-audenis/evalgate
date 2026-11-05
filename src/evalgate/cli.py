@@ -22,6 +22,7 @@ from evalgate.io import (
     write_json_report,
     write_policy_template,
 )
+from evalgate.io.deepeval import import_deepeval
 from evalgate.io.importer import import_results
 from evalgate.io.promptfoo import import_promptfoo
 from evalgate.reporting.terminal import render, render_diagnostics
@@ -132,12 +133,13 @@ def import_(
     ] = None,
     from_: Annotated[
         str | None,
-        typer.Option("--from", help="Source tool with a built-in adapter: promptfoo."),
+        typer.Option("--from", help="Source tool with a built-in adapter: promptfoo, deepeval."),
     ] = None,
     run_id: Annotated[
         str | None,
         typer.Option(
-            "--run-id", help="Run id (default: mapping manifest.run_id / promptfoo evalId)."
+            "--run-id",
+            help="Run id (default: mapping run_id, promptfoo evalId, DeepEval identifier/file).",
         ),
     ] = None,
     dataset: Annotated[str | None, typer.Option("--dataset", help="Adapters: dataset id.")] = None,
@@ -148,9 +150,13 @@ def import_(
         str | None, typer.Option("--evaluator-version", help="Adapters: evaluator version.")
     ] = None,
     case_id: Annotated[
-        str,
-        typer.Option("--case-id", help="promptfoo: description, vars.<name> or metadata.<name>."),
-    ] = "description",
+        str | None,
+        typer.Option(
+            "--case-id",
+            help="promptfoo: description (default), vars.<name>, metadata.<name>. "
+            "deepeval: name (default), metadata.<key>.",
+        ),
+    ] = None,
     provider: Annotated[
         str | None, typer.Option("--provider", help="promptfoo: provider label or id to import.")
     ] = None,
@@ -163,11 +169,11 @@ def import_(
 ) -> None:
     """Convert results from another tool into an EvalGate run directory.
 
-    Generic: --mapping mapping.yaml (CSV / JSON / JSONL). promptfoo: --from promptfoo with
-    --dataset, --dataset-version and --evaluator-version.
+    Generic: --mapping mapping.yaml (CSV / JSON / JSONL). Adapters: --from promptfoo or
+    --from deepeval, with --dataset, --dataset-version and --evaluator-version.
     """
     adapter_only = {
-        "--case-id": case_id != "description",
+        "--case-id": case_id is not None,
         "--provider": provider,
         "--prompt": prompt,
     }
@@ -179,15 +185,17 @@ def import_(
     usage = None
     if from_ is None:
         if mapping is None:
-            usage = "pass --mapping for a CSV / JSON file, or --from promptfoo"
+            usage = "pass --mapping for a CSV / JSON file, or --from promptfoo / deepeval"
         elif extra := [k for k, v in (manifest | adapter_only).items() if v]:
             usage = f"{', '.join(extra)} only apply with --from; the mapping sets the manifest"
-    elif from_ != "promptfoo":
-        usage = f"unknown --from {from_!r}; supported: promptfoo"
+    elif from_ not in ("promptfoo", "deepeval"):
+        usage = f"unknown --from {from_!r}; supported: promptfoo, deepeval"
     elif mapping is not None:
         usage = "--mapping and --from are exclusive"
     elif missing := [k for k, v in manifest.items() if not v]:
-        usage = f"--from promptfoo needs {', '.join(missing)}"
+        usage = f"--from {from_} needs {', '.join(missing)}"
+    elif from_ == "deepeval" and (provider or prompt):
+        usage = "--provider and --prompt only apply with --from promptfoo"
     if usage:
         console.print(f"[bold yellow]INVALID[/]: {escape(usage)}")
         raise typer.Exit(EXIT_INVALID)
@@ -202,9 +210,21 @@ def import_(
                 dataset_version=dataset_version,
                 evaluator_version=evaluator_version,
                 run_id=run_id,
-                case_id=case_id,
+                case_id="description" if case_id is None else case_id,
                 provider=provider,
                 prompt=prompt,
+                overwrite=overwrite,
+            )
+        elif from_ == "deepeval":
+            assert dataset and dataset_version and evaluator_version  # checked above
+            summary = import_deepeval(
+                source,
+                out,
+                dataset=dataset,
+                dataset_version=dataset_version,
+                evaluator_version=evaluator_version,
+                run_id=run_id,
+                case_id="name" if case_id is None else case_id,
                 overwrite=overwrite,
             )
         else:
