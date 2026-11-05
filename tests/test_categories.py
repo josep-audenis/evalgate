@@ -2,6 +2,7 @@
 
 from typing import Any
 
+import pytest
 from conftest import POLICY, case, make_policy, make_run
 
 from evalgate.engine import evaluate
@@ -100,3 +101,77 @@ def test_category_ci_reported_and_rendered() -> None:
     assert hard.ci.low <= hard.delta_abs <= hard.ci.high
     assert hard.delta_pct is not None and round(hard.delta_pct, 6) == -12.5
     assert "[-0.1, -0.1]" in render_html(report)
+
+
+# Review findings (PR #15).
+
+
+def test_unlimited_tiny_baseline_category_does_not_turn_invalid() -> None:
+    # Percent change of a category with a denormal baseline mean is inf; no rule reads it.
+    base = [cat("t", "tiny", 5e-324), cat("b1", "big", 0.8), cat("b2", "big", 0.8)]
+    cand = [cat("t", "tiny", 0.01), cat("b1", "big", 0.8), cat("b2", "big", 0.8)]
+    assert evaluate(make_run(base), make_run(cand), policy()).status == "PASS"
+    limited = policy(max_category_regression_pct=10)
+    assert evaluate(make_run(base), make_run(cand), limited).status == "INVALID"
+
+
+@pytest.mark.parametrize("bad", [1, None, "", "  ", ["x"]])
+def test_non_text_category_is_invalid_with_category_limits(bad: Any) -> None:
+    base = [case("a", 0.8, metadata={"category": bad}), cat("b", "s", 0.8)]
+    cand = [case("a", 0.1, metadata={"category": bad}), cat("b", "s", 0.8)]
+    report = evaluate(make_run(base), make_run(cand), policy(max_category_regression_abs=0.05))
+    assert report.status == "INVALID"
+    assert [d.code for d in report.diagnostics if d.level == "error"] == ["category_type"]
+    # Without category limits the category is irrelevant and nothing changes.
+    plain = evaluate(make_run(base), make_run(cand), policy())
+    assert "category_type" not in {d.code for d in plain.diagnostics}
+
+
+def test_minimize_metric_category_limit() -> None:
+    base = [cat(f"e{i}", "easy", 0.8, latency=1000) for i in range(3)] + [
+        cat("h", "hard", 0.8, latency=1000)
+    ]
+    cand = [cat(f"e{i}", "easy", 0.8, latency=800) for i in range(3)] + [
+        cat("h", "hard", 0.8, latency=1300)
+    ]
+    metrics = POLICY["metrics"] | {
+        "latency": POLICY["metrics"]["latency"] | {"max_category_regression_pct": 20}
+    }
+    r = rules(evaluate(make_run(base), make_run(cand), make_policy(metrics=metrics)))
+    assert r["metrics.latency.max_mean_regression_pct"] is True  # overall latency improved
+    assert r["metrics.latency.categories.hard.max_category_regression_pct"] is False
+    assert r["metrics.latency.categories.easy.max_category_regression_pct"] is True
+
+
+def test_varying_category_interval_and_conclusiveness() -> None:
+    drops = [0.0, 0.02, 0.04, 0.06, 0.08, 0.1]
+    base = [cat(f"c{i}", "v", 0.8) for i in range(6)]
+    cand = [cat(f"c{i}", "v", 0.8 - d) for i, d in enumerate(drops)]
+    p = policy(max_category_regression_abs=0.06)
+    report = evaluate(make_run(base), make_run(cand), p)
+    assert report.comparison is not None
+    g = next(x for x in report.comparison.categories if x.metric == "quality")
+    assert g.ci.low < g.delta_abs < g.ci.high  # a real, non-degenerate interval
+    rule = next(x for x in report.rules if ".categories.v." in x.rule)
+    assert rule.passed and not rule.conclusive  # mean drop 0.05 within 0.06, CI spans it
+    strict = p.model_copy(
+        update={"statistics": make_policy(statistics={"require_conclusive": True}).statistics}
+    )
+    assert evaluate(make_run(base), make_run(cand), strict).status == "FAIL"
+
+
+def test_repeated_runs_take_category_from_first_repeat() -> None:
+    def reps(q: float) -> list[dict[str, Any]]:
+        return [
+            cat(i, "hard" if i == "h" else "easy", q if i == "h" else 0.8, repeat=r)
+            for i in ("e", "h")
+            for r in range(2)
+        ]
+
+    manifest = {"schema_version": "1.1", "repeats": 2}
+    report = evaluate(
+        make_run(reps(0.8), **manifest),
+        make_run(reps(0.7), **manifest),
+        policy(max_category_regression_abs=0.05),
+    )
+    assert rules(report)["metrics.quality.categories.hard.max_category_regression_abs"] is False

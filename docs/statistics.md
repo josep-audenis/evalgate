@@ -6,7 +6,7 @@ Everything here is deterministic: the same inputs give the same numbers on every
 
 ## The unit of analysis is the case
 
-Every statistic pairs a case's baseline result with the same case's candidate result. Only cases with `status: ok` in both runs are compared. Cases that errored in either run are left out of the means and intervals, and they're counted against `max_execution_errors` separately.
+Every statistic pairs a case's baseline result with the same case's candidate result. Only cases with `status: ok` in both runs are compared. Cases that errored in either run are left out of the means and intervals. Candidate errors are counted against `max_execution_errors` separately.
 
 With repeated runs, each case's repeats are first collapsed into one result (see [repeated runs](design/repeated-runs.md)): metric values are averaged, a check passes only if every repeat passes, and any errored repeat makes the whole case an error. So 50 cases × 5 repeats is still a sample of 50, not 250. Repeats make each case's value less noisy. They don't make it look as if you have more cases.
 
@@ -18,7 +18,7 @@ The interval in `ci` is for the paired mean difference, at `statistics.confidenc
 
 | Compared cases | Method | Details |
 |---|---|---|
-| 1 | none | Zero-width interval at the observed change. It proves nothing and is never *conclusive*. |
+| 1 | `bootstrap`, 0 resamples | Zero-width interval at the observed change. It proves nothing and is never *conclusive*. |
 | 2 to 2000 | Percentile bootstrap | 1000 resamples of the per-case differences with a fixed seed. The bounds are the α/2 and 1−α/2 percentiles of the resampled means. |
 | over 2000 | Normal approximation | mean ± z × sd / √n. At this size the mean's sampling distribution is close to normal, and resampling in pure Python gets slow. |
 
@@ -38,9 +38,10 @@ With `checks.fail_on_significant_regression: true`, a check fails when p < 1 −
 
 ## Category limits
 
-`max_category_regression_abs` and `max_category_regression_pct` on a metric apply the same kind of limit to each `metadata.category` separately, with its own mean change and interval. The category comes from the baseline case, or from the first repeat with repeated runs. Only text values count.
+`max_category_regression_abs` and `max_category_regression_pct` on a metric apply the same kind of limit to each `metadata.category` separately, with its own mean change and interval. The category comes from the baseline case, or from the first repeat with repeated runs. It is used verbatim in rule identifiers, so keep names free of dots and surrounding spaces.
 
 - A category limit with no categorized compared cases is INVALID (`category_missing`), not a silent pass.
+- A `metadata.category` that isn't non-empty text (a number, `null`, `""`) is INVALID (`category_type`) when the policy has category limits, so no case drops out of its category unchecked.
 - Compared cases without a category aren't covered by category limits. A `category_partial` warning says how many.
 - Categories are smaller than the whole suite, so their intervals are wider. With `require_conclusive`, a small category often comes out inconclusive and fails. A single-case category always does.
 - Each category is another chance for noise to break a limit: with many categories, some will look worse by chance. Set category limits looser than the overall limit, or use `require_conclusive` so only clear regressions fail.

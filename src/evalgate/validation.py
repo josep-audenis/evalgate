@@ -177,6 +177,29 @@ def validate_pair(baseline: Run, candidate: Run, policy: Policy) -> list[Diagnos
                     )
                 )
 
+    # Category limits group by text metadata.category; any other value would drop the case
+    # from its category unchecked.
+    if any(
+        r.max_category_regression_abs is not None or r.max_category_regression_pct is not None
+        for r in policy.metrics.values()
+    ):
+        bad = [
+            i
+            for i in matched
+            if base[i].status == cand[i].status == "ok"
+            and "category" in base[i].metadata
+            and not (isinstance(c := base[i].metadata["category"], str) and c.strip())
+        ]
+        if bad:
+            out.append(
+                _diag(
+                    True,
+                    "category_type",
+                    f"baseline: metadata.category must be non-empty text for category limits; "
+                    f"{len(bad)} compared case(s) have another value: {_ids(bad)}",
+                )
+            )
+
     # A check that vanishes in the candidate could hide a new failure.
     for check in sorted(set(policy.checks.required)):
         missing = [

@@ -9,7 +9,7 @@ Per-category limits and documented statistics (SPEC Phase 4 complete). Policies 
 ### Added
 
 - **Per-category limits.** `max_category_regression_abs` and `max_category_regression_pct` on a metric apply the limit to each `metadata.category` separately, with rules named `metrics.<name>.categories.<category>.max_category_regression_abs` / `_pct`. A regression confined to one category now fails even when the overall mean improves.
-  - **Fail closed:** a category limit when no compared case has a text `metadata.category` is INVALID (`category_missing`). Uncategorized compared cases give a `category_partial` warning. A percent limit on a category whose baseline mean is 0 follows the same `pct_undefined` rule as metrics.
+  - **Fail closed:** a category limit when no compared case has a text `metadata.category` is INVALID (`category_missing`), and so is a compared case whose category is not non-empty text (`category_type`). Uncategorized compared cases give a `category_partial` warning. A percent limit on a category whose baseline mean is 0 follows the same `pct_undefined` rule as metrics.
   - `statistics.require_conclusive` applies to category rules too.
 - **Category intervals.** `comparison.categories[]` gains `delta_pct` and `ci` (same shape as `metrics[].ci`). The HTML report shows the interval.
 - **[docs/statistics.md](docs/statistics.md):** methods, assumptions and limits of the intervals, McNemar test, category limits and sample-size checks.

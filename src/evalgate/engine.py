@@ -14,8 +14,17 @@ def _has_errors(diagnostics: list[Diagnostic]) -> bool:
     return any(d.level == "error" for d in diagnostics)
 
 
-def _all_finite(c: Comparison) -> bool:
-    deltas: list[MetricDelta | CategoryDelta] = [*c.metrics, *c.categories]
+def _all_finite(c: Comparison, policy: Policy) -> bool:
+    # Only categories that rules read: an unused tiny-baseline category must not turn INVALID.
+    limited = {
+        name
+        for name, r in policy.metrics.items()
+        if r.max_category_regression_abs is not None or r.max_category_regression_pct is not None
+    }
+    deltas: list[MetricDelta | CategoryDelta] = [
+        *c.metrics,
+        *(g for g in c.categories if g.metric in limited),
+    ]
     values = [
         x
         for m in deltas
@@ -76,7 +85,7 @@ def evaluate(baseline: Run, candidate: Run, policy: Policy) -> Report:
         )
     except (OverflowError, ValueError):  # ValueError: inf - inf in fsum, StatisticsError
         comparison = None
-    if comparison is None or not _all_finite(comparison):
+    if comparison is None or not _all_finite(comparison, policy):
         return invalid_report([*diagnostics, overflow], **identity)
 
     rules, rule_diagnostics = evaluate_policy(comparison, policy)
