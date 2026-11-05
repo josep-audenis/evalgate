@@ -14,6 +14,7 @@ from rich.markup import escape
 
 from evalgate._version import __version__
 from evalgate.api import compare as run_compare
+from evalgate.comparison.repeats import repeats_per_case
 from evalgate.io import (
     InputError,
     load_run,
@@ -76,7 +77,9 @@ def validate(run_dir: Path) -> None:
     if any(d.level == "error" for d in diagnostics):
         console.print("[bold yellow]INVALID[/]")
         raise typer.Exit(EXIT_INVALID)
-    console.print(f"[bold green]valid[/]: {run.manifest.run_id}, {len(run.cases)} cases")
+    k = repeats_per_case(run)
+    shape = f"{len(run.cases) // k} cases" + (f" x {k} repeats" if k > 1 else "")
+    console.print(f"[bold green]valid[/]: {escape(run.manifest.run_id)}, {shape}")
 
 
 @app.command()

@@ -19,12 +19,15 @@ Repeated runs and importing (SPEC Phase 4 completion, Phase 5 start). Runs witho
 - **Generic importer.** `evalgate import SOURCE --mapping mapping.yaml --out DIR [--run-id ID] [--overwrite]` (also `evalgate.import_results`) converts CSV, JSON or JSONL results from other tools into a run directory, using a strict mapping file.
   - **Fail closed:** values must be valid numbers or explicit true/false; rows must match the CSV header; duplicate columns or keys and mapped fields absent from every record are errors. Every bad record is reported, and no run files are written unless all records convert.
   - **Privacy:** only mapped fields are imported, so unmapped prompts and outputs are never copied.
+  - **Diagnostic codes:** `import_format`, `import_run_id`, `import_field_missing`, `import_record`, `import_exists`, `import_parse`, `mapping_yaml`. The SDK also exports `ImportSummary`.
   - Docs: [docs/importing.md](docs/importing.md).
 - **New examples:** `examples/repeats` (a flaky safety check behind an unchanged average) and `examples/import-csv`.
 
 ### Changed
 
 - **`repeat` (on a case) and `repeats` (in `run.json`) are now reserved names.** A 0.2.0 run file that used them as custom metadata is now rejected or INVALID, never misread.
+- **Run files may declare `schema_version: "1.1"`** even without repeats. 0.2.0 rejected that.
+- **`evalgate validate`** now reports cases and repeats separately ("6 cases x 3 repeats").
 - **A failed or interrupted `EvalRun`** (including a failed import) now deletes its `.cases.jsonl.partial` file. Any previous run in that directory is still left untouched.
 
 The JSON report is still `report_version: "1"`, because `comparison.repeats` is an added field.

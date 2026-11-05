@@ -103,9 +103,7 @@ class EvalRun:
         # Old run.json goes first so old manifest + new cases can never load together.
         (self.path / "run.json").unlink(missing_ok=True)
         os.replace(self._partial, self.path / "cases.jsonl")
-        # Plain runs keep the exact 1.0 manifest shape (no "repeats": null).
-        skip = {"repeats"} if self.manifest.repeats is None else None
-        manifest = self.manifest.model_dump_json(indent=2, exclude=skip)
+        manifest = self.manifest.model_dump_json(indent=2)
         _atomic_write(self.path / "run.json", manifest + "\n")
 
     def _write(self, case: CaseResult) -> None:
