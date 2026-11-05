@@ -2,6 +2,7 @@
 
 from collections import defaultdict
 from statistics import fmean
+from typing import Any
 
 from evalgate.comparison.stats import mcnemar_p, mean_diff_ci
 from evalgate.models import (
@@ -33,6 +34,29 @@ def _value(case: CaseResult, rule: MetricRule) -> float:
     return value
 
 
+def _delta(values: list[tuple[float, float]], confidence: float) -> dict[str, Any]:
+    """Paired mean change over (baseline, candidate) values, with its confidence interval."""
+    base_mean = fmean(b for b, _ in values)
+    delta = fmean(c for _, c in values) - base_mean
+    low, high, method, resamples = mean_diff_ci([c - b for b, c in values], confidence)
+    return {
+        "cases": len(values),
+        "baseline_mean": base_mean,
+        "candidate_mean": fmean(c for _, c in values),
+        "delta_abs": delta,
+        "delta_pct": _pct(delta, base_mean),
+        "ci": ConfidenceInterval(
+            confidence=confidence,
+            low=low,
+            high=high,
+            pct_low=_pct(low, base_mean),
+            pct_high=_pct(high, base_mean),
+            method=method,
+            resamples=resamples,
+        ),
+    }
+
+
 def compare(
     baseline: Run, candidate: Run, metrics: dict[str, MetricRule], confidence: float = 0.95
 ) -> Comparison:
@@ -48,29 +72,9 @@ def compare(
     by_category: dict[tuple[str, str], list[tuple[float, float]]] = defaultdict(list)
     for name, rule in sorted(metrics.items()):
         values = [(_value(b, rule), _value(c, rule)) for b, c in pairs]
-        base_mean = fmean(b for b, _ in values)
-        cand_mean = fmean(c for _, c in values)
-        delta = cand_mean - base_mean
-        low, high, method, resamples = mean_diff_ci([c - b for b, c in values], confidence)
         metric_deltas.append(
             MetricDelta(
-                name=name,
-                path=rule.path,
-                direction=rule.direction,
-                cases=len(values),
-                baseline_mean=base_mean,
-                candidate_mean=cand_mean,
-                delta_abs=delta,
-                delta_pct=_pct(delta, base_mean),
-                ci=ConfidenceInterval(
-                    confidence=confidence,
-                    low=low,
-                    high=high,
-                    pct_low=_pct(low, base_mean),
-                    pct_high=_pct(high, base_mean),
-                    method=method,
-                    resamples=resamples,
-                ),
+                name=name, path=rule.path, direction=rule.direction, **_delta(values, confidence)
             )
         )
         for (b_case, _), (b, c) in zip(pairs, values, strict=True):
@@ -133,14 +137,7 @@ def compare(
             if not passed
         ],
         categories=[
-            CategoryDelta(
-                category=category,
-                metric=metric,
-                cases=len(values),
-                baseline_mean=fmean(b for b, _ in values),
-                candidate_mean=fmean(c for _, c in values),
-                delta_abs=fmean(c for _, c in values) - fmean(b for b, _ in values),
-            )
+            CategoryDelta(category=category, metric=metric, **_delta(values, confidence))
             for (category, metric), values in sorted(by_category.items())
         ],
     )

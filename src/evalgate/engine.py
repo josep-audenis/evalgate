@@ -5,7 +5,7 @@ import math
 from evalgate._version import __version__
 from evalgate.comparison import compare
 from evalgate.comparison.repeats import collapse, repeat_summary
-from evalgate.models import Comparison, Diagnostic, Policy, Report, Run
+from evalgate.models import CategoryDelta, Comparison, Diagnostic, MetricDelta, Policy, Report, Run
 from evalgate.policies import evaluate_policy
 from evalgate.validation import validate_pair, validate_run
 
@@ -15,16 +15,23 @@ def _has_errors(diagnostics: list[Diagnostic]) -> bool:
 
 
 def _all_finite(c: Comparison) -> bool:
-    values = [x for m in c.metrics for x in (m.baseline_mean, m.candidate_mean, m.delta_abs)]
-    values += [m.delta_pct for m in c.metrics if m.delta_pct is not None]
-    values += [
+    deltas: list[MetricDelta | CategoryDelta] = [*c.metrics, *c.categories]
+    values = [
         x
-        for m in c.metrics
-        for x in (m.ci.low, m.ci.high, m.ci.pct_low, m.ci.pct_high)
+        for m in deltas
+        for x in (
+            m.baseline_mean,
+            m.candidate_mean,
+            m.delta_abs,
+            m.delta_pct,
+            m.ci.low,
+            m.ci.high,
+            m.ci.pct_low,
+            m.ci.pct_high,
+        )
         if x is not None
     ]
     values += [d.delta_abs for d in (*c.regressed_cases, *c.improved_cases)]
-    values += [x for g in c.categories for x in (g.baseline_mean, g.candidate_mean, g.delta_abs)]
     if c.repeats:
         values += [
             x for m in c.repeats.metrics for x in (m.baseline_sd, m.candidate_sd) if x is not None

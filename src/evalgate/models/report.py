@@ -66,6 +66,8 @@ class CategoryDelta(BaseModel):
     baseline_mean: float
     candidate_mean: float
     delta_abs: float
+    delta_pct: float | None  # None when the category's baseline mean is 0
+    ci: ConfidenceInterval
 
 
 class CheckStat(BaseModel):

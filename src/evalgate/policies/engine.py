@@ -1,6 +1,14 @@
 """Evaluate release rules against a comparison. Each rule yields one explainable result."""
 
-from evalgate.models import CheckChange, Comparison, Diagnostic, Policy, RuleResult
+from evalgate.models import (
+    CategoryDelta,
+    CheckChange,
+    Comparison,
+    Diagnostic,
+    MetricDelta,
+    Policy,
+    RuleResult,
+)
 
 # Absorbs float noise so a regression exactly at the threshold is not a violation.
 _EPS = 1e-9
@@ -44,6 +52,53 @@ def _metric_rule(
     return RuleResult(rule=rule, passed=passed, message=message, conclusive=conclusive)
 
 
+def _threshold_rules(
+    rule: str,
+    what: str,
+    label: str,
+    d: MetricDelta | CategoryDelta,
+    abs_limit: float | None,
+    pct_limit: float | None,
+    maximize: bool,
+    policy: Policy,
+    diagnostics: list[Diagnostic],
+) -> list[RuleResult]:
+    """Absolute and percent limits on one mean change (a whole metric or one category)."""
+    means = f"{label} {d.baseline_mean:.6g} -> {d.candidate_mean:.6g}"
+    stats = (d.ci.confidence, policy.statistics.require_conclusive, d.cases)
+    rules = []
+    if abs_limit is not None:
+        ci = (d.ci.low, d.ci.high)
+        rules.append(
+            _metric_rule(f"{rule}_abs", means, d.delta_abs, ci, abs_limit, maximize, "", *stats)
+        )
+    if pct_limit is not None:
+        if d.delta_pct is None:
+            # Percent change undefined at a zero baseline: never divide, never guess.
+            has_abs = abs_limit is not None
+            diagnostics.append(
+                Diagnostic(
+                    level="warning" if has_abs else "error",
+                    code="pct_undefined",
+                    message=f"{what}: baseline mean is 0, percent change undefined"
+                    + (
+                        "; absolute threshold applied"
+                        if has_abs
+                        else f"; set {rule.rsplit('.', 1)[1]}_abs"
+                    ),
+                )
+            )
+        else:
+            assert d.ci.pct_low is not None and d.ci.pct_high is not None  # baseline mean != 0
+            ci = (d.ci.pct_low, d.ci.pct_high)
+            rules.append(
+                _metric_rule(
+                    f"{rule}_pct", means, d.delta_pct, ci, pct_limit, maximize, "%", *stats
+                )
+            )
+    return rules
+
+
 def evaluate_policy(
     comparison: Comparison, policy: Policy
 ) -> tuple[list[RuleResult], list[Diagnostic]]:
@@ -62,56 +117,53 @@ def evaluate_policy(
 
     deltas = {d.name: d for d in comparison.metrics}
     for name, rule in sorted(policy.metrics.items()):
-        d = deltas[name]
-        means = f"{name} mean {d.baseline_mean:.6g} -> {d.candidate_mean:.6g}"
         maximize = rule.direction == "maximize"
-        if rule.max_mean_regression_abs is not None:
-            rules.append(
-                _metric_rule(
-                    f"metrics.{name}.max_mean_regression_abs",
-                    means,
-                    d.delta_abs,
-                    (d.ci.low, d.ci.high),
-                    rule.max_mean_regression_abs,
-                    maximize,
-                    "",
-                    d.ci.confidence,
-                    policy.statistics.require_conclusive,
-                    d.cases,
+        d = deltas[name]
+        rules += _threshold_rules(
+            f"metrics.{name}.max_mean_regression",
+            f"metric '{name}'",
+            f"{name} mean",
+            d,
+            rule.max_mean_regression_abs,
+            rule.max_mean_regression_pct,
+            maximize,
+            policy,
+            diagnostics,
+        )
+        if rule.max_category_regression_abs is None and rule.max_category_regression_pct is None:
+            continue
+        groups = [g for g in comparison.categories if g.metric == name]
+        uncovered = d.cases - sum(g.cases for g in groups)
+        if not groups:
+            # A category rule with nothing to apply to must not pass silently.
+            diagnostics.append(
+                Diagnostic(
+                    level="error",
+                    code="category_missing",
+                    message=f"metric '{name}' has category limits but no compared case has "
+                    "a text metadata.category",
                 )
             )
-        if rule.max_mean_regression_pct is not None:
-            limit = rule.max_mean_regression_pct
-            if d.delta_pct is None:
-                # Percent change undefined at a zero baseline: never divide, never guess.
-                has_abs = rule.max_mean_regression_abs is not None
-                diagnostics.append(
-                    Diagnostic(
-                        level="warning" if has_abs else "error",
-                        code="pct_undefined",
-                        message=f"metric '{name}': baseline mean is 0, percent change undefined"
-                        + (
-                            "; absolute threshold applied"
-                            if has_abs
-                            else "; set max_mean_regression_abs"
-                        ),
-                    )
+        elif uncovered:
+            diagnostics.append(
+                Diagnostic(
+                    level="warning",
+                    code="category_partial",
+                    message=f"metric '{name}': {uncovered} of {d.cases} compared case(s) have "
+                    "no metadata.category; category limits don't cover them",
                 )
-                continue
-            assert d.ci.pct_low is not None and d.ci.pct_high is not None  # baseline mean != 0
-            rules.append(
-                _metric_rule(
-                    f"metrics.{name}.max_mean_regression_pct",
-                    means,
-                    d.delta_pct,
-                    (d.ci.pct_low, d.ci.pct_high),
-                    limit,
-                    maximize,
-                    "%",
-                    d.ci.confidence,
-                    policy.statistics.require_conclusive,
-                    d.cases,
-                )
+            )
+        for g in groups:
+            rules += _threshold_rules(
+                f"metrics.{name}.categories.{g.category}.max_category_regression",
+                f"metric '{name}' category '{g.category}'",
+                f"{name} [{g.category}] mean",
+                g,
+                rule.max_category_regression_abs,
+                rule.max_category_regression_pct,
+                maximize,
+                policy,
+                diagnostics,
             )
 
     for check in sorted(set(policy.checks.required)):
