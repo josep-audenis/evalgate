@@ -120,6 +120,16 @@ def _number(value: Any) -> float | None:
     return number if isfinite(number) else None
 
 
+def _scalars(metadata: dict[str, Any]) -> dict[str, Any]:
+    """Text, finite number and true/false values; nested values and `_internal` keys dropped."""
+    return {
+        k: v
+        for k, v in sorted(metadata.items())
+        if isinstance(v, str | int | bool) or (isinstance(v, float) and isfinite(v))
+        if not k.startswith("_")
+    }
+
+
 def _grader_failed(grading: dict[str, Any]) -> bool:
     parts = [grading, *(grading.get("componentResults") or [])]
     return any((p.get("metadata") or {}).get("graderError") for p in parts if isinstance(p, dict))
@@ -133,13 +143,7 @@ def _convert(row: dict[str, Any], case_field: str) -> dict[str, Any]:
         hint = "give every test a description" if case_field == "description" else "check the field"
         problems.append(f"no usable case id in testCase.{case_field} ({hint}, or use --case-id)")
     test = row.get("testCase") or {}
-    metadata = {
-        k: v
-        for k, v in sorted((test.get("metadata") or {}).items())
-        if isinstance(v, str | int | bool) or (isinstance(v, float) and isfinite(v))
-        if not k.startswith("_")
-    }
-    out: dict[str, Any] = {"case_id": case_id, "metadata": metadata}
+    out: dict[str, Any] = {"case_id": case_id, "metadata": _scalars(test.get("metadata") or {})}
     if "repeatIndex" in row:
         repeat = row["repeatIndex"]
         if isinstance(repeat, bool) or not isinstance(repeat, int) or repeat < 0:

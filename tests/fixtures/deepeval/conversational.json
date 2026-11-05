@@ -1,0 +1,53 @@
+{
+  "testCases": [],
+  "conversationalTestCases": [
+    {
+      "name": "support chat",
+      "success": true,
+      "metricsData": [
+        {
+          "name": "Turns",
+          "threshold": 0.5,
+          "success": true,
+          "score": 0.5,
+          "strictMode": false,
+          "flaky": false
+        }
+      ],
+      "runDuration": 0.0063633001409471035,
+      "turns": [
+        {
+          "role": "user",
+          "content": "my card was charged twice",
+          "order": 0
+        },
+        {
+          "role": "assistant",
+          "content": "sorry, refund on the way",
+          "order": 1
+        }
+      ],
+      "order": 0,
+      "metadata": {
+        "category": "chat"
+      },
+      "flaky": false
+    }
+  ],
+  "metricsScores": [
+    {
+      "metric": "Turns",
+      "scores": [
+        0.5
+      ],
+      "passes": 1,
+      "fails": 0,
+      "errors": 0
+    }
+  ],
+  "prompts": [],
+  "testPassed": 1,
+  "testFailed": 0,
+  "runDuration": 0.008152500027790666,
+  "official": false
+}

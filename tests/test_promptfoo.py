@@ -188,7 +188,7 @@ def test_cli_from_promptfoo(tmp_path: Path) -> None:
     assert "3 cases x 2 repeats" in result.output
     for args, message in (
         (["--from", "promptfoo"], "needs --dataset"),
-        (["--from", "deepeval", *flags], "unknown --from"),
+        (["--from", "langfuse", *flags], "unknown --from"),
         (["--from", "promptfoo", "--mapping", "m.yaml", *flags], "exclusive"),
         (["--mapping", "m.yaml", "--provider", "x"], "only apply with --from"),
         ([], "pass --mapping"),
