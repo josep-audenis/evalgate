@@ -1,2 +1,2 @@
 # Single source of the version: pyproject.toml reads it via [tool.hatch.version].
-__version__ = "0.3.0"
+__version__ = "0.4.0"

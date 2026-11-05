@@ -103,7 +103,8 @@ Bad records are all reported, and nothing is written unless every record convert
 Using promptfoo? Import its `-o results.json` directly, no mapping needed:
 
 ```bash
-evalgate import results.json --from promptfoo --out evals/candidate \n  --dataset support-suite --dataset-version v3 --evaluator-version pf-asserts-1
+evalgate import results.json --from promptfoo --out evals/candidate \
+  --dataset support-suite --dataset-version v3 --evaluator-version pf-asserts-1
 ```
 
 See [promptfoo](https://github.com/josep-audenis/evalgate/blob/main/docs/promptfoo.md).
@@ -178,7 +179,7 @@ Exit codes make EvalGate a drop-in CI step. See [CI integration](https://github.
 
 ## Status and scope
 
-Version 0.3.0 (alpha). See the [changelog](https://github.com/josep-audenis/evalgate/blob/main/CHANGELOG.md). EvalGate compares results your pipeline already produced. It does **not** run your application, call LLM judges, or host datasets.
+Version 0.4.0 (alpha). See the [changelog](https://github.com/josep-audenis/evalgate/blob/main/CHANGELOG.md). EvalGate compares results your pipeline already produced. It does **not** run your application, call LLM judges, or host datasets.
 
 Not yet included:
 - dedicated adapters for other tools (DeepEval, Langfuse); the generic importer covers their CSV/JSON exports
