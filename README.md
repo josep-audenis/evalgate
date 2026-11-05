@@ -103,7 +103,8 @@ Bad records are all reported, and nothing is written unless every record convert
 Using promptfoo? Import its `-o results.json` directly, no mapping needed:
 
 ```bash
-evalgate import results.json --from promptfoo --out evals/candidate \n  --dataset support-suite --dataset-version v3 --evaluator-version pf-asserts-1
+evalgate import results.json --from promptfoo --out evals/candidate \
+  --dataset support-suite --dataset-version v3 --evaluator-version pf-asserts-1
 ```
 
 See [promptfoo](https://github.com/josep-audenis/evalgate/blob/main/docs/promptfoo.md).

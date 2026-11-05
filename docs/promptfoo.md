@@ -6,8 +6,10 @@
 promptfoo eval -o baseline.json        # on the baseline version
 promptfoo eval -o candidate.json       # on the candidate version
 
-evalgate import baseline.json --from promptfoo --out evals/baseline   --dataset support-suite --dataset-version v3 --evaluator-version pf-asserts-1
-evalgate import candidate.json --from promptfoo --out evals/candidate   --dataset support-suite --dataset-version v3 --evaluator-version pf-asserts-1
+evalgate import baseline.json --from promptfoo --out evals/baseline \
+  --dataset support-suite --dataset-version v3 --evaluator-version pf-asserts-1
+evalgate import candidate.json --from promptfoo --out evals/candidate \
+  --dataset support-suite --dataset-version v3 --evaluator-version pf-asserts-1
 evalgate compare evals/baseline evals/candidate --policy evalgate.yaml
 ```
 

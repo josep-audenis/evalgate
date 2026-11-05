@@ -22,6 +22,7 @@ Per-category limits, documented statistics (SPEC Phase 4 complete) and a promptf
 
 - **JSON report:** the echoed policy shows the new `max_category_regression_abs` / `_pct` fields of each metric (as `null` when unset), and `comparison.categories[]` has the new `delta_pct` and `ci` fields. Both are additions; nothing was removed or renamed.
 - **`evalgate import`:** `--mapping` is no longer a required option, since `--from promptfoo` replaces it. Passing neither still exits 2, now with an `INVALID` message naming both options.
+- **Fail-closed edge case:** each category now gets a confidence interval, so metric values near the float limit inside one category can make a comparison INVALID (`numeric_overflow`) even without category limits. 0.3.0 decided such inputs on the overall metric alone.
 
 ## 0.3.0
 
