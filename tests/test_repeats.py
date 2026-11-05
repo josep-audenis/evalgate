@@ -258,3 +258,12 @@ def test_plain_sdk_run_still_writes_schema_1_0(tmp_path: Path) -> None:
         run.record("a", scores={"quality": 0.9})
     assert load_run(tmp_path / "r").manifest.schema_version == MANIFEST["schema_version"]
     assert "repeats" not in (tmp_path / "r" / "run.json").read_text()
+
+
+def test_plain_run_report_manifest_has_no_repeats_key() -> None:
+    # 0.2.0 compatibility: plain runs serialize exactly as before schema 1.1.
+    plain = make_run([case("a")])
+    dumped = evaluate(plain, plain, make_policy()).model_dump()
+    assert "repeats" not in dumped["baseline"] and "repeats" not in dumped["candidate"]
+    rep = repeated({"a": [0.9, 0.9]}, repeats=2)
+    assert evaluate(rep, rep, make_policy()).model_dump()["baseline"]["repeats"] == 2

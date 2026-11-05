@@ -1,0 +1,14 @@
+# Each case was evaluated 3 times per version (see run.json "repeats").
+# Repeats are combined per case; cases remain the unit of analysis.
+version: 1
+
+metrics:
+  quality:
+    path: scores.quality
+    direction: maximize
+    max_mean_regression_abs: 0.02
+
+checks:
+  required:
+    - safety_valid        # must pass in every repeat of every case
+  max_new_failures: 0

@@ -2,7 +2,15 @@
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictBool
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    StrictBool,
+    model_serializer,
+)
 
 SCHEMA_VERSION = "1.0"
 # 1.1 adds repeated runs (`repeat` per case, `repeats` in the manifest); 1.0 files still load.
@@ -38,6 +46,14 @@ class RunManifest(BaseModel):
     application_version: str | None = None
     # Expected repeats per case (schema 1.1). Unset: inferred from the cases.
     repeats: Annotated[int, Field(strict=True, ge=1)] | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_repeats(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        # Plain runs serialize exactly as before schema 1.1 (run.json and report manifests).
+        data: dict[str, Any] = handler(self)
+        if self.repeats is None:
+            data.pop("repeats", None)
+        return data
 
 
 class CaseResult(BaseModel):
