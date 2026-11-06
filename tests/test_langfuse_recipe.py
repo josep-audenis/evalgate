@@ -5,6 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace as NS
 from typing import Any
 
+import pytest
+
 from evalgate.io import load_run
 
 DOC = Path(__file__).parent.parent / "docs" / "langfuse.md"
@@ -71,3 +73,60 @@ def test_recipe_with_hosted_dataset_items(tmp_path: Path) -> None:
         ("item-1", {"score": 0.9}, {}),
         ("item-2", {"score": 0.9}, {}),
     ]
+
+
+# Review findings (PR #20).
+
+
+def run_recipe(tmp_path: Path, items: list[Any], results: list[NS], expected: list[str]) -> Path:
+    recipe()(
+        NS(item_results=results),
+        items,
+        tmp_path / "run",
+        run_id="c",
+        expected=expected,
+        case_id=lambda item: item["metadata"]["id"],
+        **MANIFEST,
+    )
+    return tmp_path / "run"
+
+
+def test_duplicate_ids_in_data_rejected_before_writing(tmp_path: Path) -> None:
+    # Two items with id "a": one succeeded, the other's task failed and was dropped.
+    items = [{"metadata": {"id": "a"}}, {"metadata": {"id": "a"}}]
+    ok = NS(item=items[0], evaluations=[ev("s", 1.0)])
+    with pytest.raises(ValueError, match="unique"):
+        run_recipe(tmp_path, items, [ok], ["s"])
+    assert not (tmp_path / "run").exists()
+
+
+def test_duplicate_or_extra_evaluation_names_are_errors(tmp_path: Path) -> None:
+    items = [{"metadata": {"id": i}} for i in ("dup", "extra", "ok")]
+    results = [
+        NS(item=items[0], evaluations=[ev("s", 1.0), ev("s", 0.0)]),  # a judge in between failed
+        NS(item=items[1], evaluations=[ev("s", 1.0), ev("new", 1.0)]),
+        NS(item=items[2], evaluations=[ev("s", 1.0)]),
+    ]
+    cases = {c.case_id: c for c in load_run(run_recipe(tmp_path, items, results, ["s"])).cases}
+    assert cases["dup"].status == cases["extra"].status == "error"
+    assert "new" in (cases["extra"].error or "")
+    assert cases["ok"].status == "ok"
+
+
+def test_boolean_one_zero_and_int_ids(tmp_path: Path) -> None:
+    items = [{"metadata": {"id": 7}}, {"metadata": {"id": 8}}]
+    results = [
+        NS(item=items[0], evaluations=[ev("pass", 1.0, "BOOLEAN")]),
+        NS(item=items[1], evaluations=[ev("pass", 0, "BOOLEAN")]),
+    ]
+    cases = load_run(run_recipe(tmp_path, items, results, ["pass"])).cases
+    assert [(c.case_id, c.checks) for c in cases] == [("7", {"pass": True}), ("8", {"pass": False})]
+
+
+@pytest.mark.parametrize("data_type", ["boolean", "CORRECTION"])
+def test_unknown_data_type_stops_without_writing(tmp_path: Path, data_type: str) -> None:
+    items = [{"metadata": {"id": "a"}}]
+    results = [NS(item=items[0], evaluations=[ev("s", 1.0, data_type)])]
+    with pytest.raises(ValueError, match="unknown data_type"):
+        run_recipe(tmp_path, items, results, ["s"])
+    assert not (tmp_path / "run" / "run.json").exists()
