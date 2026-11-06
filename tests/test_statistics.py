@@ -173,3 +173,11 @@ def test_single_case_is_never_conclusive() -> None:
 def test_confidence_outside_supported_range_rejected(conf: float) -> None:
     with pytest.raises(ValidationError):
         policy(confidence=conf)
+
+
+def test_bootstrap_golden_values_same_on_every_python() -> None:
+    # Exact bounds, identical on Python 3.11, 3.13 and 3.14. A change here means a new
+    # Python (or code change) alters the resampling sequence, and with it past decisions.
+    d = [0.1, -0.05, 0.2, 0.0, 0.15, -0.1, 0.3, 0.05, 0.12, -0.02]
+    assert mean_diff_ci(d, 0.95) == (0.012999999999999998, 0.154, "bootstrap", 1000)
+    assert mean_diff_ci(d, 0.8) == (0.029000000000000005, 0.126, "bootstrap", 1000)
