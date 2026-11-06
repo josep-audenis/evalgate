@@ -2,6 +2,12 @@
 
 All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change behaviour; anything that does is listed under **Changed**.
 
+## Unreleased
+
+### Added
+
+- **[docs/langfuse.md](docs/langfuse.md):** writing a Langfuse experiment (Python SDK) as an EvalGate run with `EvalRun`, since Langfuse has no local export of experiment results. The recipe records failed tasks and evaluators as errors, which Langfuse only logs and leaves out of its results. Checked against Langfuse Python SDK 5.2; a test pins the recipe's code.
+
 ## 0.5.0
 
 DeepEval adapter: with promptfoo, two external result formats now import without rewriting records (SPEC Phase 5 acceptance).
