@@ -180,7 +180,7 @@ Exit codes make EvalGate a drop-in CI step. See [CI integration](https://github.
 
 ## Status and scope
 
-Version 0.5.0 (alpha). See the [changelog](https://github.com/josep-audenis/evalgate/blob/main/CHANGELOG.md). EvalGate compares results your pipeline already produced. It does **not** run your application, call LLM judges, or host datasets.
+Version 0.6.0 (alpha). See the [changelog](https://github.com/josep-audenis/evalgate/blob/main/CHANGELOG.md). EvalGate compares results your pipeline already produced. It does **not** run your application, call LLM judges, or host datasets.
 
 Not yet included:
 - dedicated adapters for tools other than promptfoo and DeepEval; the generic importer covers their CSV/JSON exports

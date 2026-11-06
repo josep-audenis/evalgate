@@ -38,7 +38,7 @@ jobs:
 
       - name: Job summary
         if: always()  # show the decision when the gate fails too
-        run: '[ -f report.md ] && cat report.md >> "$GITHUB_STEP_SUMMARY"'
+        run: 'if [ -f report.md ]; then cat report.md >> "$GITHUB_STEP_SUMMARY"; fi'
 
       - name: Upload report
         if: always()  # keep the report when the gate fails
@@ -78,4 +78,4 @@ EvalGate never promotes a candidate to baseline on its own. When you approve a n
 
 ## Any other CI system
 
-Run the same command and rely on the exit code. Keep `report.json` and `report.html` as build artifacts, and paste `report.md` wherever your system shows Markdown (merge request comments, for example), so the reasons for the decision stay inspectable.
+Run the same command and rely on the exit code. Keep `report.json` and `report.html` as build artifacts, and paste `report.md` wherever your system shows Markdown (merge request comments, for example), so the reasons for the decision stay inspectable. The guarantees about run text above were checked against GitHub's renderer; other platforms may render some of it differently, for example as mentions or references.

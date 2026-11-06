@@ -2,12 +2,14 @@
 
 All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change behaviour; anything that does is listed under **Changed**.
 
-## Unreleased
+## 0.6.0
+
+Markdown summaries for pull requests and CI job pages, and a Langfuse recipe. Decisions, exit codes and the JSON report are unchanged from 0.5.0.
 
 ### Added
 
-- **[docs/langfuse.md](docs/langfuse.md):** writing a Langfuse experiment (Python SDK) as an EvalGate run with `EvalRun`, since Langfuse has no local export of experiment results. The recipe records failed tasks and evaluators as errors, which Langfuse only logs and leaves out of its results. Checked against Langfuse Python SDK 5.2; a test pins the recipe's code.
 - **Markdown summary.** `evalgate compare ... --markdown report.md` (also `Report.to_markdown`) writes a GitHub-flavored summary for pull request comments and CI job summaries: the decision, failed rules first, metrics with confidence intervals, diagnostics, and collapsed lists of regressed cases and newly failing checks (first 10 each). Text from runs is shown as inline code, so it can't break tables, add HTML, links or math, or @mention people and reference issues; long values and lists are capped so the summary stays under GitHub's 65,536-character comment limit. [docs/ci.md](docs/ci.md) shows a job-summary step and an optional PR comment.
+- **[docs/langfuse.md](docs/langfuse.md):** writing a Langfuse experiment (Python SDK) as an EvalGate run with `EvalRun`, since Langfuse has no local export of experiment results. The recipe records failed tasks and evaluators as errors, which Langfuse only logs and leaves out of its results. Checked against Langfuse Python SDK 5.2; a test pins the recipe's code.
 - **Python 3.14** in the package classifiers.
 
 ### Testing
