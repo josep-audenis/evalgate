@@ -20,6 +20,7 @@ from evalgate.io import (
     load_run,
     write_html_report,
     write_json_report,
+    write_markdown_report,
     write_policy_template,
 )
 from evalgate.io.deepeval import import_deepeval
@@ -96,6 +97,12 @@ def compare(
     html_out: Annotated[
         Path | None, typer.Option("--report", help="Write a standalone HTML report here.")
     ] = None,
+    md_out: Annotated[
+        Path | None,
+        typer.Option(
+            "--markdown", help="Write a Markdown summary here (PR comment, $GITHUB_STEP_SUMMARY)."
+        ),
+    ] = None,
 ) -> None:
     """Compare a candidate run against a baseline under a release policy."""
     report = run_compare(baseline, candidate, policy)
@@ -104,6 +111,8 @@ def compare(
         write_json_report(report, json_out)
     if html_out:
         write_html_report(report, html_out)
+    if md_out:
+        write_markdown_report(report, md_out)
     render(report, console)
     raise typer.Exit(EXIT_CODES[report.status])
 

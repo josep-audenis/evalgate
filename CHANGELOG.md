@@ -7,6 +7,7 @@ All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](http
 ### Added
 
 - **[docs/langfuse.md](docs/langfuse.md):** writing a Langfuse experiment (Python SDK) as an EvalGate run with `EvalRun`, since Langfuse has no local export of experiment results. The recipe records failed tasks and evaluators as errors, which Langfuse only logs and leaves out of its results. Checked against Langfuse Python SDK 5.2; a test pins the recipe's code.
+- **Markdown summary.** `evalgate compare ... --markdown report.md` (also `Report.to_markdown`) writes a GitHub-flavored summary for pull request comments and CI job summaries: the decision, failed rules first, metrics with confidence intervals, diagnostics, and collapsed lists of regressed cases and newly failing checks (first 10 each). Text from runs is escaped so it can't break tables or add links or HTML. [docs/ci.md](docs/ci.md) shows a job-summary step and an optional PR comment.
 - **Python 3.14** in the package classifiers.
 
 ### Testing

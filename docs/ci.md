@@ -34,7 +34,11 @@ jobs:
       - name: Release gate
         run: |
           evalgate compare evals/baseline evals/candidate \
-            --policy evalgate.yaml --json report.json --report report.html
+            --policy evalgate.yaml --json report.json --report report.html --markdown report.md
+
+      - name: Job summary
+        if: always()  # show the decision when the gate fails too
+        run: cat report.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload report
         if: always()  # keep the report when the gate fails
@@ -44,7 +48,22 @@ jobs:
           path: |
             report.json
             report.html
+            report.md
 ```
+
+`--markdown` writes a short summary: the decision, failed rules first, metrics with their confidence intervals, and collapsed lists of regressed cases and newly failing checks. Text from your runs (case ids, metric names) is escaped, so it can't break the tables or add links or HTML.
+
+To also post it on the pull request, add a step. The job needs `permissions: pull-requests: write`:
+
+```yaml
+      - name: Comment on the PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr comment ${{ github.event.pull_request.number }} --body-file report.md
+```
+
+This adds a new comment on every run. To keep a single comment updated instead, use `gh pr comment --edit-last` (it fails if the bot hasn't commented yet) or an action built for sticky comments.
 
 ## Updating the baseline
 
@@ -52,4 +71,4 @@ EvalGate never promotes a candidate to baseline on its own. When you approve a n
 
 ## Any other CI system
 
-Run the same command and rely on the exit code. Keep `report.json` and `report.html` as build artifacts so the reasons for the decision stay inspectable.
+Run the same command and rely on the exit code. Keep `report.json` and `report.html` as build artifacts, and paste `report.md` wherever your system shows Markdown (merge request comments, for example), so the reasons for the decision stay inspectable.
