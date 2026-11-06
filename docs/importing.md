@@ -14,7 +14,7 @@ import_results("results.csv", "mapping.yaml", "evals/candidate", run_id="candida
 
 Runnable example: [examples/import-csv](../examples/import-csv). It imports two CSV exports with one mapping and compares them.
 
-For promptfoo and DeepEval, use the built-in adapters instead: [importing promptfoo results](promptfoo.md), [importing DeepEval results](deepeval.md).
+For promptfoo and DeepEval, use the built-in adapters instead: [importing promptfoo results](promptfoo.md), [importing DeepEval results](deepeval.md). For Langfuse experiments, see [Langfuse](langfuse.md).
 
 ## Supported input
 
