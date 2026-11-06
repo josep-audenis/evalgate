@@ -169,3 +169,9 @@ class Report(BaseModel):
         from evalgate.io.writer import write_html_report
 
         write_html_report(self, Path(path))
+
+    def to_markdown(self, path: str | Path) -> None:
+        """Write the same Markdown summary the CLI writes with `--markdown`."""
+        from evalgate.io.writer import write_markdown_report
+
+        write_markdown_report(self, Path(path))

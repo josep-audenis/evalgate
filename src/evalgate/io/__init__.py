@@ -5,6 +5,7 @@ from evalgate.io.writer import (
     EvalRun,
     write_html_report,
     write_json_report,
+    write_markdown_report,
     write_policy_template,
 )
 
@@ -15,5 +16,6 @@ __all__ = [
     "load_run",
     "write_html_report",
     "write_json_report",
+    "write_markdown_report",
     "write_policy_template",
 ]

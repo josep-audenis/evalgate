@@ -29,6 +29,12 @@ def write_html_report(report: Report, path: Path) -> None:
     _atomic_write(path, render_html(report))
 
 
+def write_markdown_report(report: Report, path: Path) -> None:
+    from evalgate.reporting.markdown import render_markdown
+
+    _atomic_write(path, render_markdown(report))
+
+
 def write_policy_template(path: Path, force: bool = False) -> None:
     if path.exists() and not force:
         raise FileExistsError(f"{path} already exists; pass --force to overwrite")
