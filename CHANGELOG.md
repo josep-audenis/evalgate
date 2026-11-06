@@ -7,7 +7,11 @@ All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](http
 ### Added
 
 - **[docs/langfuse.md](docs/langfuse.md):** writing a Langfuse experiment (Python SDK) as an EvalGate run with `EvalRun`, since Langfuse has no local export of experiment results. The recipe records failed tasks and evaluators as errors, which Langfuse only logs and leaves out of its results. Checked against Langfuse Python SDK 5.2; a test pins the recipe's code.
-- **Python versions checked:** the full test suite and type checks pass on Python 3.11, 3.13 and 3.14 (3.12 type-checked only), and reports and imported runs are byte-identical across them. A new test pins exact bootstrap interval bounds, so a Python version that changed them would fail.
+- **Python 3.14** in the package classifiers.
+
+### Testing
+
+- The test suite passes on Python 3.11, 3.13 and 3.14, and mypy passes targeting 3.11 to 3.14. JSON, HTML and terminal reports and imported runs are byte-identical across 3.11, 3.13 and 3.14. A new test pins exact bootstrap interval bounds, so a Python version that changed the resampling would fail.
 
 ## 0.5.0
 

@@ -175,7 +175,7 @@ def test_confidence_outside_supported_range_rejected(conf: float) -> None:
         policy(confidence=conf)
 
 
-def test_bootstrap_golden_values_same_on_every_python() -> None:
+def test_bootstrap_golden_values() -> None:
     # Exact bounds, identical on Python 3.11, 3.13 and 3.14. A change here means a new
     # Python (or code change) alters the resampling sequence, and with it past decisions.
     d = [0.1, -0.05, 0.2, 0.0, 0.15, -0.1, 0.3, 0.05, 0.12, -0.02]

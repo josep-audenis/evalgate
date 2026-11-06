@@ -25,8 +25,8 @@ def mean_diff_ci(diffs: list[float], confidence: float) -> tuple[float, float, C
         half = NormalDist().inv_cdf(1 - alpha / 2) * stdev(diffs) / sqrt(n)
         return mean - half, mean + half, "normal", 0
 
-    # Percentile bootstrap. Index draws use rng.random() only: its sequence for a given seed
-    # is stable across Python versions, unlike random.choices().
+    # Percentile bootstrap. Index draws use rng.random() only: its sequence for a given seed is
+    # documented as stable across Python versions; choices() and randrange() are not.
     rng = random.Random(_SEED)
     rnd = rng.random
     means = sorted(fsum(diffs[int(rnd() * n)] for _ in range(n)) / n for _ in range(RESAMPLES))
