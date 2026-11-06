@@ -1,26 +1,36 @@
 """GitHub-flavored Markdown summary: for pull request comments and CI job summaries."""
 
-import html
 import re
+import unicodedata
 
 from evalgate.models import Report
 
-_TOP = 10
+_TOP = 10  # items per collapsed list
+_MAX_RULES = 50  # table rows; failures first, so they are always shown
+_MAX_DIAGNOSTICS = 20
+_MAX_TEXT = 300  # characters per input-derived value (a message may list every case)
+_MAX_TOTAL = 60_000  # GitHub rejects comments over 65,536 characters
 _STATUS = {"PASS": "✅ PASS", "FAIL": "❌ FAIL", "INVALID": "⚠️ INVALID"}
-# Inline formatting, links/images, table cells and headings; `<` and `&` go through html.escape.
-_SPECIAL = re.compile(r"([\\`*_\[\]|~#])")
 
 
-def _t(text: str) -> str:
-    """Input-derived text as inert Markdown: no HTML, links, formatting or table breaks."""
-    one_line = " ".join(str(text).split())  # newlines would end a table row
-    escaped = _SPECIAL.sub(r"\\\1", html.escape(one_line, quote=False))
-    # A leading `-`, `+` or `1.` could start a nested list inside a list item.
-    return re.sub(r"^([-+])|^(\d+)\.", lambda m: f"\\{m[1]}" if m[1] else f"{m[2]}\\.", escaped)
+def _c(text: str, *, cell: bool = False) -> str:
+    """Input-derived text as a code span: GitHub then renders it literally, with no HTML,
+    formatting, links, @mentions, #references or math."""
+    # One line (a newline would end a table row), no invisible or bidi-control characters.
+    s = "".join(ch for ch in " ".join(str(text).split()) if unicodedata.category(ch) != "Cf")
+    if len(s) > _MAX_TEXT:
+        s = s[:_MAX_TEXT] + "…"
+    if not s:
+        return "(empty)"
+    fence = "`" * (max((len(r) for r in re.findall(r"`+", s)), default=0) + 1)
+    pad = " " if s[0] == "`" or s[-1] == "`" else ""
+    span = f"{fence}{pad}{s}{pad}{fence}"
+    return span.replace("|", "\\|") if cell else span  # a table splits cells on any `|`
 
 
 def _n(x: float, sign: bool = False) -> str:
-    return f"{x:+.4g}" if sign else f"{x:.4g}"
+    x += 0.0  # -0.0 -> 0.0
+    return f"{x:+.6g}" if sign else f"{x:.6g}"
 
 
 def render_markdown(report: Report) -> str:
@@ -28,8 +38,8 @@ def render_markdown(report: Report) -> str:
     b, c = report.baseline, report.candidate
     if b and c:
         out += [
-            f"**{_t(b.run_id)}** → **{_t(c.run_id)}** · dataset "
-            f"{_t(c.dataset_id)}@{_t(c.dataset_version)} · evaluator {_t(c.evaluator_version)}",
+            f"{_c(b.run_id)} → {_c(c.run_id)} · dataset "
+            f"{_c(f'{c.dataset_id}@{c.dataset_version}')} · evaluator {_c(c.evaluator_version)}",
             "",
         ]
     cmp = report.comparison
@@ -45,30 +55,36 @@ def render_markdown(report: Report) -> str:
 
     failed = [r for r in report.rules if not r.passed]
     if report.rules:
+        rules = failed + [r for r in report.rules if r.passed]  # report order within each
         out += [f"### Rules ({len(failed)} failed of {len(report.rules)})", ""]
         out += ["| | Rule | Result |", "|---|---|---|"]
-        # Failures first, each group in the report's (deterministic) order.
-        for r in failed + [r for r in report.rules if r.passed]:
-            out.append(f"| {'❌' if not r.passed else '✅'} | {_t(r.rule)} | {_t(r.message)} |")
+        for r in rules[: max(_MAX_RULES, len(failed))]:
+            mark = "❌" if not r.passed else "✅"
+            out.append(f"| {mark} | {_c(r.rule, cell=True)} | {_c(r.message, cell=True)} |")
+        if len(rules) > max(_MAX_RULES, len(failed)):
+            out += ["", f"{len(rules) - max(_MAX_RULES, len(failed))} passed rules not shown."]
         out.append("")
 
     if report.diagnostics:
         out += ["### Diagnostics", ""]
-        out += [f"- **{d.level}** {_t(d.code)}: {_t(d.message)}" for d in report.diagnostics]
+        shown = report.diagnostics[:_MAX_DIAGNOSTICS]
+        out += [f"- **{d.level}** {_c(d.code)}: {_c(d.message)}" for d in shown]
+        if len(report.diagnostics) > len(shown):
+            out.append(f"- … {len(report.diagnostics) - len(shown)} more")
         out.append("")
 
     if cmp and cmp.metrics:
-        ci = cmp.metrics[0].ci
+        confidence = f"{cmp.metrics[0].ci.confidence * 100:g}%"  # one policy-wide level
         out += [
             "### Metrics",
             "",
-            f"| Metric | Goal | Baseline | Candidate | Δ | Δ % | {ci.confidence:.0%} CI of Δ |",
+            f"| Metric | Goal | Baseline | Candidate | Δ | Δ % | {confidence} CI of Δ |",
             "|---|---|--:|--:|--:|--:|--:|",
         ]
         for m in cmp.metrics:
-            pct = "n/a" if m.delta_pct is None else f"{m.delta_pct:+.2f}%"
+            pct = "n/a" if m.delta_pct is None else f"{m.delta_pct + 0.0:+.2f}%"
             out.append(
-                f"| {_t(m.name)} | {m.direction[:3]} | {_n(m.baseline_mean)} | "
+                f"| {_c(m.name, cell=True)} | {m.direction[:3]} | {_n(m.baseline_mean)} | "
                 f"{_n(m.candidate_mean)} | {_n(m.delta_abs, True)} | {pct} | "
                 f"[{_n(m.ci.low, True)}, {_n(m.ci.high, True)}] |"
             )
@@ -78,16 +94,20 @@ def render_markdown(report: Report) -> str:
         out += _details(
             "Regressed cases",
             [
-                f"{_t(d.case_id)} · {_t(d.metric)}: {d.baseline:.6g} → {d.candidate:.6g}"
+                f"{_c(d.case_id)} {_c(d.metric)}: {_n(d.baseline)} → {_n(d.candidate)}"
                 for d in cmp.regressed_cases
             ],
         )
         out += _details(
             "Newly failing checks",
-            [f"{_t(ch.case_id)}: {_t(ch.check)}" for ch in cmp.newly_failing_checks],
+            [f"{_c(ch.case_id)}: {_c(ch.check)}" for ch in cmp.newly_failing_checks],
         )
-    out.append(f"<sub>evalgate {_t(report.evalgate_version)}</sub>")
-    return "\n".join(out) + "\n"
+    out.append(f"<sub>evalgate {report.evalgate_version}</sub>")
+    text = "\n".join(out) + "\n"
+    if len(text) > _MAX_TOTAL:  # only with very many failed rules
+        cut = text.rfind("\n", 0, _MAX_TOTAL)
+        text = text[:cut] + "\n\n… truncated; see the JSON or HTML report for everything.\n"
+    return text
 
 
 def _details(title: str, items: list[str]) -> list[str]:
