@@ -18,6 +18,8 @@ uv run mypy src
 uv run pytest
 ```
 
+The hook runs one Python version. EvalGate supports 3.11 and newer, so before a release also run the tests on the oldest and newest supported versions, for example `uv run --isolated --python 3.11 pytest` and `uv run --isolated --python 3.14 pytest` (`--isolated` leaves your project `.venv` alone). `test_bootstrap_golden_values` fails if a Python version changes the bootstrap's resampling, and with it the decisions.
+
 ## Ground rules
 
 - **Fail closed.** Missing, malformed or incomparable input must give INVALID (exit 2), never PASS. Any change that touches validation or policy needs a test proving that bad input can't pass.
