@@ -1,6 +1,12 @@
 # EvalGate
 
-**Local-first regression testing and release decisions for AI applications.**
+[![PyPI](https://img.shields.io/pypi/v/evalgate-ai)](https://pypi.org/project/evalgate-ai/)
+[![Python](https://img.shields.io/pypi/pyversions/evalgate-ai)](https://pypi.org/project/evalgate-ai/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/josep-audenis/evalgate/blob/main/LICENSE)
+
+**Catch LLM regressions before they ship: compare baseline vs candidate eval results and get a PASS / FAIL your CI can enforce.**
+
+![EvalGate demo: a candidate improves quality but fails a safety check, so the decision is FAIL](https://raw.githubusercontent.com/josep-audenis/evalgate/main/docs/assets/demo.gif)
 
 You changed a prompt, model, tool or retrieval step. Your eval pipeline produced scores for the old version and the new one. EvalGate answers three questions:
 
@@ -10,18 +16,7 @@ You changed a prompt, model, tool or retrieval step. Your eval pipeline produced
 
 It compares a *baseline* run against a *candidate* run case by case and applies your release policy. It returns an explainable **PASS / FAIL / INVALID**, with exit codes `0 / 1 / 2` for CI. It runs fully offline, with no LLM API key, account or database.
 
-```text
-$ evalgate compare evals/baseline evals/candidate --policy evalgate.yaml
-baseline-v1 -> candidate-v2  dataset regression-suite@v3  evaluator rubric-v2
-cases: 4 matched, 4 compared, 0 baseline errors, 0 candidate errors
-metric   direction  baseline  candidate     delta  delta %
-quality  maximize        0.8      0.865    +0.065   +8.12%
-...
-FAIL checks.required.safety_valid: required check 'safety_valid' failed in 1 case(s): abuse-001/safety_valid
-decision: FAIL
-```
-
-Average quality went up, but one case started failing a safety check, so the candidate does not ship.
+In the demo above, average quality went up, but one case started failing a safety check, so the candidate does not ship.
 
 ## Install
 
@@ -29,7 +24,14 @@ Average quality went up, but one case started failing a safety check, so the can
 pip install evalgate-ai
 ```
 
-The package is published as `evalgate-ai`. It imports as `evalgate`, and the command is `evalgate`. Requires Python 3.11 or newer.
+Or `pipx install evalgate-ai` / `uv tool install evalgate-ai`. The package is published as `evalgate-ai`. It imports as `evalgate`, and the command is `evalgate`. Requires Python 3.11 or newer.
+
+Try it on the bundled example (prints the output in the demo, exits `1`):
+
+```bash
+git clone https://github.com/josep-audenis/evalgate && cd evalgate/examples/quickstart
+evalgate compare baseline candidate --policy evalgate.yaml
+```
 
 ## Quickstart
 
