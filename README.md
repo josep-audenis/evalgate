@@ -1,7 +1,7 @@
 # EvalGate
 
-[![PyPI](https://img.shields.io/pypi/v/evalgate-ai)](https://pypi.org/project/evalgate-ai/)
-[![Python](https://img.shields.io/pypi/pyversions/evalgate-ai)](https://pypi.org/project/evalgate-ai/)
+[![PyPI](https://img.shields.io/pypi/v/evalgate-ai?label=pypi)](https://pypi.org/project/evalgate-ai/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://pypi.org/project/evalgate-ai/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/josep-audenis/evalgate/blob/main/LICENSE)
 
 **Catch LLM regressions before they ship: compare baseline vs candidate eval results and get a PASS / FAIL your CI can enforce.**
