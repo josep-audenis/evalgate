@@ -16,7 +16,7 @@ OUT = Path(__file__).resolve().parent
 EXAMPLE = ROOT / "examples" / "quickstart"
 COMMAND = "evalgate compare baseline candidate --policy evalgate.yaml"
 
-BG, FG, DIM = "#0d1117", "#c9d1d9", "#8b949e"
+BG, FG, DIM, BORDER = "#0d1117", "#c9d1d9", "#8b949e", "#484f58"
 GREEN, RED, YELLOW, BLUE = "#3fb950", "#f85149", "#d29922", "#58a6ff"
 
 
@@ -66,14 +66,20 @@ def make_gif(lines: list[str]) -> None:
     cw = f.getbbox("M")[2]
     lh = 20
     width = max(len(s) for s in lines + ["$ " + COMMAND]) * cw + 48
-    height = (len(lines) + 4) * lh + 48
+    height = (len(lines) + 4) * lh + 60
 
     def frame(typed: str, shown: int, exit_line: bool) -> Image.Image:
         img = Image.new("RGB", (width, height), BG)
         d = ImageDraw.Draw(img)
+        # Title bar + border so the window stands out on GitHub's dark background.
+        d.rectangle((0, 0, width, 36), fill="#21262d")
+        d.line((0, 36, width, 36), fill=BORDER, width=1)
         for i, c in enumerate((RED, YELLOW, GREEN)):
-            d.ellipse((16 + i * 18, 12, 28 + i * 18, 24), fill=c)
-        y = 40
+            d.ellipse((16 + i * 20, 12, 28 + i * 20, 24), fill=c)
+        title = "evalgate · examples/quickstart"
+        d.text(((width - len(title) * cw) // 2, 10), title, font=f, fill=DIM)
+        d.rectangle((0, 0, width - 1, height - 1), outline=BORDER, width=2)
+        y = 52
         d.text((24, y), "$ ", font=fb, fill=GREEN)
         d.text((24 + 2 * cw, y), typed, font=f, fill=FG)
         for line in lines[:shown]:
