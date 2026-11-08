@@ -1,0 +1,43 @@
+name: Bug report
+description: EvalGate gave a wrong decision, crashed, or rejected valid input.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please do **not** paste real prompts, outputs or other sensitive data; a minimal synthetic `run.json` / `cases.jsonl` is ideal.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Include the decision (PASS / FAIL / INVALID) and exit code you got, and what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: The command you ran, your `evalgate.yaml`, and the smallest run files that show the problem.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: Terminal output or the relevant part of the JSON report.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: EvalGate version
+      description: Output of `pip show evalgate-ai | grep Version`
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Python version and OS
+      placeholder: Python 3.12, Ubuntu 24.04
+    validations:
+      required: true
