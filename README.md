@@ -1,6 +1,6 @@
 # EvalGate
 
-[![PyPI](https://img.shields.io/pypi/v/evalgate-ai?label=pypi)](https://pypi.org/project/evalgate-ai/)
+[![PyPI](https://badge.fury.io/py/evalgate-ai.svg)](https://pypi.org/project/evalgate-ai/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://pypi.org/project/evalgate-ai/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/josep-audenis/evalgate/blob/main/LICENSE)
 
