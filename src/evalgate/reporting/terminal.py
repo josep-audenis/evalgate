@@ -190,8 +190,8 @@ def render_run_entry(entry: RunEntry, console: Console) -> None:
     )
     console.print(f"cases: {entry.cases}, errors: {entry.errors}", highlight=False)
     table = Table()
-    for column in ("value", "mean / pass rate", "cases"):
-        table.add_column(column, overflow="fold", justify="left" if column == "value" else "right")
+    for column in ("path", "mean / pass rate", "cases"):
+        table.add_column(column, overflow="fold", justify="left" if column == "path" else "right")
     for path, stat in entry.means.items():
         table.add_row(_text(path), f"{stat.value:.4g}", str(stat.cases))
     for name, stat in entry.checks.items():
