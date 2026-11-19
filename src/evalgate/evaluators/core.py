@@ -78,11 +78,11 @@ def apply(evaluators: Sequence[Evaluator], output: Any, case: Mapping[str, Any])
     scores: dict[str, float] = {}
     checks: dict[str, bool] = {}
     for ev in evaluators:
-        # A deep, read-only copy per evaluator: none can change what the caller or a later
-        # evaluator sees.
+        # Deep copies per evaluator: none can change the output or case that the caller or a
+        # later evaluator sees (an uncopyable output is an evaluator error).
         view = MappingProxyType(copy.deepcopy(dict(case)))
         try:
-            value = _result(ev, ev.fn(output, view))
+            value = _result(ev, ev.fn(copy.deepcopy(output), view))
         except Exception:  # not BaseException: Ctrl-C aborts the run, which discards it
             value = None
         if value is None:

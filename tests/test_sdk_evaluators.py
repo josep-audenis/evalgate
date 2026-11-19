@@ -258,3 +258,65 @@ def test_repeats_with_evaluators_round_trip_and_compare(tmp_path: Path) -> None:
     )
     report = evalgate.compare(tmp_path / "base", tmp_path / "cand", policy)
     assert report.status == "PASS", report.diagnostics
+
+
+# --- review follow-ups ----------------------------------------------------------------------
+
+
+def test_evaluators_cannot_be_added_after_construction(tmp_path: Path) -> None:
+    r = new_run(tmp_path, evaluators=[polite])
+    assert not hasattr(r, "evaluators")
+    assert isinstance(r._evaluators, tuple)
+
+
+@pytest.mark.parametrize("bad", ["no", 1, None])
+def test_store_output_must_be_a_bool(tmp_path: Path, bad: Any) -> None:
+    with pytest.raises(TypeError, match="store_output"):
+        new_run(tmp_path, store_output=bad)
+
+
+@pytest.mark.parametrize("value", [None, 1, "yes"])
+def test_wrong_type_from_a_check_records_an_error(tmp_path: Path, value: Any) -> None:
+    bad = Evaluator("bad", "1", "check", lambda o, c: value)
+    with new_run(tmp_path, evaluators=[bad]) as r:
+        r.record("a", output="x")
+    assert lines(tmp_path)[0]["status"] == "error"
+
+
+def test_evaluator_failure_keeps_the_repeat(tmp_path: Path) -> None:
+    with new_run(tmp_path, repeats=1, evaluators=[boom]) as r:
+        r.record("a", repeat=0, output="x")
+    assert lines(tmp_path)[0] == {
+        "case_id": "a",
+        "status": "error",
+        "repeat": 0,
+        "error": "evaluator boom failed",
+    }
+
+
+def test_caller_values_are_validated_even_if_an_evaluator_fails(tmp_path: Path) -> None:
+    with pytest.raises(ValueError), new_run(tmp_path, evaluators=[boom]) as r:
+        r.record("a", output="x", scores={"q": float("nan")})
+
+
+def test_evaluators_cannot_change_the_output_seen_by_later_ones(tmp_path: Path) -> None:
+    @check(name="a_mutates", version="1")
+    def a_mutates(output: Any, case: Any) -> bool:
+        output.append("injected")
+        return True
+
+    @check(name="b_reads", version="1")
+    def b_reads(output: Any, case: Any) -> bool:
+        return bool(output == ["original"])
+
+    original = ["original"]
+    with new_run(tmp_path, evaluators=[a_mutates, b_reads]) as r:
+        r.record("a", output=original)
+    assert lines(tmp_path)[0]["checks"] == {"a_mutates": True, "b_reads": True}
+    assert original == ["original"]
+
+
+def test_non_json_output_error_does_not_chain_the_raw_value(tmp_path: Path) -> None:
+    with pytest.raises(ValueError) as info, new_run(tmp_path, store_output=True) as r:
+        r.record("a", output={SECRET: object()})
+    assert info.value.__cause__ is None and SECRET not in str(info.value)
