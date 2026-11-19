@@ -4,7 +4,7 @@ All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](http
 
 ## 0.10.0
 
-Local history (SPEC Phase 7, first slice): keep a record of release decisions and runs, and see how metrics move across releases. It's opt-in; decisions, exit codes and the JSON report are unchanged from 0.9.0.
+Local history (SPEC Phase 7, first slice): keep a record of release decisions and runs, and see how metrics move across releases. It's opt-in; decisions, exit codes and the JSON report are unchanged from 0.9.0 unless `--history` is passed (and see the console encoding fix below).
 
 ### Added
 

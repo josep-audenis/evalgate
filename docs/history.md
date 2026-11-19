@@ -52,10 +52,10 @@ From Python: `evalgate.record_report(report, dir, label=...)`, `evalgate.record_
 **Ids and order.**
 - Each entry has an `id`: 1, 2, 3… in recording order. Every listing and trend uses that order, never wall-clock time.
 - `recorded_at` (UTC) is only shown.
-- An optional `--label` (up to 200 characters) names an entry. It is always shown literally, and markup in it is never interpreted.
+- An optional `--label` (up to 200 characters) names an entry. Markup in it is never interpreted, and control characters are shown escaped.
 
 **Editing.** The store is append-only: EvalGate never edits or deletes entries.
-- **To prune,** delete lines from `index.jsonl` yourself. Ids may have gaps, and the next entry gets the last id + 1.
+- **To prune,** delete lines from `index.jsonl` yourself. Ids may have gaps, and the next entry gets the last id + 1. Pruning the last line therefore reuses its id, and the next compare overwrites its old `reports/<id>.json`.
 - **What's rejected:** a line EvalGate can't read (a duplicate or decreasing id, a typo, an unknown field). It is reported by line number, without its content, and EvalGate won't append to a store until it's fixed.
 
 ## Reading
@@ -84,6 +84,7 @@ About `trend`:
 - They exit 0, or 2 on any problem; they never exit 1.
 - In Python, a `recorded_at` without a timezone raises `ValueError`.
 - Diagnostics: `history_missing` (no store), `history_parse` (a bad line, or an index that can't be read), `history_id` (an unknown id, or a stored report that is missing or doesn't match its entry), `history_record` (an INVALID or unsummarisable run, or a label that's too long) and `history_write` (an OS error).
+- `compare` rejects a bad `--label` (too long, or given without `--history`) up front, with exit 2, before comparing.
 - A run directory that doesn't load reports the usual codes (`run_dir_missing`, `file_missing`, …).
 
 **`compare --history`:**

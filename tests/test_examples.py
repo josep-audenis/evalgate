@@ -96,12 +96,11 @@ def test_judge_example_matches_its_generator(tmp_path: Path) -> None:
 
 
 def test_history_example_builds_its_store(tmp_path: Path) -> None:
-    shutil.copy(EXAMPLES / "history" / "make_store.py", tmp_path / "make_store.py")
-    (tmp_path.parent / "quickstart").exists() or shutil.copytree(
-        EXAMPLES / "quickstart", tmp_path.parent / "quickstart"
-    )
-    runpy.run_path(str(tmp_path / "make_store.py"))
-    entries = evalgate.read_history(tmp_path / "store")
+    (tmp_path / "history").mkdir()
+    shutil.copy(EXAMPLES / "history" / "make_store.py", tmp_path / "history" / "make_store.py")
+    shutil.copytree(EXAMPLES / "quickstart", tmp_path / "quickstart")
+    runpy.run_path(str(tmp_path / "history" / "make_store.py"))
+    entries = evalgate.read_history(tmp_path / "history" / "store")
     assert [(e.id, e.kind, e.label) for e in entries] == [
         (1, "run", "v1.4.0"),
         (2, "run", "v1.5.0"),
