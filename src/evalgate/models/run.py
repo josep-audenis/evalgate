@@ -7,6 +7,7 @@ from pydantic import (
     BeforeValidator,
     ConfigDict,
     Field,
+    JsonValue,
     SerializerFunctionWrapHandler,
     StrictBool,
     model_serializer,
@@ -15,6 +16,8 @@ from pydantic import (
 SCHEMA_VERSION = "1.0"
 # 1.1 adds repeated runs (`repeat` per case, `repeats` in the manifest); 1.0 files still load.
 SCHEMA_VERSION_REPEATS = "1.1"
+# 1.2 adds native evaluators (`evaluators` in the manifest); a superset of 1.1.
+SCHEMA_VERSION_EVALUATORS = "1.2"
 
 # Strict: rejects bools and numeric strings; finite only, so NaN/inf never reach a mean.
 Number = Annotated[float, Field(strict=True, allow_inf_nan=False)]
@@ -37,7 +40,7 @@ class RunManifest(BaseModel):
 
     model_config = ConfigDict(extra="allow", frozen=True)
 
-    schema_version: Literal["1.0", "1.1"]
+    schema_version: Literal["1.0", "1.1", "1.2"]
     run_id: NonEmptyStr
     dataset_id: NonEmptyStr
     dataset_version: NonEmptyStr
@@ -46,13 +49,16 @@ class RunManifest(BaseModel):
     application_version: str | None = None
     # Expected repeats per case (schema 1.1). Unset: inferred from the cases.
     repeats: Annotated[int, Field(strict=True, ge=1)] | None = None
+    # Native evaluators used, name -> version (schema 1.2). Unset: scored elsewhere.
+    evaluators: Annotated[dict[NonEmptyStr, NonEmptyStr], Field(min_length=1)] | None = None
 
     @model_serializer(mode="wrap")
-    def _omit_unset_repeats(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
-        # Plain runs serialize exactly as before schema 1.1 (run.json and report manifests).
+    def _omit_unset(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        # Older runs serialize exactly as before schema 1.1/1.2 (run.json and report manifests).
         data: dict[str, Any] = handler(self)
-        if self.repeats is None:
-            data.pop("repeats", None)
+        for key in ("repeats", "evaluators"):
+            if getattr(self, key) is None:
+                data.pop(key, None)
         return data
 
 
@@ -70,6 +76,9 @@ class CaseResult(BaseModel):
     metrics: dict[str, Number] = {}
     metadata: dict[str, Any] = {}
     error: str | None = None
+    # Raw output, stored only on request (EvalRun store_output=True). Opaque on any schema
+    # version: never read by validation, comparison or reports.
+    output: JsonValue | None = None
 
     def value(self, path: str) -> float | None:
         """Resolve a metric path such as `scores.quality` or `metrics.latency_ms`."""
