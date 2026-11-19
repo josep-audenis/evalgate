@@ -109,6 +109,8 @@ for run_id, version in (("baseline", "v1"), ("candidate", "v2")):
         for case in DATASET:
             run.record(case["id"], output=agent(case, version), case=case)
 
-# How far to trust the judges: compare the candidate run with a human's labels.
+# How far to trust the judges: compare the candidate run with a human's labels. The human
+# marked shipping-cost unfaithful (the answer quotes the threshold but not the conditions);
+# the judge passed it, which is the one disagreement in calibration.json.
 report = calibrate_run(HERE / "candidate", HERE / "labels.jsonl")
 (HERE / "calibration.json").write_text(report.model_dump_json(indent=2) + "\n", encoding="utf-8")

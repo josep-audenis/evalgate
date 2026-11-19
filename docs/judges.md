@@ -116,13 +116,14 @@ calibration of candidate against 6 labelled case(s)
 |-------+----------+---+-------+-----+------+-------+-------+-------+-------|
 | check | faithful | 6 |     6 |   0 |    0 | 0.833 | 0.571 |   n/a |   n/a |
 | score | helpful  | 6 |     6 |   0 |    0 |   n/a |   n/a | 0.500 | 0.696 |
+warning fewer than 30 labelled cases for check faithful, score helpful: agreement figures are noisy
 ```
 
 In the table, `err`, `miss`, `acc` and `rho` are `errors`, `missing`, `accuracy` and `spearman` in the JSON.
 
 **Checks** report `accuracy` (the share of agreeing cases) and Cohen's `kappa`, which is agreement corrected for chance:
 - 1 is perfect, 0 is no better than chance, and below 0 is worse than chance;
-- `kappa` is `n/a` when both raters give the same answer every time (expected agreement is 1).
+- `kappa` is `n/a` when both raters give one and the same answer for every case (expected agreement is 1).
 
 **Scores** report `mae` and Spearman's rank correlation:
 - `mae` is the mean absolute error, in the score's units. It assumes your labels use the judge's scale, which the run doesn't record;
