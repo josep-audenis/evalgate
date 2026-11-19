@@ -110,7 +110,8 @@ def calibrate(run: Run, labels: Sequence[LabelLine]) -> tuple[CalibrationReport,
     """Compare the run with human labels, one entry per labelled (kind, name), sorted.
 
     Diagnostics (all errors; then the report must not be used): `labels_unknown` for a label
-    no case has and the manifest doesn't declare, `labels_empty` when nothing could be paired.
+    no case has and the manifest doesn't declare (or that only exists as the other kind),
+    `labels_empty` when nothing could be paired.
     """
     rows: dict[str, list[CaseResult]] = defaultdict(list)
     for case in run.cases:
@@ -127,8 +128,12 @@ def calibrate(run: Run, labels: Sequence[LabelLine]) -> tuple[CalibrationReport,
     diagnostics = [
         _error(
             "labels_unknown",
-            f"{_SECTION[kind]}.{name}: labelled, but no case in run "
-            f"{run.manifest.run_id} has it and the manifest doesn't declare it",
+            f"{_SECTION[kind]}.{name}: labelled, but no case in run {run.manifest.run_id} has it"
+            + (
+                f" (only {_SECTION[_OTHER[kind]]}.{name})"
+                if name in present[_OTHER[kind]]
+                else " and the manifest doesn't declare it"
+            ),
         )
         for kind, name in wanted
         # Declared names carry no kind: one only present as the other kind is still a typo.
