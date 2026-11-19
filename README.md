@@ -166,7 +166,7 @@ with EvalRun(
         run.record(case["id"], output=agent(case), case=case)
 ```
 
-Results become ordinary checks you can require in your policy. Built-ins cover JSON, Pydantic models, JSON Schema, regex, substrings, exact and numeric matches and length; `@check` / `@score` wrap your own functions. A built-in's version includes its arguments; for your own evaluators (and `matches_model`) you bump `version=`. Comparing runs scored differently is INVALID. Outputs aren't stored unless you pass `store_output=True`, and never appear in reports. No Python? Put one JSON line per output in a file, list the evaluators in YAML, and run `evalgate evaluate outputs.jsonl --config evaluators.yaml --out evals/candidate`. See [native evaluators](https://github.com/josep-audenis/evalgate/blob/main/docs/evaluators.md).
+Results become ordinary checks you can require in your policy. Built-ins cover JSON, Pydantic models, JSON Schema, regex, substrings, exact and numeric matches and length; `@check` / `@score` wrap your own functions. A built-in's version includes its arguments; for your own evaluators (and `matches_model`) you bump `version=`. Comparing runs scored differently is INVALID. Outputs aren't stored unless you pass `store_output=True`, and never appear in reports. LLM judges work the same way: `judge(rubric, complete, ...)` calls your own model client and records a check or score, and `evalgate calibrate` measures it against human labels (see [judges](https://github.com/josep-audenis/evalgate/blob/main/docs/judges.md)). No Python? Put one JSON line per output in a file, list the evaluators in YAML, and run `evalgate evaluate outputs.jsonl --config evaluators.yaml --out evals/candidate`. See [native evaluators](https://github.com/josep-audenis/evalgate/blob/main/docs/evaluators.md).
 
 ## How decisions are made
 
@@ -204,14 +204,15 @@ Exit codes make EvalGate a drop-in CI step. See [CI integration](https://github.
 - a quality gain that blows the cost and latency budget
 - an SDK eval loop with a timed-out case
 - outputs scored by built-in evaluators, where one answer stops being valid JSON
+- outputs graded by an LLM judge, where a more helpful answer states the wrong refund window
 
 ## Status and scope
 
-Version 0.8.0 (alpha). See the [changelog](https://github.com/josep-audenis/evalgate/blob/main/CHANGELOG.md). EvalGate compares results your pipeline already produced, and can optionally score outputs with deterministic built-in evaluators. It does **not** run your application, call LLM judges, or host datasets.
+Version 0.9.0 (alpha). See the [changelog](https://github.com/josep-audenis/evalgate/blob/main/CHANGELOG.md). EvalGate compares results your pipeline already produced, and can optionally score outputs with built-in evaluators or LLM judges that call your own model client. It does **not** run your application, call a model itself, or host datasets.
 
 Not yet included:
 - dedicated adapters for tools other than promptfoo and DeepEval; the generic importer covers their CSV/JSON exports
-- optional LLM judges (planned for 0.9)
+- pairwise (baseline vs candidate) judging
 
 Planned work is in the [spec](https://github.com/josep-audenis/evalgate/blob/main/docs/SPEC.md).
 

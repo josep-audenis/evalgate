@@ -2,6 +2,31 @@
 
 All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change behaviour; anything that does is listed under **Changed**.
 
+## 0.9.0
+
+LLM judges and judge calibration (SPEC Phase 6, third slice). Judges are optional, Python-only and stdlib-only; decisions, exit codes and the JSON report are unchanged from 0.8.0.
+
+### Added
+
+- **`Rubric` and `judge()`** in `evalgate.evaluators`. `judge(rubric, complete, *, name, model_id, cache_dir=None)` renders a versioned prompt template for each output, calls `complete`, your own model client, and records a check or a score. See [docs/judges.md](docs/judges.md).
+  - **No network from EvalGate,** no provider SDK and no extra: `complete` is your function. The comparison engine never references the judge (enforced by a test).
+  - **Templates** use `string.Template`: `$output` plus top-level `case` fields; only the fields used are read, in one pass. A literal dollar sign is `$$`.
+  - **Strict replies:** exactly `{"pass": bool}` or `{"score": number}` (inclusive `scale`), with an optional `reason` that is discarded. Anything else, or an exception from `complete`, makes the case `status: error`, never a default value.
+  - **Versions** are `<rubric.version>+<model_id>+<hash>`. The hash covers the template, kind, scale, rubric version and model id, so changing any of them makes a comparison INVALID.
+  - **Opt-in cache** (`cache_dir=`): values only, keyed by the judge version and rendered prompt. Malformed entries are misses, write failures are ignored, errors are not cached.
+- **`evalgate calibrate RUN_DIR --labels labels.jsonl [--json OUT]`** (also `evalgate.io.labels.calibrate_run`). Measures agreement between any check or score and human labels: accuracy and Cohen's kappa for checks, MAE and Spearman for scores. Reporting only: exit 0 with a report, 2 on bad input, never 1. Repeats are pooled; errored rows are excluded and counted; a warning prints under 30 labelled cases.
+  - **New diagnostic codes:** `labels_parse`, `labels_record`, `labels_unknown`, `labels_empty`.
+- **`examples/judge`**: a fake offline judge, a FAILing baseline/candidate pair, `labels.jsonl` and the committed calibration report.
+
+### Changed
+
+- `write_json_report` accepts any report model (used for the calibration report).
+- Strict JSON parsing is shared (`evalgate._json.loads_strict`). The `schema_file` of `evaluators.yaml` now rejects out-of-range numbers such as `1e999` when it is read, with a clearer message. It was already rejected, later, by `json_schema`.
+
+### Testing
+
+- New tests cover rubric construction, every malformed reply, rendering rules, version sensitivity with a pinned version string, the cache (poisoning, atomic writes, failures), every calibration figure against hand-computed values, the labels reader, the CLI, and the example's generator parity.
+
 ## 0.8.0
 
 `evalgate evaluate`: score outputs with the built-in evaluators from a YAML config, without writing Python (SPEC Phase 6, second slice). Decisions, exit codes and the JSON report are unchanged from 0.7.0.

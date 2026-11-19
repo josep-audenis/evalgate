@@ -1,0 +1,6 @@
+{"case_id": "refund-window", "checks": {"faithful": false}, "scores": {"helpful": 2}}
+{"case_id": "refund-method", "checks": {"faithful": true}, "scores": {"helpful": 4}}
+{"case_id": "shipping-time", "checks": {"faithful": true}, "scores": {"helpful": 4}}
+{"case_id": "shipping-cost", "checks": {"faithful": false}, "scores": {"helpful": 3}}
+{"case_id": "account-delete", "checks": {"faithful": true}, "scores": {"helpful": 5}}
+{"case_id": "account-email", "checks": {"faithful": true}, "scores": {"helpful": 4}}

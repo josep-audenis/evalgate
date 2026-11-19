@@ -37,6 +37,10 @@ Codes:
 - **Validation:** `duplicate_case_id`, `repeat_mixed`, `repeat_schema`, `evaluators_schema`, `repeat_incomplete`, `repeat_inconsistent`, `repeat_metadata` (warning), `dataset_mismatch`, `evaluator_mismatch`, `evaluator_set_mismatch`, `evaluator_set_partial`, `case_mismatch`, `no_comparable_cases`, `too_few_cases`, `small_sample` (warning), `metric_missing`, `check_missing`, `category_type`
 - **Evaluation:** `pct_undefined`, `numeric_overflow`, `category_missing`, `category_partial` (warning)
 
+`evalgate import` / `evaluate` and `evalgate calibrate` report their own input problems with the same diagnostic shape (exit 2, no report):
+- **Import and evaluate:** `import_*`, `evaluators_yaml`, `evaluators_config`, `outputs_parse`, `outputs_record`
+- **Calibrate:** `labels_parse`, `labels_record`, `labels_unknown` (a labelled check or score the run doesn't have), `labels_empty` (an empty labels file, or no labelled case with a value to compare). See [judges.md](judges.md#calibrating-a-judge)
+
 ## `comparison`
 
 | Field | Type | Meaning |

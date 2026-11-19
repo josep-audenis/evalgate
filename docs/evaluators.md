@@ -109,6 +109,10 @@ Missing or unreadable files give the usual `file_missing` / `file_unreadable`.
 
 The SDK equivalent is `evalgate.evaluate_outputs(source, config, out, *, run_id=None, overwrite=False)`.
 
+## LLM judges
+
+A judge asks your own model client to grade each output against a versioned rubric, and records a check or a score like any other evaluator. Python only, no extra dependency, no network calls from EvalGate. See [judges.md](judges.md), which also covers `evalgate calibrate`.
+
 ## Built-in evaluators
 
 All of them are checks, and each needs a `name=`, which becomes the check's name in `cases.jsonl` and in your policy.
