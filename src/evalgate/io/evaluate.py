@@ -7,34 +7,16 @@ Diagnostics name a line and a field, never the output's text.
 
 import json
 from collections import Counter
-from math import isfinite
 from pathlib import Path
 from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError, model_validator
 
+from evalgate._json import loads_strict
 from evalgate.io.evaluators_config import load_evaluators_config
 from evalgate.io.importer import ImportSummary, write_rows
 from evalgate.io.reader import InputError, _error, _read_text
 from evalgate.models.run import NonEmptyStr, Number
-
-
-def _reject_constant(value: str) -> None:
-    raise ValueError(f"non-standard JSON constant {value}")
-
-
-def _finite_float(text: str) -> float:
-    value = float(text)
-    if not isfinite(value):  # e.g. 1e999: json would turn it into inf, then null on write
-        raise ValueError("number out of range")
-    return value
-
-
-def _unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    # Fixed text: keys nested inside `output` or `metadata` are content, never echo them.
-    if len({k for k, _ in pairs}) != len(pairs):
-        raise ValueError("duplicate key")
-    return dict(pairs)
 
 
 class OutputLine(BaseModel):
@@ -99,12 +81,7 @@ def read_outputs(path: Path, reserved: frozenset[str] = frozenset()) -> list[dic
         if not raw.strip():
             continue
         try:
-            data = json.loads(
-                raw,
-                object_pairs_hook=_unique,
-                parse_constant=_reject_constant,
-                parse_float=_finite_float,
-            )
+            data = loads_strict(raw)
         except (ValueError, RecursionError) as exc:
             # json's message gives a position, not content; ours are fixed text.
             msg = exc.msg if isinstance(exc, json.JSONDecodeError) else str(exc)

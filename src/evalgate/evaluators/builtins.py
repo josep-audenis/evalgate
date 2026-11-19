@@ -11,10 +11,11 @@ import json
 import math
 import re
 from collections.abc import Iterable, Mapping
-from typing import Any, Literal, NoReturn
+from typing import Any, Literal
 
 from pydantic import BaseModel, ValidationError
 
+from evalgate._json import loads_strict
 from evalgate.evaluators.core import Evaluator
 
 _IMPL = "1"  # bump when any built-in's behaviour changes
@@ -36,17 +37,6 @@ def _make(factory: str, name: str, args: Mapping[str, Any], fn: Any) -> Evaluato
     return Evaluator(name, _version(factory, args), "check", fn)
 
 
-def _reject_constant(value: str) -> NoReturn:
-    raise ValueError(f"non-standard JSON constant {value}")
-
-
-def _unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    keys = [k for k, _ in pairs]
-    if len(keys) != len(set(keys)):
-        raise ValueError("duplicate key")
-    return dict(pairs)
-
-
 class _Invalid(Exception):
     """The output is not strict JSON."""
 
@@ -56,7 +46,7 @@ def _strict_json(output: object) -> Any:
     if not isinstance(output, str):
         raise _Invalid
     try:
-        return json.loads(output, parse_constant=_reject_constant, object_pairs_hook=_unique)
+        return loads_strict(output, finite=False)
     except (ValueError, RecursionError) as exc:
         raise _Invalid from exc
 
