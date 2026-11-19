@@ -147,6 +147,13 @@ class FailureGroups(BaseModel):
     by_check_category: list[CheckCategoryGroup]
     uncategorized: int  # failing pairs whose case has no (string) baseline category
 
+    def top(self, n: int = 5) -> list[tuple[str, str | None, "CheckGroup | CheckCategoryGroup"]]:
+        """The n largest groups as (check, category, group): by check x category, or by check
+        alone (category None) when no failing case has a category."""
+        if self.by_check_category:
+            return [(g.check, g.category, g) for g in self.by_check_category[:n]]
+        return [(g.check, None, g) for g in self.by_check[:n]]
+
 
 class Comparison(BaseModel):
     matched_cases: int

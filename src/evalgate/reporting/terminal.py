@@ -13,6 +13,9 @@ from evalgate.models.history import HistoryEntry, Identity, RunEntry
 from evalgate.models.multi import MultiSummary
 
 _TOP = 10
+_GROUPS = 5
+
+
 _STATUS_STYLE = {"PASS": "bold green", "FAIL": "bold red", "INVALID": "bold yellow"}
 
 
@@ -106,6 +109,23 @@ def render(report: Report, console: Console) -> None:
             console.print(f"newly failing checks ({len(cmp.newly_failing_checks)}):")
             for ch in cmp.newly_failing_checks[:_TOP]:
                 console.print(f"  {e(ch.case_id)}: {e(ch.check)}", highlight=False)
+        groups = cmp.failure_groups
+        if report.status != "INVALID" and groups and (rows := groups.top(_GROUPS)):
+            console.print(
+                f"failure groups (top {_GROUPS}): failing = new + persistent + no baseline"
+            )
+            for check, category, g in rows:
+                where = f" in {e(category)}" if category is not None else ""
+                console.print(
+                    f"  {e(check)}{where}: {g.failing} = {g.new} + {g.persistent} + "
+                    f"{g.no_baseline}",
+                    highlight=False,
+                )
+            if groups.by_check_category and groups.uncategorized:
+                console.print(
+                    f"  ({groups.uncategorized} failing pair(s) without a category not grouped)",
+                    highlight=False,
+                )
 
     for r in report.rules:
         mark = "[green]ok  [/]" if r.passed else "[red]FAIL[/]"

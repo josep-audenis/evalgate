@@ -6,6 +6,7 @@ import unicodedata
 from evalgate.models import Report
 
 _TOP = 10  # items per collapsed list
+_GROUPS = 5  # failure groups shown
 _MAX_RULES = 50  # table rows; failures first, so they are always shown
 _MAX_DIAGNOSTICS = 20
 _MAX_TEXT = 300  # characters per input-derived value (a message may list every case)
@@ -88,6 +89,24 @@ def render_markdown(report: Report) -> str:
                 f"{_n(m.candidate_mean)} | {_n(m.delta_abs, True)} | {pct} | "
                 f"[{_n(m.ci.low, True)}, {_n(m.ci.high, True)}] |"
             )
+        out.append("")
+
+    groups = cmp.failure_groups if cmp else None
+    if report.status != "INVALID" and groups and (rows := groups.top(_GROUPS)):
+        # Before the long lists, so total-size truncation never cuts it.
+        out += [
+            "### Failure groups",
+            "",
+            "| Check | Category | Failing | New | Persistent | No baseline |",
+            "|---|---|--:|--:|--:|--:|",
+        ]
+        out += [
+            f"| {_c(check, cell=True)} | {'—' if cat is None else _c(cat, cell=True)} | "
+            f"{g.failing} | {g.new} | {g.persistent} | {g.no_baseline} |"
+            for check, cat, g in rows
+        ]
+        if groups.by_check_category and groups.uncategorized:
+            out.append(f"\n{groups.uncategorized} failing pair(s) without a category not grouped.")
         out.append("")
 
     if cmp:
