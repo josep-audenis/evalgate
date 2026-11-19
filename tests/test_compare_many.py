@@ -66,7 +66,9 @@ def test_ranking_minimize() -> None:
     result = compare_many(BASE, [FAIL_C, BASE], POLICY, rank_by="latency")
     assert result.ranking is not None
     values = [i.value for i in result.ranking]
-    assert values == sorted(values)  # lowest latency first
+    assert values == sorted(values) and values[0] != values[1]  # lowest latency first
+    best = 1 if result.reports[0].comparison.metrics[1].candidate_mean == values[0] else 2  # type: ignore[union-attr]
+    assert [(i.rank, i.n) for i in result.ranking] == [(1, best), (2, 3 - best)]
 
 
 @pytest.mark.parametrize("metric", ["quality", "latency"])
@@ -102,7 +104,9 @@ def test_unloadable_candidate_has_null_run_id(tmp_path: Path) -> None:
     assert summary.baseline_run_id == "baseline-v1"
 
 
-@pytest.mark.parametrize("bad", ["examples/quickstart/candidate", FAIL_C])
+@pytest.mark.parametrize(
+    "bad", ["examples/quickstart/candidate", FAIL_C, b"x", {FAIL_C}, (p for p in [FAIL_C])]
+)
 def test_single_path_is_a_type_error(bad: object) -> None:
     with pytest.raises(TypeError):
         compare_many(BASE, bad, POLICY)  # type: ignore[arg-type]
@@ -146,3 +150,21 @@ def test_summary_is_deterministic(tmp_path: Path) -> None:
 def test_candidate_equal_to_baseline_and_repeated() -> None:
     result = compare_many(BASE, [BASE, BASE], POLICY)
     assert [r.status for r in result.reports] == ["PASS", "PASS"] and result.exit_code == 0
+
+
+def test_rank_by_never_changes_a_report() -> None:
+    plain = compare_many(BASE, [FAIL_C, BASE], POLICY)
+    ranked = compare_many(BASE, [FAIL_C, BASE], POLICY, rank_by="quality")
+    assert [r.model_dump_json() for r in plain.reports] == [
+        r.model_dump_json() for r in ranked.reports
+    ]
+    assert plain.exit_code == ranked.exit_code
+
+
+def test_unloadable_baseline(tmp_path: Path) -> None:
+    result = compare_many(tmp_path / "nope", [FAIL_C], POLICY, rank_by="quality")
+    assert result.summary().baseline_run_id is None and result.ranking == []
+
+
+def test_no_candidates_exit_code_fails_closed() -> None:
+    assert exit_code([]) == 2

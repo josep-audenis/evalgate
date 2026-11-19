@@ -11,8 +11,10 @@ from evalgate.models.multi import RankItem
 
 
 def exit_code(reports: Sequence[Report]) -> int:
-    """2 if any candidate is INVALID, else 1 if any FAILs, else 0 (fail closed)."""
+    """2 if any candidate is INVALID, else 1 if any FAILs, else 0 (fail closed; none is 2)."""
     statuses = {r.status for r in reports}
+    if not statuses:
+        return 2
     return 2 if "INVALID" in statuses else 1 if "FAIL" in statuses else 0
 
 

@@ -1,5 +1,6 @@
 """Path-based entry point shared by the CLI and the SDK, so both produce identical reports."""
 
+import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -75,8 +76,9 @@ def compare_many(
     Raises TypeError if `candidates` is a single path, ValueError if it's empty or if `rank_by`
     names no metric of a policy that loads. Bad input otherwise gives INVALID reports.
     """
-    if isinstance(candidates, str | Path):
-        raise TypeError("candidates must be a list of paths, not a single path")
+    # A sequence keeps command-line order: a set (hash order) would make `n` nondeterministic.
+    if isinstance(candidates, str | bytes | os.PathLike) or not isinstance(candidates, Sequence):
+        raise TypeError("candidates must be a list or tuple of paths")
     paths = list(candidates)
     if not paths:
         raise ValueError("give at least one candidate")
