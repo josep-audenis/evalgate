@@ -1,11 +1,19 @@
 """Compact terminal summary for local use and CI logs."""
 
+from collections.abc import Sequence
+from pathlib import Path
+from typing import TYPE_CHECKING
+
 from rich.console import Console
 from rich.markup import escape as e  # every input-derived string goes through this
 from rich.table import Table
 
 from evalgate.models import Diagnostic, Report
 from evalgate.models.calibration import CalibrationReport
+from evalgate.models.multi import MultiSummary
+
+if TYPE_CHECKING:
+    from evalgate.api import MultiResult as MultiResultLike
 from evalgate.models.history import HistoryEntry, Identity, RunEntry
 
 _TOP = 10
@@ -230,3 +238,37 @@ def render_trend(trend: dict[str, object], console: Console) -> None:
             "comparable; filter with --dataset",
             highlight=False,
         )
+
+
+def render_candidates(result: "MultiResultLike", paths: Sequence[Path], console: Console) -> None:
+    """The closing table of a multi-candidate compare. The ranking is informational only."""
+    summary: MultiSummary = result.summary()
+    ranks = {i.n: i for i in summary.ranking or []}
+    table = Table(
+        title="candidates" + (f" ranked by {e(summary.rank_by)}" if summary.rank_by else "")
+    )
+    columns = ["n", "candidate", "run_id", "status"]
+    if summary.ranking is not None:
+        columns += ["rank", "value", "cases"]
+    for column in columns:
+        table.add_column(
+            column,
+            overflow="fold",
+            justify="right" if column in ("n", "rank", "value", "cases") else "left",
+        )
+    for c, path in zip(summary.candidates, paths, strict=True):
+        row = [str(c.n), _text(str(path)), _text(c.run_id or "-"), c.status]
+        if summary.ranking is not None:
+            item = ranks.get(c.n)
+            row += (
+                [str(item.rank), f"{item.value:.4g}", str(item.cases)] if item else ["-", "-", "-"]
+            )
+        table.add_row(*row)
+    console.print(table)
+    if summary.cases_differ:
+        console.print(
+            "[yellow]warning[/] ranked candidates were compared on different numbers of cases: "
+            "their means aren't directly comparable",
+            highlight=False,
+        )
+    console.print(f"exit code: {summary.exit_code}", highlight=False)
