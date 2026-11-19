@@ -42,7 +42,10 @@ def _parse(index: Path, text: str) -> list[HistoryEntry]:
     entries: list[HistoryEntry] = []
     diagnostics: list[Diagnostic] = []
     last = 0
-    for n, raw in enumerate(text.splitlines(), 1):
+    # Split on LF only: str.splitlines() also splits on U+2028/U+2029/U+0085, which JSON keeps
+    # raw inside strings, so a label holding one would break the store.
+    for n, raw in enumerate(text.split("\n"), 1):
+        raw = raw.removesuffix("\r")
         if not raw.strip():
             continue
         where = f"{index}: line {n}"
@@ -52,10 +55,10 @@ def _parse(index: Path, text: str) -> list[HistoryEntry]:
             msg = getattr(exc, "msg", None) or str(exc)  # a position or fixed text, no content
             diagnostics.append(_error("history_parse", f"{where}: not valid JSON: {msg}"))
             continue
-        if isinstance(data, dict) and data.get("history_version") != HISTORY_VERSION:
-            diagnostics.append(
-                _error("history_parse", f"{where}: unsupported history_version (expected 1)")
-            )
+        if isinstance(data, dict) and data.get("history_version") is not HISTORY_VERSION:
+            what = "missing" if "history_version" not in data else "unsupported"
+            message = f"{where}: {what} history_version (expected 1)"
+            diagnostics.append(_error("history_parse", message))
             continue
         try:
             entry = _ENTRY.validate_python(data)
@@ -122,7 +125,7 @@ def _append(
         | ({"label": label} if label is not None else {})
         | fields
     )
-    lines = [line for line in text.splitlines() if line.strip()]  # CRLF / no final newline
+    lines = [x.removesuffix("\r") for x in text.split("\n") if x.strip()]  # CRLF, no final LF
     lines.append(entry.model_dump_json(exclude_defaults=True))
     # shortcut: no locking; two concurrent appends can pick the same id and the later rewrite
     # wins (report_sha256 catches a swapped report). Add a lock file if shared use appears.

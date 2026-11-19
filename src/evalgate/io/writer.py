@@ -20,9 +20,14 @@ from evalgate.models.policy import POLICY_TEMPLATE
 
 
 def _atomic_write(path: Path, text: str) -> None:
-    tmp = path.with_name(f".{path.name}.tmp")
-    tmp.write_text(text, encoding="utf-8", newline="\n")  # LF on every OS: same bytes
-    os.replace(tmp, path)
+    # Unique temp name per process, so concurrent writers never share (and garble) a temp file.
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        tmp.write_text(text, encoding="utf-8", newline="\n")  # LF on every OS: same bytes
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def write_json_report(report: BaseModel, path: Path) -> None:
@@ -148,7 +153,7 @@ class EvalRun:
         self.path.mkdir(parents=True, exist_ok=True)
         self._ids = set()
         self.evaluator_errors = 0  # rows (case x repeat) recorded as errors by a failing evaluator
-        self._file = self._partial.open("w", encoding="utf-8")
+        self._file = self._partial.open("w", encoding="utf-8", newline="\n")
         return self
 
     def __exit__(
