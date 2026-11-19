@@ -7,12 +7,26 @@ from rich.console import Console
 from rich.markup import escape as e  # every input-derived string goes through this
 from rich.table import Table
 
-from evalgate.models import Diagnostic, Report
+from evalgate.models import Comparison, Diagnostic, Report
 from evalgate.models.calibration import CalibrationReport
 from evalgate.models.history import HistoryEntry, Identity, RunEntry
 from evalgate.models.multi import MultiSummary
+from evalgate.models.report import CheckCategoryGroup, CheckGroup
 
 _TOP = 10
+_GROUPS = 5
+
+
+def failure_group_rows(cmp: Comparison) -> list[tuple[str, CheckGroup | CheckCategoryGroup]]:
+    """Top failure groups, by check x category; by check alone when nothing is categorised."""
+    groups = cmp.failure_groups
+    if groups is None:
+        return []
+    if groups.by_check_category:
+        return [(f"{g.check} / {g.category}", g) for g in groups.by_check_category[:_GROUPS]]
+    return [(g.check, g) for g in groups.by_check[:_GROUPS]]
+
+
 _STATUS_STYLE = {"PASS": "bold green", "FAIL": "bold red", "INVALID": "bold yellow"}
 
 
@@ -106,6 +120,15 @@ def render(report: Report, console: Console) -> None:
             console.print(f"newly failing checks ({len(cmp.newly_failing_checks)}):")
             for ch in cmp.newly_failing_checks[:_TOP]:
                 console.print(f"  {e(ch.case_id)}: {e(ch.check)}", highlight=False)
+        if report.status != "INVALID" and (rows := failure_group_rows(cmp)):
+            console.print(
+                f"failure groups (top {_GROUPS}): failing = new + persistent + no baseline"
+            )
+            for name, g in rows:
+                console.print(
+                    f"  {e(name)}: {g.failing} = {g.new} + {g.persistent} + {g.no_baseline}",
+                    highlight=False,
+                )
 
     for r in report.rules:
         mark = "[green]ok  [/]" if r.passed else "[red]FAIL[/]"

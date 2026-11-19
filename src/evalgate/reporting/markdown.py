@@ -4,6 +4,7 @@ import re
 import unicodedata
 
 from evalgate.models import Report
+from evalgate.reporting.terminal import failure_group_rows
 
 _TOP = 10  # items per collapsed list
 _MAX_RULES = 50  # table rows; failures first, so they are always shown
@@ -102,6 +103,19 @@ def render_markdown(report: Report) -> str:
             "Newly failing checks",
             [f"{_c(ch.case_id)}: {_c(ch.check)}" for ch in cmp.newly_failing_checks],
         )
+        if report.status != "INVALID" and (rows := failure_group_rows(cmp)):
+            out += [
+                "### Failure groups",
+                "",
+                "| Group | Failing | New | Persistent | No baseline |",
+                "|---|--:|--:|--:|--:|",
+            ]
+            out += [
+                f"| {_c(name, cell=True)} | {g.failing} | {g.new} | {g.persistent} | "
+                f"{g.no_baseline} |"
+                for name, g in rows
+            ]
+            out.append("")
     out.append(f"<sub>evalgate {report.evalgate_version}</sub>")
     text = "\n".join(out) + "\n"
     if len(text) > _MAX_TOTAL:  # only with very many failed rules
