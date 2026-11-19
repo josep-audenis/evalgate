@@ -5,6 +5,7 @@ from evalgate.api import compare
 from evalgate.io import EvalRun, InputError
 from evalgate.io.deepeval import import_deepeval
 from evalgate.io.evaluate import evaluate_outputs
+from evalgate.io.history import read_history, record_report, record_run
 from evalgate.io.importer import ImportSummary, import_results
 from evalgate.io.promptfoo import import_promptfoo
 from evalgate.models import Report
@@ -20,4 +21,7 @@ __all__ = [
     "import_deepeval",
     "import_promptfoo",
     "import_results",
+    "read_history",
+    "record_report",
+    "record_run",
 ]

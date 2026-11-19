@@ -21,7 +21,7 @@ from evalgate.models.policy import POLICY_TEMPLATE
 
 def _atomic_write(path: Path, text: str) -> None:
     tmp = path.with_name(f".{path.name}.tmp")
-    tmp.write_text(text, encoding="utf-8")
+    tmp.write_text(text, encoding="utf-8", newline="\n")  # LF on every OS: same bytes
     os.replace(tmp, path)
 
 
