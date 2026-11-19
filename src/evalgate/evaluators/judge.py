@@ -57,12 +57,15 @@ class Rubric:
             return
         if self.scale is None:
             raise ValueError("a score rubric needs scale=(min, max)")
-        bounds = tuple(self.scale)
+        bounds = tuple(self.scale) if isinstance(self.scale, tuple | list) else ()
         if len(bounds) != 2 or any(
             isinstance(b, bool) or not isinstance(b, int | float) for b in bounds
         ):
             raise ValueError("scale must be two numbers (min, max)")
-        low, high = float(bounds[0]), float(bounds[1])
+        try:
+            low, high = float(bounds[0]), float(bounds[1])
+        except OverflowError:
+            raise ValueError("scale must be finite with min < max") from None
         if not (math.isfinite(low) and math.isfinite(high)) or low >= high:
             raise ValueError("scale must be finite with min < max")
         object.__setattr__(self, "scale", (low, high))
@@ -90,7 +93,7 @@ def _text(value: object) -> str:
 
 
 def _value(rubric: Rubric, value: object) -> bool | float | None:
-    """`value` in its recorded type if valid for the rubric, else None (never coerced)."""
+    """`value` as a bool (check) or float (score) if valid for the rubric, else None."""
     if rubric.kind == "check":
         return value if type(value) is bool else None
     if isinstance(value, bool) or not isinstance(value, int | float):
