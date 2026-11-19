@@ -10,7 +10,7 @@ evalgate compare evals/baseline evals/cand-a evals/cand-b evals/cand-c \
 
 Each candidate is compared with the baseline exactly as `evalgate compare BASELINE CANDIDATE` would compare it: same engine, same policy, same report. Candidates are never compared with each other, and none of them becomes a baseline. With one candidate, `compare` behaves exactly as before. [examples/multi-candidate](../examples/multi-candidate) is a runnable version.
 
-From Python: `evalgate.compare_many(baseline, [cand_a, cand_b], policy, rank_by="quality")` returns the reports, the exit code, the ranking and `summary()`. `candidates` must be a list or tuple: a single path, or an unordered set, raises `TypeError`.
+From Python: `evalgate.compare_many(baseline, [cand_a, cand_b], policy, rank_by="quality")` returns the reports, the exit code, the ranking and `summary()`. `candidates` must be a list or tuple: a single path, or an unordered set, raises `TypeError`. An empty list, or a `rank_by` that isn't a metric of a policy that loads, raises `ValueError`.
 
 ## Exit code
 
@@ -25,7 +25,7 @@ One exit code can only safely answer "did every candidate pass?". To choose amon
 ## Artifacts
 
 - With more than one candidate, the `--json`, `--report` and `--markdown` paths must contain `{n}`, the candidate's position on the command line (1, 2, …). Otherwise the command stops before comparing anything (exit 2), so reports never overwrite each other.
-  - Every `{n}` is replaced; other braces stay as they are.
+  - Every `{n}` is replaced; other braces stay as they are. With a single candidate, a `{n}` in a path stays literal.
   - Parent directories must already exist.
   - Each file is the same report a two-run compare would write.
 - `--summary PATH` writes one JSON file for any number of candidates:
@@ -36,8 +36,8 @@ One exit code can only safely answer "did every candidate pass?". To choose amon
    "ranking": [{"rank": 1, "n": 1, "run_id": "candidate-a", "status": "FAIL", "value": 0.88, "cases": 6}, …],
    "cases_differ": false}
   ```
-  - `run_id` is `null` for a run that didn't load.
-  - `ranking` is `null` without `--rank-by`.
+  - `run_id` and `baseline_run_id` are `null` when that comparison's inputs (either run, or the policy) didn't load.
+  - `ranking` is `null` without `--rank-by`, and `[]` when no candidate could be ranked.
   - The file has no timestamps, so the same inputs give the same bytes.
 
 ## Ranking (`--rank-by`)

@@ -14,12 +14,12 @@ Several candidates in one command (SPEC Phase 7, second slice). With one candida
   - **`--summary PATH`:** one JSON file with every candidate's status, the decision exit code and the ranking. No timestamps.
   - **`--rank-by NAME`:** ranks candidates on one policy metric, in its declared direction. It is informational only: no aggregate score, never a decision. FAIL candidates are ranked and shown as FAIL; INVALID ones are left out; ties keep order. A warning is printed when the ranked means cover different numbers of cases.
   - **`--history`:** records one entry per candidate, in order.
-- **SDK:** `evalgate.compare_many(baseline, candidates, policy, rank_by=None)` returns a `MultiResult` (reports, exit code, ranking, `summary()`).
+- **SDK:** `evalgate.compare_many(baseline, candidates, policy="evalgate.yaml", *, rank_by=None)` returns a `MultiResult` (reports, exit code, ranking, `summary()`).
 - **`examples/multi-candidate`:** three candidates; the best-quality one FAILs on safety but ranks first on quality.
 
 ### Changed
 
-- **A failed artifact write in `compare`** (`--json`, `--report`, `--markdown`, `--summary`) now prints the decision(s) first and then exits 2. Before, it printed only an internal error, also with exit 2.
+- **A failed artifact write in `compare`** (`--json`, `--report`, `--markdown`) now prints the decision first and then exits 2. Before, it printed only an internal error, also with exit 2. `--summary` behaves the same way.
 - `compare --help` names the arguments `BASELINE CANDIDATE...`.
 
 ### Testing

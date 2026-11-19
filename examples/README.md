@@ -1,6 +1,6 @@
 # Examples
 
-Each directory holds a baseline run, a candidate run and a policy. Run one with:
+Most directories hold a baseline run, a candidate run and a policy (the rows below say when one differs). Run one with:
 
 ```bash
 evalgate compare examples/<name>/baseline examples/<name>/candidate \

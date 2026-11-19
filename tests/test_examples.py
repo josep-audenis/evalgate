@@ -122,6 +122,7 @@ def test_multi_candidate_example(tmp_path: Path) -> None:
         (2, 2, "PASS"),
         (3, 3, "PASS"),
     ]
+    assert [i.value for i in result.ranking] == pytest.approx([0.88, 0.85, 0.82])
     # The committed runs are exactly what make_runs.py writes.
     shutil.copy(d / "make_runs.py", tmp_path / "make_runs.py")
     runpy.run_path(str(tmp_path / "make_runs.py"))
