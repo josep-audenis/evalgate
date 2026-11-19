@@ -61,6 +61,9 @@ class OutputLine(BaseModel):
             raise ValueError("`error` is only allowed when status is error")
         if self.status == "error" and has_output:
             raise ValueError("`output` is not allowed when status is error")
+        dropped = sorted({"expected", "scores", "metrics"} & self.model_fields_set)
+        if self.status == "error" and dropped:  # would be silently lost: an error has no results
+            raise ValueError(f"{', '.join(dropped)} not allowed when status is error")
         return self
 
 

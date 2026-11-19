@@ -106,6 +106,8 @@ def test_missing_expected_is_an_evaluator_error(tmp_path: Path) -> None:
         ({"case_id": "a", "status": "ok"}, "outputs_record"),  # output missing
         ({"case_id": "a", "status": "ok", "output": "x", "error": "e"}, "outputs_record"),
         ({"case_id": "a", "status": "error", "output": "x"}, "outputs_record"),
+        ({"case_id": "a", "status": "error", "scores": {"q": 1}}, "outputs_record"),
+        ({"case_id": "a", "status": "error", "expected": "x"}, "outputs_record"),
         ({"case_id": "a", "status": "maybe", "output": "x"}, "outputs_record"),
         ({"case_id": "", "status": "ok", "output": "x"}, "outputs_record"),
         ({"case_id": "a", "status": "ok", "output": "x", "typo": 1}, "outputs_record"),

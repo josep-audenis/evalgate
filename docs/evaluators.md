@@ -57,7 +57,7 @@ evalgate compare evals/baseline evals/candidate --policy evalgate.yaml
 | `case_id` | Required, non-empty. |
 | `status` | `ok` or `error` (the application failed on this case). |
 | `output` | Required when `ok`, not allowed when `error`. Any JSON value; `null` counts as an output. |
-| `error` | Only with `status: error` (even `null` is rejected on an `ok` line). Optional; defaults to `"error"`. |
+| `error` | Only with `status: error` (even `null` is rejected on an `ok` line). Optional; defaults to `"error"`. An `error` line takes only `case_id`, `status`, `error`, `metadata` and `repeat`. |
 | `expected` | Optional. What `exact_match` and `numeric_close` compare against (`field: expected`). Absent is different from `null`: an evaluator that needs it and doesn't find it is an evaluator error. |
 | `scores`, `metrics` | Optional numbers you already have, such as a grader's score or latency, recorded as they are. A score or metric named like one of your evaluators is an error (`outputs_record`), so it can't be mistaken for that evaluator's result. |
 | `metadata` | Optional object, such as `{"category": "billing"}` for [category limits](statistics.md#category-limits). |
