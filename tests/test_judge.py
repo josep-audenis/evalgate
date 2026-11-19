@@ -73,7 +73,18 @@ def test_bad_check_rubric_is_rejected(kwargs: dict[str, Any]) -> None:
 
 @pytest.mark.parametrize(
     "scale",
-    [None, (5, 1), (1, 1), (float("nan"), 5), (1, float("inf")), (True, 5), (1, 2, 3), ("1", 5)],
+    [
+        None,
+        (5, 1),
+        (1, 1),
+        (float("nan"), 5),
+        (1, float("inf")),
+        (True, 5),
+        (1, 2, 3),
+        ("1", 5),
+        5,
+        (1, 10**400),
+    ],
 )
 def test_bad_score_scale_is_rejected(scale: Any) -> None:
     with pytest.raises(ValueError):
@@ -140,6 +151,7 @@ BAD_CHECK_REPLIES = [
     '[{"pass": true}]',
     "",
     '{"pass": true, "reason": 3}',
+    '{"pass": true, "reason": null}',
     '{"pass": true, "pass": false}',
     None,
     b'{"pass": true}',
@@ -257,6 +269,8 @@ def test_plus_in_parts_cannot_collide() -> None:
     assert a != b
 
 
+GOLDEN = "1+m+dd81f08f7d66"
+
 # --- isolation -------------------------------------------------------------------------------
 
 ENGINE = [
@@ -282,13 +296,16 @@ JUDGE_IMPORTS = {
 }
 
 
-def imported(path: Path) -> set[str]:
+def imported(path: Path, aliases: bool = False) -> set[str]:
     names: set[str] = set()
     for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
         if isinstance(node, ast.Import):
             names |= {a.name for a in node.names}
         elif isinstance(node, ast.ImportFrom):
             names.add(node.module or "")
+            # `from evalgate import evaluators` names the module only through the alias.
+            if aliases:
+                names |= {f"{node.module}.{a.name}" for a in node.names}
     return names
 
 
@@ -296,7 +313,7 @@ def imported(path: Path) -> set[str]:
 def test_engine_never_references_the_judge(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     assert "evaluators.judge" not in text
-    assert not any(m.startswith("evalgate.evaluators") for m in imported(path))
+    assert not any(m.startswith("evalgate.evaluators") for m in imported(path, aliases=True))
 
 
 def test_judge_imports_only_allowlisted_modules() -> None:
@@ -320,3 +337,15 @@ def test_versioned_builtins_keep_their_0_7_behaviour() -> None:
     from evalgate.evaluators import json_valid
 
     assert json_valid(name="j")("1e999", {}) is True  # finite=False: unchanged since 0.7
+
+
+def test_golden_version() -> None:
+    # Pinned: a refactor that changes this string makes every stored baseline INVALID.
+    assert version() == GOLDEN
+
+
+def test_reason_is_never_stored(tmp_path: Path) -> None:
+    reply = '{"score": 4, "reason": "SENTINEL-reason-77"}'
+    line = run_one(tmp_path, judge(SCORE, replying(reply), name="j", model_id="m"))
+    assert line["scores"] == {"j": 4.0}
+    assert "SENTINEL-reason-77" not in (tmp_path / "cases.jsonl").read_text()
