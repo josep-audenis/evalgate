@@ -846,6 +846,10 @@ EvalGate should continue supporting fully offline comparisons using precomputed 
 
 Users should not be forced to use our evaluation mechanisms in order to benefit from the regression analysis and release policy engine.
 
+LLM judges are stdlib-only and opt-in by import. EvalGate never calls a model itself: the user passes their own client function. The comparison engine (`comparison/`, `policies/`, `validation.py`, `engine.py`, `api.py`) never references them.
+
+**Status:** done in 0.7.0–0.9.0 (see [design/native-evaluators.md](design/native-evaluators.md)), except pairwise preference evaluation, which is deferred.
+
 **Milestone:** Optional evaluation ecosystem.
 
 ### Phase 7 — Future Exploration

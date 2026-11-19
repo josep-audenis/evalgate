@@ -1,6 +1,6 @@
 # Design: native evaluators (SPEC Phase 6)
 
-Status: **0.8.0 implemented** (SDK, built-ins and `evalgate evaluate`; see [docs/evaluators.md](../evaluators.md)). The 0.9.0 judge slice is planned in section 11, not implemented yet. Decisions on the former open questions are in section 8.
+Status: **0.9.0 implemented** (SDK, built-ins, `evalgate evaluate`, LLM judges and `evalgate calibrate`; see [docs/evaluators.md](../evaluators.md) and [docs/judges.md](../judges.md)). Pairwise judging stays deferred (section 6). Decisions on the former open questions are in section 8.
 
 ## Problem
 

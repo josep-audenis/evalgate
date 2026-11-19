@@ -1,0 +1,6 @@
+{"case_id":"refund-window","status":"ok","scores":{"helpful":3.0},"checks":{"faithful":false}}
+{"case_id":"refund-method","status":"ok","scores":{"helpful":4.0},"checks":{"faithful":true}}
+{"case_id":"shipping-time","status":"ok","scores":{"helpful":4.0},"checks":{"faithful":true}}
+{"case_id":"shipping-cost","status":"ok","scores":{"helpful":4.0},"checks":{"faithful":true}}
+{"case_id":"account-delete","status":"ok","scores":{"helpful":4.0},"checks":{"faithful":true}}
+{"case_id":"account-email","status":"ok","scores":{"helpful":4.0},"checks":{"faithful":true}}

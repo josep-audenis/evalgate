@@ -1,0 +1,30 @@
+{
+  "run_id": "candidate",
+  "labelled_cases": 6,
+  "entries": [
+    {
+      "kind": "check",
+      "name": "faithful",
+      "n": 6,
+      "n_cases": 6,
+      "errors": 0,
+      "missing": 0,
+      "accuracy": 0.8333333333333334,
+      "kappa": 0.5714285714285714,
+      "mae": null,
+      "spearman": null
+    },
+    {
+      "kind": "score",
+      "name": "helpful",
+      "n": 6,
+      "n_cases": 6,
+      "errors": 0,
+      "missing": 0,
+      "accuracy": null,
+      "kappa": null,
+      "mae": 0.5,
+      "spearman": 0.6956083436402525
+    }
+  ]
+}

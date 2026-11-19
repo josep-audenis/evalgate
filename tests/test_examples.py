@@ -29,6 +29,7 @@ EXAMPLES = Path(__file__).parent.parent / "examples"
                 "checks.max_new_failures",
             },
         ),
+        ("judge", {"checks.required.faithful", "checks.max_new_failures"}),
     ],
 )
 def test_example_fails_for_documented_reason(name: str, failed_rules: set[str]) -> None:
@@ -41,7 +42,9 @@ def test_example_fails_for_documented_reason(name: str, failed_rules: set[str]) 
     assert quality.delta_abs > 0  # every example improves average quality yet must not ship
 
 
-@pytest.mark.parametrize("name", ["quickstart", "cost-latency", "repeats", "native-evaluators"])
+@pytest.mark.parametrize(
+    "name", ["quickstart", "cost-latency", "repeats", "native-evaluators", "judge"]
+)
 def test_example_baseline_against_itself_passes(name: str) -> None:
     d = EXAMPLES / name
     assert evalgate.compare(d / "baseline", d / "baseline", d / "evalgate.yaml").status == "PASS"
@@ -78,3 +81,15 @@ def test_native_evaluators_example_via_cli_config(tmp_path: Path) -> None:
         "checks.required.answer_shape",
         "checks.max_new_failures",
     }
+
+
+def test_judge_example_matches_its_generator(tmp_path: Path) -> None:
+    # Runs and the committed calibration.json are exactly what make_runs.py writes, offline.
+    src = EXAMPLES / "judge"
+    for name in ("make_runs.py", "labels.jsonl"):
+        shutil.copy(src / name, tmp_path / name)
+    runpy.run_path(str(tmp_path / "make_runs.py"))
+    for run in ("baseline", "candidate"):
+        for name in ("run.json", "cases.jsonl"):
+            assert (tmp_path / run / name).read_text() == (src / run / name).read_text()
+    assert (tmp_path / "calibration.json").read_text() == (src / "calibration.json").read_text()
