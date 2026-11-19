@@ -44,18 +44,16 @@ def cites_policy(output: str, case: dict) -> bool:
 
 All of them are pure, offline, stdlib-only and deterministic. Each is a factory that returns an `Evaluator`. Every factory requires `name=`, so two `contains(...)` checks can't collide on a default name.
 
-**A built-in's version covers its arguments:** `<impl_version>+<first 12 hex of sha256(canonical sorted-key JSON of the arguments)>`. For `matches_model`, the hash is over `Model.model_json_schema()`; for `json_schema`, over the schema itself. `impl_version` is fixed by EvalGate and changes whenever the behaviour changes. As a result, `length(max=2000)` and `length(max=500)` are different evaluators, and comparing them is INVALID.
+**A built-in's version covers its arguments:** `<impl_version>+<first 12 hex of sha256(canonical sorted-key JSON of the arguments)>`. For `json_schema`, the hash is over the schema itself. `matches_model` also requires `version=`, hashed together with `Model.model_json_schema()`: the schema doesn't capture `@field_validator` / `@model_validator` logic or custom types, so a change to those has to bump the declared version, as with a custom evaluator. Every argument must be canonically JSON-serializable, so `exact_match(normalize=...)` takes a tuple from a fixed set (`"strip"`, `"casefold"`) and never a callable. `impl_version` is fixed by EvalGate and changes whenever the behaviour changes. As a result, `length(max=2000)` and `length(max=500)` are different evaluators, and comparing them is INVALID.
 
-| Factory | Kind | Passes when |
-|---|---|---|
 | Factory (all take `name=`) | Kind | Passes when | Raises (evaluator error) when |
 |---|---|---|---|
 | `json_valid()` | check | output parses as JSON (strict: no NaN/Infinity, no duplicate keys) | never |
-| `matches_model(PydanticModel)` | check | output validates against a Pydantic model. Pydantic is already a dependency | never (an invalid model fails at construction) |
+| `matches_model(PydanticModel, *, version)` | check | output validates against a Pydantic model. Pydantic is already a dependency | never (an invalid model fails at construction) |
 | `json_schema(schema)` | check | output validates against a JSON Schema. Needs the optional `evalgate-ai[schema]` extra (`jsonschema`) | never (an invalid schema or missing extra fails at construction) |
 | `regex(pattern, *, must_match=True)` | check | pattern found (or not found) | never (a bad pattern fails at construction) |
 | `contains(text, *, ignore_case=False)` / `not_contains(...)` | check | substring present / absent | never |
-| `exact_match(field="expected", *, normalize=...)` | check | output equals `case[field]` after optional strip / casefold | `case[field]` is missing |
+| `exact_match(field="expected", *, normalize=())` | check | output equals `case[field]` after the chosen `"strip"` / `"casefold"` steps | `case[field]` is missing |
 | `length(*, min=None, max=None, unit="chars")` | check | length within bounds | never |
 | `numeric_close(field="expected", *, abs_tol, rel_tol)` | check | output parses as a number within tolerance (unparseable output: `False`) | `case[field]` is missing or not a number |
 
@@ -66,7 +64,12 @@ Deliberately left out: fuzzy similarity (BLEU, ROUGE, embedding distance). These
 **SDK (first slice).** `EvalRun.record` gains `output=` and `evaluators=`:
 
 ```python
-EVALUATORS = [json_valid(), matches_model(Answer), length(max=2000), cites_policy]
+EVALUATORS = [
+    json_valid(name="is_json"),
+    matches_model(Answer, name="answer_shape", version="1"),
+    length(max=2000, name="not_too_long"),
+    cites_policy,
+]
 
 with EvalRun("cand-v2", dataset="support", dataset_version="v3",
              evaluator_version="native", evaluators=EVALUATORS) as run:
@@ -89,6 +92,8 @@ with EvalRun("cand-v2", dataset="support", dataset_version="v3",
 Today a pair is INVALID when `evaluator_version` differs. Native evaluators make that check sharper:
 
 - `evaluators` becomes a typed `RunManifest` field (`dict[NonEmptyStr, NonEmptyStr] | None`) and a reserved name. `EvalRun(evaluators=...)` writes `"evaluators": {"<name>": "<version>", ...}` (sorted) into `run.json`, with `schema_version: "1.2"` only when it is set. That's the same pattern as `repeats` and 1.1.
+  - 1.2 is a superset of 1.1. A run's `schema_version` is the lowest version that covers every feature it uses: the writer picks 1.2 if `evaluators` is set, otherwise 1.1 if `repeats` is set, otherwise 1.0.
+  - The `schema_version` `Literal` gains `"1.2"`, and the repeats check in `validate_run` (today `!= "1.1"`) accepts `"1.1"` or `"1.2"`.
   - Runs without native evaluators serialize exactly as before.
   - EvalGate 0.6 rejects a 1.2 file with a schema error rather than ignoring the map and possibly passing.
   - A pre-1.2 `run.json` that used `evaluators` as free metadata is rejected or INVALID, never misread, as `repeat` / `repeats` were in 0.3.0.
@@ -118,7 +123,7 @@ Only after the deterministic slices ship and get used. It meets the SPEC constra
 
 | Release | Scope | Acceptance |
 |---|---|---|
-| **0.7.0** | `evaluators/` package: interface, built-ins from section 2, `EvalRun(evaluators=)` + `record(output=)`, typed `evaluators` manifest field (schema 1.2), `evaluator_set_mismatch` / `_partial`, docs page, `examples/native-evaluators` | An evaluator that raises gives `status: error`, never a pass. A bad output fails the check instead. No output or `case` text appears in `cases.jsonl`. Runs without native evaluators serialize and compare exactly as in 0.6.0. A changed evaluator version **or argument** is INVALID, and so is a run with native evaluators compared to one without. Duplicate evaluator names are rejected. Core has no new dependency. |
+| **0.7.0** | `evaluators/` package: interface, built-ins from section 2, `EvalRun(evaluators=)` + `record(output=)`, typed `evaluators` manifest field (schema 1.2), `evaluator_set_mismatch` / `_partial`, docs page, `examples/native-evaluators` | An evaluator that raises gives `status: error`, never a pass. A bad output fails the check instead. No output or `case` text appears in `cases.jsonl`. Runs without native evaluators serialize and compare exactly as in 0.6.0. A changed evaluator version **or argument** is INVALID, and so is a run with native evaluators compared to one without. Duplicate evaluator names are rejected. A run with both repeats and native evaluators round-trips and compares. Core has no new dependency. |
 | **0.8.0** | `evalgate evaluate` CLI + `evaluators.yaml` | The CLI and SDK give byte-identical `run.json` and `cases.jsonl` for the same outputs and config. Bad config or a bad outputs line exits 2 and writes nothing. |
 | **0.9.0** | `[judge]` extra: rubric, `judge()`, cache, `calibrate` | No network without a user callable. Unparseable judge reply gives `status: error`. A cache hit equals a fresh call when the judge is deterministic. Calibration figures are checked against hand-computed examples. |
 
