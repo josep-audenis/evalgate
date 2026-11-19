@@ -12,16 +12,19 @@ from evalgate.evaluators.builtins import (
     regex,
 )
 from evalgate.evaluators.core import Applied, Evaluator, apply, check, score
+from evalgate.evaluators.judge import Rubric, judge
 
 __all__ = [
     "Applied",
     "Evaluator",
+    "Rubric",
     "apply",
     "check",
     "contains",
     "exact_match",
     "json_schema",
     "json_valid",
+    "judge",
     "length",
     "matches_model",
     "not_contains",

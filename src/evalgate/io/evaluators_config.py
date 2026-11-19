@@ -1,11 +1,11 @@
 """Load evaluators.yaml and build its evaluators (`evalgate evaluate`, docs/evaluators.md)."""
 
-import json
 from pathlib import Path
 from typing import NamedTuple
 
 import yaml
 
+from evalgate._json import loads_strict
 from evalgate.evaluators import builtins
 from evalgate.evaluators.core import Evaluator
 from evalgate.io.reader import InputError, _error, _parse, _read_text, _UniqueKeyLoader
@@ -38,11 +38,7 @@ def _schema_file(config_path: Path, ref: str) -> dict[str, object]:
         raise ValueError(f"schema_file {ref!r} not found")
     try:
         # As strict as inline YAML: duplicate keys and NaN/Infinity are errors, not dropped.
-        data = json.loads(
-            path.read_text(encoding="utf-8"),
-            object_pairs_hook=builtins._unique,
-            parse_constant=builtins._reject_constant,
-        )
+        data = loads_strict(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, ValueError) as exc:
         raise ValueError(f"schema_file {ref!r} is not readable JSON: {exc}") from None
     if not isinstance(data, dict):
