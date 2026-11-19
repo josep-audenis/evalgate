@@ -140,3 +140,73 @@ Each slice gets its own tests, CHANGELOG entry and docs page, following the 0.3.
 1. **Storing outputs: yes, opt-in.** `EvalRun(store_output=True)`, as specified in section 3. Off by default, never in reports.
 2. **`json_schema`: optional extra.** `evalgate-ai[schema]` installs `jsonschema`. Core stays dependency-free, and the factory raises a clear error when the extra is missing. It uses a pinned validator class (Draft 2020-12), and its version string includes the installed `jsonschema` major version, because results can change between `jsonschema` releases.
 3. **`None` results: not allowed.** An evaluator returns `bool` or `float`. Returning `None` is a wrong type, so it's an evaluator error (`status: error`). For scores, a missing value would also trigger `metric_missing`. Put cases that a check doesn't apply to in a category instead.
+
+## 9. 0.7.0 task breakdown
+
+Six tasks, each landing with its own tests. T1 and T3 don't depend on each other and can be built in parallel. Every task must leave the pre-push checks green (ruff, ruff format, mypy, pytest).
+
+```
+T1 schema ──▶ T2 pair checks ──┐
+                               ├──▶ T5 EvalRun ──▶ T6 docs + release
+T3 core ────▶ T4 built-ins ────┘
+```
+
+**T1. Schema 1.2 and models** (`models/run.py`, `validation.py`, `io/writer.py`)
+- Add `SCHEMA_VERSION_EVALUATORS = "1.2"` and widen the `Literal`.
+- Add `RunManifest.evaluators: dict[NonEmptyStr, NonEmptyStr] | None`, left out of the serialized file when unset, the same way as `repeats`.
+- Add `CaseResult.output: JsonValue | None`. The defaults are already left out on write.
+- Change the repeats check in `validate_run` to accept `"1.1"` or `"1.2"`.
+- A manifest that declares `evaluators` with schema `1.0` or `1.1` is rejected with a new code, `evaluators_schema`.
+- Tests:
+  - a run without evaluators writes the same bytes as 0.6.0;
+  - a 0.6 run whose cases have an `output` extra (including `NaN`) loads and decides unchanged;
+  - a 1.1 `run.json` with an `evaluators` extra is rejected;
+  - repeats with 1.2 are accepted.
+
+**T2. Pair checks** (`validation.py`, `docs/report-format.md`)
+- Add `evaluator_set_mismatch` and `evaluator_set_partial`, both reported through `_diag(rules.require_same_evaluator, ...)`, with a message listing which names or versions differ, sorted.
+- Tests:
+  - identical maps pass;
+  - a differing version, an extra name, or only one run declaring evaluators each give an error by default and a warning when `require_same_evaluator: false`;
+  - runs without evaluators produce neither code.
+- Add both codes to the list of diagnostic codes in `report-format.md`.
+
+**T3. Evaluator core** (new `evaluators/` package, pure, no I/O)
+- `Evaluator` is a frozen dataclass with `name`, `version`, `kind` and `fn`. `@check(name=, version=)` and `@score(...)` decorators build one.
+- `apply(evaluators, output, case)` returns either `(scores, checks)` or the name of the first evaluator that failed.
+  - It enforces return types: a check needs a strict `bool`; a score needs a finite `float`, so `bool`, NaN and `None` are rejected.
+  - It catches `Exception`, never `BaseException`.
+  - Evaluators run in list order, so the first failing name is deterministic.
+- Tests for each of these rules, plus "an exception's text never reaches the result".
+
+**T4. Built-ins** (`evaluators/builtins.py`, `pyproject.toml`)
+- Write a helper that makes the version string: `<impl_version>+<first 12 hex of sha256 of the canonical JSON of the arguments>`.
+- Build the eight factories from section 2. Each one requires `name=`. Bad arguments (an invalid regex, model or schema, or a `normalize` value outside the allowed set) raise at construction.
+- Add `[project.optional-dependencies] schema = ["jsonschema>=4"]`. `json_schema` uses Draft 2020-12 and adds the installed `jsonschema` major version to its version string.
+- Tests for each factory:
+  - one output that passes and one that fails;
+  - the "Raises when" column of the section 2 table;
+  - changing an argument changes the version, and the same arguments give the same version;
+  - `json_schema` raises a clear error when the extra isn't installed (simulate the missing import).
+
+**T5. `EvalRun` integration** (`io/writer.py`)
+- `EvalRun(evaluators=, store_output=)`. Duplicate evaluator names raise `ValueError` at construction. The `evaluators` map in the manifest is sorted, and the writer picks 1.2 / 1.1 / 1.0 as section 4 describes.
+- `record(output=, case=)`:
+  - runs `apply`;
+  - a clash with a score or check the caller passed raises `ValueError`;
+  - if an evaluator fails, the case becomes `status: error` with the message `evaluator <name> failed`, and no output is stored;
+  - with `store_output=True`, `output` is required on `ok` records and is checked for non-finite floats.
+- Tests:
+  - a sentinel output stored with `store_output=True` is absent from the JSON, HTML, Markdown and terminal reports;
+  - repeats plus evaluators round-trip and compare;
+  - an evaluator that raises gives `status: error`, never a pass;
+  - an output that fails a check gives `False`, not an error;
+  - a changed evaluator argument between baseline and candidate is INVALID.
+
+**T6. Docs and release** (`__init__.py`, `docs/evaluators.md`, `examples/native-evaluators`, `README.md`, `CHANGELOG.md`, `_version.py`)
+- Export the public API (`check`, `score`, `Evaluator` and the built-ins) from `evalgate.evaluators`.
+- Write a docs page in the style of the existing ones, and an example run pair that FAILs for a documented reason. Register the example in `test_examples.py`.
+- Add a CHANGELOG 0.7.0 entry with Added, Changed (the new diagnostic codes, schema 1.2, `evaluators` reserved in `run.json`) and Testing. Bump the version to 0.7.0.
+- Release review before tagging, as for 0.5.0 and 0.6.0.
+
+**Out of 0.7.0:** the `evalgate evaluate` CLI (0.8.0), LLM judges (0.9.0), and pairwise judging (deferred).
