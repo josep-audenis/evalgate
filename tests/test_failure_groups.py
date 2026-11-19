@@ -66,6 +66,12 @@ def test_exact_groups_buckets_and_invariant() -> None:
     assert g.uncategorized == 1
     for x in (*g.by_check, *g.by_category, *g.by_check_category):
         assert x.failing == x.new + x.persistent + x.no_baseline
+    cmp = compare(base, cand, {}, 0.95)
+    stats = {s.check: s for s in cmp.check_stats}
+    for x in g.by_check:
+        stat = stats.get(x.check)
+        assert x.failing - x.no_baseline == (stat.candidate_failures if stat else 0)
+        assert x.new == sum(f.check == x.check for f in cmp.newly_failing_checks)
 
 
 def test_consistent_with_check_stats() -> None:
@@ -112,9 +118,10 @@ def test_repeats_are_collapsed_first() -> None:
         c("a", s=True) | {"repeat": 1},
         schema_version="1.1",
     )
+    # The failure is on repeat 0: strict collapsing fails the check, "last repeat wins" wouldn't.
     cand = run(
-        c("a", s=True) | {"repeat": 0},
-        c("a", s=False) | {"repeat": 1},
+        c("a", s=False) | {"repeat": 0},
+        c("a", s=True) | {"repeat": 1},
         schema_version="1.1",
     )
     report = evaluate(base, cand, policy)
