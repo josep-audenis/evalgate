@@ -81,7 +81,7 @@ def test_no_warning_with_enough_cases(tmp_path: Path) -> None:
         ("not json\n", "labels_parse"),
         ('{"case_id": "c0"}\n', "labels_record"),
         ('{"case_id": "c0", "checks": {"typo": true}}\n', "labels_unknown"),
-        ('{"case_id": "zz", "checks": {"ok": true}}\n', "labels_empty"),
+        ('{"case_id": "zz", "checks": {"ok": true}}\n', "labels_empty"),  # n = 0, not unknown
         ("", "labels_empty"),
     ],
 )
@@ -101,10 +101,13 @@ def test_bad_input_exits_2(tmp_path: Path, labels: str, code: str) -> None:
 def test_invalid_run_exits_2(tmp_path: Path) -> None:
     run_dir = make_run(tmp_path / "run")
     (run_dir / "cases.jsonl").write_text("")
+    out = tmp_path / "cal.json"
+    labels = write_labels(tmp_path / "l.jsonl")
     result = runner.invoke(
-        app, ["calibrate", str(run_dir), "--labels", str(write_labels(tmp_path / "l.jsonl"))]
+        app, ["calibrate", str(run_dir), "--labels", str(labels), "--json", str(out)]
     )
-    assert result.exit_code == EXIT_INVALID
+    assert result.exit_code == EXIT_INVALID and "INVALID" in result.output
+    assert not out.exists()
 
 
 def test_missing_run_dir_exits_2(tmp_path: Path) -> None:
@@ -116,3 +119,20 @@ def test_missing_run_dir_exits_2(tmp_path: Path) -> None:
 def test_help_lists_calibrate() -> None:
     result = runner.invoke(app, ["--help"])
     assert "calibrate" in result.output
+
+
+def test_markup_in_names_is_printed_literally(tmp_path: Path) -> None:
+    name = "x[/]\\"
+    with EvalRun(
+        "[bold red]inj[/]",
+        dataset="d",
+        dataset_version="v",
+        evaluator_version="e",
+        path=tmp_path / "run",
+    ) as r:
+        r.record("c0", checks={name: True})
+    labels = tmp_path / "l.jsonl"
+    labels.write_text(json.dumps({"case_id": "c0", "checks": {name: True}}) + chr(10))
+    result = runner.invoke(app, ["calibrate", str(tmp_path / "run"), "--labels", str(labels)])
+    assert result.exit_code == 0, result.output
+    assert "[bold red]inj[/]" in result.output and name in result.output

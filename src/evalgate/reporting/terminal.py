@@ -124,9 +124,10 @@ def render_calibration(report: CalibrationReport, console: Console) -> None:
         highlight=False,
     )
     table = Table()
-    for column in ("kind", "name", "n", "cases", "errors", "missing"):
-        table.add_column(column, justify="left" if column in ("kind", "name") else "right")
-    for column in ("accuracy", "kappa", "mae", "spearman"):
+    table.add_column("kind")
+    table.add_column("name", overflow="fold")  # the column that matters: never truncate it
+    # Short headers so the table fits 80-column CI logs.
+    for column in ("n", "cases", "err", "miss", "acc", "kappa", "mae", "rho"):
         table.add_column(column, justify="right")
     for x in report.entries:
         table.add_row(
