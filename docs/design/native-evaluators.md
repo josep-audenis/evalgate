@@ -254,9 +254,10 @@ evaluators:
 - `schema` and `schema_file` are mutually exclusive. `schema_file` is resolved relative to the config file, must stay inside the config's directory (no `..` escape), and must be JSON.
 - `load_evaluators_config(path)` returns the manifest, the built `Evaluator`s and `store_output`. Building happens by calling the factories, so argument errors and duplicate names surface when the config loads.
 - YAML is read with the existing duplicate-key-rejecting loader.
-- **New diagnostic codes (exit 2):**
-  - `evaluators_yaml`: the file can't be read, or the YAML can't be parsed;
-  - `evaluators_config`: a schema error, an unknown type, bad arguments, a duplicate name, or a missing `jsonschema` extra.
+- **Diagnostic codes (exit 2):**
+  - `evaluators_yaml`: the YAML can't be parsed. A missing or unreadable file gives the existing `file_missing` / `file_unreadable`.
+  - `schema`: the config doesn't match the model (an unknown key or type, a wrong value type). This is the same code policies and mappings use.
+  - `evaluators_config` (new): building an evaluator fails (bad arguments, an invalid or remote JSON Schema, a `schema_file` problem, a missing `jsonschema` extra), or two evaluators share a name.
 - **Tests:**
   - every built-in round-trips from YAML;
   - the same config gives the same versions as the equivalent Python factories;
