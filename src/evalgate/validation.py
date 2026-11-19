@@ -7,7 +7,8 @@ from typing import Any
 from evalgate.models import SCHEMA_VERSION_REPEATS, CaseResult, Diagnostic, Policy, Run
 
 _MAX_IDS_SHOWN = 5
-# shortcut: fixed rule-of-thumb sample size, replace with interval-based checks (bootstrap CIs).
+# Advisory only: interval-based gating is `statistics.require_conclusive`; this nudges users
+# without a policy floor (see docs/statistics.md). `small_sample` is a public diagnostic code.
 SMALL_SAMPLE = 30
 
 
