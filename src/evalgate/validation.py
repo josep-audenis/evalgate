@@ -118,6 +118,40 @@ def validate_run(run: Run, label: str = "run") -> list[Diagnostic]:
     return out
 
 
+def _evaluator_sets(
+    base: dict[str, str] | None, cand: dict[str, str] | None, required: bool
+) -> list[Diagnostic]:
+    """Native evaluators (schema 1.2) must match by name and version; see
+    docs/design/native-evaluators.md section 4."""
+    if base is None and cand is None:
+        return []
+    if base is None or cand is None:
+        which = "baseline" if base is not None else "candidate"
+        return [
+            _diag(
+                required,
+                "evaluator_set_partial",
+                f"only the {which} declares native evaluators; the other run was scored "
+                "elsewhere, so the checks may not mean the same thing",
+            )
+        ]
+    if base == cand:
+        return []
+    names = sorted(base.keys() | cand.keys())
+    diffs = [
+        f"{n} ({base.get(n, '-')} vs {cand.get(n, '-')})"
+        for n in names
+        if base.get(n) != cand.get(n)
+    ]
+    return [
+        _diag(
+            required,
+            "evaluator_set_mismatch",
+            f"native evaluators differ (baseline vs candidate): {_ids(diffs)}",
+        )
+    ]
+
+
 def validate_pair(baseline: Run, candidate: Run, policy: Policy) -> list[Diagnostic]:
     """Check two individually valid runs are comparable under `policy`."""
     out: list[Diagnostic] = []
@@ -142,6 +176,7 @@ def validate_pair(baseline: Run, candidate: Run, policy: Policy) -> list[Diagnos
                 f"candidate {cm.evaluator_version}",
             )
         )
+    out.extend(_evaluator_sets(bm.evaluators, cm.evaluators, rules.require_same_evaluator))
 
     base = {c.case_id: c for c in baseline.cases}
     cand = {c.case_id: c for c in candidate.cases}
