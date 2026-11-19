@@ -68,7 +68,7 @@ From Python: `evalgate.record_report(report, dir, label=...)`, `evalgate.record_
 
 About `trend`:
 - **Kinds are never mixed** (`--kind` defaults to `run`). A compare's mean covers only the cases both runs completed, while a run's mean covers all of its ok cases, so the two aren't the same number.
-- **Datasets:** filter with `--dataset`, which matches the dataset id exactly, or the exact `id@version`. A trend whose points span more than one dataset prints a warning (`mixed_datasets` in JSON), because means over different datasets aren't comparable. The check uses the points left after `--last`.
+- **Datasets:** filter with `--dataset`, which matches the dataset id exactly, or the exact `id@version` (if an id itself contains `@`, both readings are tried, each exactly). A trend whose points span more than one dataset prints a warning (`mixed_datasets` in JSON), because means over different datasets aren't comparable. The check uses the points left after `--last`.
 - **Filters:** `--application` matches the run's application, or the candidate's application for compares. `--last N` applies after filtering.
 - **Skips:** entries without the path are skipped and counted.
 

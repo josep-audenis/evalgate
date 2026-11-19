@@ -114,7 +114,7 @@ Each release is published only when the user says so.
   - **datasets:** each point shows its dataset. Without `--dataset`, a trend that spans more than one `(dataset_id, dataset_version)` prints a warning, because means over different datasets aren't comparable;
   - entries without the path are skipped, and the skips are counted;
   - `--last N` applies after filtering and skipping;
-  - `--json`: `{"history_version": 1, "path": …, "kind": …, "points": [...], "skipped": n}`.
+  - `--json`: `{"history_version": 1, "path": …, "kind": …, "points": [...], "skipped": n, "mixed_datasets": bool}`.
 - **Exit codes:** 0, or 2 for any diagnostic. History commands never exit 1.
 - **Codes,** one meaning each:
   - `history_parse`: any bad index line, on read or before an append;
