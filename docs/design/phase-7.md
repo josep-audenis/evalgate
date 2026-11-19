@@ -340,86 +340,116 @@ A report lists every failing `(case, check)` pair, but a reviewer wants the patt
 
 ### Decisions (defaults; object before T1 starts)
 
-**A `failure_groups` report section** (additive, so `report_version` stays `"1"`)
-- **What it groups:** the candidate's failing `(case_id, check)` pairs over compared cases, the same population as `candidate_failing_checks`.
-- **Classification:** each pair is either `new` (passing in the baseline, failing in the candidate, the same as `newly_failing_checks`) or `persistent` (failing in both).
-- **Categories:** a case's category is its baseline `metadata.category`, the rule `categories[]` already uses. Pairs whose case has no category are left out of the category groups and counted in `uncategorized`.
+**A `comparison.failure_groups` report section** (additive, so `report_version` stays `"1"`)
+- **Population:** the candidate's failing checks over compared cases only, that is, the matched cases that are `ok` in both runs, after collapsing repeats.
+  - This is narrower than `candidate_failing_checks`. That list also covers cases that errored in the baseline, and candidate-only cases when `require_same_cases: false`.
+  - The groups are computed inside the existing `compare()` loop over those pairs, so one loop gives one population and one classification.
+- **Classification:** each failing pair falls into exactly one bucket:
+  - `new`: the check passes in the baseline (the same as `newly_failing_checks`);
+  - `persistent`: it fails in the baseline too;
+  - `no_baseline`: the baseline case doesn't have that check, as with a check only the candidate adds. Validation already rejects checks the candidate drops.
+  - Every group satisfies `failing == new + persistent + no_baseline`.
+- **Categories:** a case's category is its baseline `metadata.category` when that is a string, the same rule `categories[]` uses. Pairs whose case has none (including a category only on the candidate side, or a non-string one) are left out of the category groups and counted, as pairs, in `uncategorized`.
 - **Shape:**
   ```json
   "failure_groups": {
-    "by_check": [{"check": "safety_valid", "failing": 3, "new": 2, "persistent": 1, "cases": ["a", "b", "c"]}],
-    "by_category": [{"category": "billing", "failing": 2, "new": 2, "persistent": 0, "checks": ["safety_valid"], "cases": ["a", "b"]}],
-    "by_check_category": [{"check": "safety_valid", "category": "billing", "failing": 2, "new": 2, "persistent": 0, "cases": ["a", "b"]}],
+    "by_check": [{"check": "safety_valid", "failing": 3, "new": 2, "persistent": 1, "no_baseline": 0, "cases": ["a", "b", "c"]}],
+    "by_category": [{"category": "billing", "failing": 2, "new": 2, "persistent": 0, "no_baseline": 0, "checks": ["safety_valid"], "cases": ["a", "b"]}],
+    "by_check_category": [{"check": "safety_valid", "category": "billing", "failing": 2, "new": 2, "persistent": 0, "no_baseline": 0, "cases": ["a", "b"]}],
     "uncategorized": 1
   }
   ```
-  - In `by_category`, `failing` counts failing pairs and `cases` lists the distinct cases.
-  - Every list is sorted by `failing` descending, then by its key(s) ascending. `cases` and `checks` are sorted. Nothing is truncated in JSON.
-- **When it's present:**
-  - It is `null` when there is no comparison (INVALID before comparing).
-  - It holds empty lists when nothing fails.
-  - It holds case ids and check names only, which `candidate_failing_checks` already exposes: no outputs and no metadata values beyond the category.
-- **Reporting only.** No policy rule reads it, and decisions don't change.
+  - In `by_check`, `failing == len(cases)` always; the field is kept for symmetry. In `by_category`, `failing` counts pairs and `cases` lists the distinct cases.
+  - Every list is sorted by `failing` descending, then by its key(s) ascending. `cases` and `checks` are sorted.
+  - Nothing is truncated in JSON. `report-format.md` notes that the lists repeat case ids already in the failing pairs.
+- **When it's present:** `Comparison.failure_groups: FailureGroups | None = None`.
+  - Every 0.12 report that has a comparison carries it (with empty lists when nothing fails).
+  - It is `null` only in reports written before 0.12, which therefore still load. `history show` reads stored 0.10 and 0.11 reports.
+- **Privacy:** case ids and check names only, which the report already exposes. No outputs, and no metadata beyond the category.
+- **Reporting only.** No policy rule reads the groups, and decisions don't change.
 
 **Renderers**
-- **Terminal:** a "failure groups" block after the check changes, listing the top 5 `by_check_category` groups (check, category, failing, new, persistent). It is printed only when something fails.
-- **Markdown:** the same top 5, as a table.
-- **HTML:** not in 0.12. The HTML report is being restyled outside this plan, and 0.13 rebuilds it as the interactive viewer, which will show all groups. The JSON report carries everything in the meantime.
+- **Terminal and Markdown:** a "failure groups" block lists the top 5 `by_check_category` groups (check, category, failing, new, persistent, no_baseline).
+  - When no failing case has a category, it falls back to the top 5 of `by_check`, so a run without categories still shows its failures.
+  - It is printed only when something fails, and never for an INVALID report (which may still carry a comparison).
+- **HTML:** not in 0.12. The HTML report is being restyled outside this plan, and 0.13 rebuilds it as the interactive viewer, which will show all groups. The JSON carries everything in the meantime.
+
+**History: entries gain case ids, under `history_version: 2`**
+- **Version bump:** new entries are written with `history_version: 2`.
+  - The reader accepts 1 and 2, so a store may mix them.
+  - A 0.10 or 0.11 reader meeting a v2 line prints its existing, accurate "unsupported history_version" diagnostic, instead of reading an unknown field as corruption.
+  - The `--json` envelopes of `list`, `show` and `trend` keep `history_version: 1`, since their shape is unchanged; `entries` may hold v2 lines.
+- **`case_ids` field:** v2 entries carry it, sorted. It is allowed only on v2 lines.
+  - Run entries: the ok cases after collapsing repeats.
+  - Compare entries: the compared cases, read from the new `failure_groups` population. Compare entries also take their `failing_checks` from that population, which fixes the 0.10 summary letting candidate-only cases into `failing_checks`. So `failing <= of` always holds.
+  - For a stored report without `failure_groups` (written before 0.12), the entry is recorded as v1 with no `case_ids`.
+- **Privacy note:** `docs/history.md` gains a line saying v2 entries store every case id they cover. Ids can embed user data, and a larger index makes each append's rewrite slower.
 
 **`evalgate history failures`**
-- `evalgate history failures --history DIR [--kind run|compare] [--dataset ID[@VERSION]] [--application APP] [--last N] [--min K] [--json]` finds the `(case_id, check)` pairs that keep failing across recorded entries.
-- **Selection:** entries are chosen with the same rules as `trend` (one kind, default `run`, never mixed; same filters). `--last N` takes the last N selected entries. An entry contributes its `failing_checks`.
-- **Per pair:**
+- `evalgate history failures --history DIR [--kind run|compare] [--dataset ID[@VERSION]] [--application APP] [--last N] [--min K] [--json]`.
+- **Selection:**
+  - The same rules as `trend`: one kind (default `run`), the same filters, and `--last N` applied after filtering.
+  - INVALID compare entries are excluded: they carry no data and would break streaks.
+  - Entries without an identity never match `--application` or `--dataset`.
+- **Per `(case_id, check)` pair:**
   - `failing`: the number of selected entries in which it fails;
-  - `of`: how many selected entries contain its case. A run entry contains every case it summarised; a compare entry, its compared cases;
+  - `of`: the number of selected entries whose `case_ids` include the case. It counts entries containing the case, not entries that ran that check, and is `null` if any selected entry is v1 (no `case_ids`);
   - `first` and `last`: the ids of the first and last entries in which it fails;
-  - `streak`: how many of the most recent selected entries it fails in, consecutively.
-- **Which pairs are listed:** those with `failing >= K` (`--min`, default 2), sorted by `streak` descending, then `failing` descending, then `case_id` and `check`.
-- **Mixed datasets:** a `mixed_datasets` warning, as for `trend`.
-- **Stored data needed:**
-  - Run entries need the case ids they cover, to compute `of`. 0.10 entries don't store them, so the store gains an optional `case_ids` field (sorted). Old entries without it give `of: null`.
-  - Compare entries need the same, also as an optional `case_ids`.
-  - `history_version` stays 1, because the field is optional and old readers can still parse new lines. The reader is strict with `extra="forbid"`, so a 0.10 reader rejects new lines. That is acceptable for a local store, and the docs say so.
-- **Exit codes:** 0, or 2 on bad input; never 1. **JSON:** `{"history_version": 1, "kind", "entries": n, "pairs": [...], "mixed_datasets": bool}`.
+  - `streak`: the number of most recent selected entries in which it fails, without a gap. Any selected entry where the pair doesn't fail ends the streak, including one that lacks the case or where it errored. The docs say a broken streak isn't proof of a fix.
+- **Listing:** pairs with `failing >= K` (`--min`, default 2, at least 1; anything else exits 2), sorted by `streak` descending, then `failing` descending, then `case_id` and `check`.
+- **Multi-candidate stores:** sibling entries from one 0.11 multi-candidate run count as separate entries. The docs say to narrow the selection with `--application`.
+- **Output:**
+  - A `mixed_datasets` warning, as for `trend`.
+  - Exit 0, or 2 on bad input; never 1.
+  - JSON: `{"history_version": 1, "kind", "entries": n, "pairs": [{case_id, check, failing, of, first, last, streak}], "mixed_datasets": bool}`.
 
 ### Tasks
 
 ```
-T1 grouping (pure) + report field ──▶ T2 terminal + Markdown ──┐
-T3 history case_ids + failures ────────────────────────────────┴──▶ T4 docs + release
+T1 grouping in compare() + report field ──▶ T2 terminal + Markdown ──┐
+T3 history v2, case_ids, failures (needs T1) ────────────────────────┴──▶ T4 docs + release
 ```
 
-**T1. Grouping** (`comparison/failures.py` pure, `models/report.py`, `engine.py`, `report-format.md`)
-- `group_failures(base, cand) -> FailureGroups` runs on collapsed runs, over compared cases. The engine attaches it to `Comparison`.
+**T1. Grouping** (`comparison/engine.py`, `models/report.py`, `report-format.md`)
 - Tests:
   - hand-built runs give exact groups;
-  - new vs persistent;
-  - baseline categories (a candidate whose category differs still groups by the baseline's);
-  - the `uncategorized` count;
+  - every bucket, and the invariant;
+  - consistency with the engine: `by_check[c].new == check_stats[c].newly_failing`, and `failing - no_baseline == check_stats[c].candidate_failures`;
+  - a case errored in the baseline is excluded, and so is a candidate-only case under `require_same_cases: false`;
+  - a candidate-only check goes to `no_baseline`;
+  - baseline categories, with candidate-only and non-string categories counted in `uncategorized` (as pairs);
   - ties sort by key;
   - nothing failing gives empty lists;
-  - INVALID before comparing gives `null`;
   - repeats are collapsed first;
-  - a report without failures serialises the same apart from the new field.
+  - a 0.11 report JSON (no field) still loads.
 
 **T2. Terminal and Markdown** (`reporting/terminal.py`, `reporting/markdown.py`)
-- Tests: the top 5 are shown with counts; nothing is shown when nothing fails; names are escaped.
-
-**T3. History** (`models/history.py`, `comparison/history.py`, `io/history.py`, `cli.py`)
-- `case_ids` is added to new entries; a pure `recurring_failures(entries, …)` does the counting; the CLI command wraps it.
 - Tests:
-  - hand-computed `failing`, `of`, `first`, `last` and `streak`;
-  - `--min`, kind and dataset selection, and `--last`;
-  - old entries without `case_ids` give `of: null`;
-  - JSON shape;
-  - exit codes;
+  - the top 5 with counts;
+  - the `by_check` fallback without categories;
+  - nothing shown when nothing fails, or for an INVALID report;
   - escaping.
 
-**T4. Docs and release** (`docs/` section, README, example, CHANGELOG, `_version.py`)
+**T3. History** (`models/history.py`, `comparison/history.py`, `io/history.py`, `cli.py`)
+- Changes: v2 writing; mixed v1/v2 reading; `case_ids`; compare `failing_checks` from the groups; a pure `recurring_failures(entries, …)`; the CLI command.
+- Tests:
+  - hand-computed `failing`, `of`, `first`, `last` and `streak`, including the latest entry lacking the case;
+  - an INVALID compare in the window is ignored;
+  - a mixed v1/v2 store gives `of: null`;
+  - `case_ids` on a v1 line is rejected;
+  - `failing <= of`;
+  - `--min 0` exits 2;
+  - kind and dataset selection, and `--last`;
+  - JSON shape, exit codes, escaping;
+  - `history show` of a stored 0.11 report.
+
+**T4. Docs and release** (`docs/history.md`, `docs/report-format.md`, README, example, CHANGELOG, `_version.py`)
 - The example extends `examples/history` with a third run, so one pair fails twice in a row.
+- The CHANGELOG notes `history_version: 2` and the compare `failing_checks` fix.
 
 **Out of 0.12.0:**
 - HTML rendering of groups (0.13);
 - clustering by text similarity or by outputs (never: outputs aren't stored);
 - policy rules on groups;
-- a recurring-failure gate.
+- a recurring-failure gate;
+- `compared_case_ids` in the report.
