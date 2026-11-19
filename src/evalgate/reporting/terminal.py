@@ -6,6 +6,7 @@ from rich.table import Table
 
 from evalgate.models import Diagnostic, Report
 from evalgate.models.calibration import CalibrationReport
+from evalgate.models.history import HistoryEntry, Identity, RunEntry
 
 _TOP = 10
 _STATUS_STYLE = {"PASS": "bold green", "FAIL": "bold red", "INVALID": "bold yellow"}
@@ -145,5 +146,87 @@ def render_calibration(report: CalibrationReport, console: Console) -> None:
         console.print(
             f"[yellow]warning[/] fewer than {SMALL_CALIBRATION} labelled cases for "
             f"{e(names)}: agreement figures are noisy",
+            highlight=False,
+        )
+
+
+def _who(identity: Identity | None) -> str:
+    if identity is None:
+        return "-"
+    version = identity.application_version or ""
+    return f"{identity.application or identity.run_id} {version}".strip()
+
+
+def _text(value: object) -> str:
+    # Labels and ids are user text: escape markup and show control characters literally.
+    return e(repr(value)[1:-1]) if isinstance(value, str) else e(str(value))
+
+
+def render_history_list(entries: list[HistoryEntry], console: Console) -> None:
+    table = Table()
+    for column in ("id", "kind", "label", "status", "candidate / run", "dataset", "recorded"):
+        table.add_column(column, overflow="fold", justify="right" if column == "id" else "left")
+    for x in entries:
+        identity = x.run if isinstance(x, RunEntry) else x.candidate
+        table.add_row(
+            str(x.id),
+            x.kind,
+            _text(x.label or ""),
+            "valid" if isinstance(x, RunEntry) else x.status,
+            _text(_who(identity)),
+            _text(f"{identity.dataset_id}@{identity.dataset_version}" if identity else "-"),
+            x.recorded_at,
+        )
+    console.print(table)
+
+
+def render_run_entry(entry: RunEntry, console: Console) -> None:
+    r = entry.run
+    console.print(
+        f"run [bold]{_text(r.run_id)}[/]  {_text(_who(r))}  "
+        f"dataset {_text(r.dataset_id)}@{_text(r.dataset_version)}  "
+        f"label {_text(entry.label or '-')}",
+        highlight=False,
+    )
+    console.print(f"cases: {entry.cases}, errors: {entry.errors}", highlight=False)
+    table = Table()
+    for column in ("value", "mean / pass rate", "cases"):
+        table.add_column(column, overflow="fold", justify="left" if column == "value" else "right")
+    for path, stat in entry.means.items():
+        table.add_row(_text(path), f"{stat.value:.4g}", str(stat.cases))
+    for name, stat in entry.checks.items():
+        table.add_row(_text(f"checks.{name}"), f"{stat.value:.1%}", str(stat.cases))
+    console.print(table)
+
+
+def render_trend(trend: dict[str, object], console: Console) -> None:
+    points = trend["points"]
+    assert isinstance(points, list)
+    console.print(
+        f"trend of [bold]{_text(trend['path'])}[/] over {trend['kind']} entries "
+        f"({len(points)} point(s), {trend['skipped']} skipped without it)",
+        highlight=False,
+    )
+    table = Table()
+    for column in ("id", "label", "version", "dataset", "value", "cases"):
+        table.add_column(
+            column,
+            overflow="fold",
+            justify="right" if column in ("id", "value", "cases") else "left",
+        )
+    for p in points:
+        table.add_row(
+            str(p["id"]),
+            _text(p["label"] or ""),
+            _text(p["application_version"] or ""),
+            _text(p["dataset"]),
+            f"{p['value']:.4g}",
+            str(p["cases"]),
+        )
+    console.print(table)
+    if len({p["dataset"] for p in points}) > 1:
+        console.print(
+            "[yellow]warning[/] points come from more than one dataset: their means aren't "
+            "comparable; filter with --dataset",
             highlight=False,
         )
