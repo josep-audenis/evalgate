@@ -2,31 +2,35 @@
 
 Status: **planned.** Section 2 has the 0.10.0 task breakdown. Each later release gets its own task breakdown in a plan PR when its turn comes, as was done for each Phase 6 slice.
 
-SPEC Phase 7 lists exploration items, not commitments. This doc puts them in order and keeps every one within the project's rules:
+SPEC Phase 7 lists exploration items, not commitments. This doc puts the chosen ones in order, and each release after 0.10.0 is still gated on demand: if usage shows an item isn't needed, it is dropped.
+
+Every release keeps the project's rules:
 - **Offline core.** Nothing in `comparison/`, `policies/`, `validation.py`, `engine.py` or `api.py` touches the network or a database.
 - **Deterministic decisions** with exit codes 0/1/2.
 - **No raw outputs** in any report or store.
 - **No hosted anything.** Every "viewer" is a static local file.
 - **The baseline is never chosen automatically.**
 
+**Not planned here:** SPEC Phase 7 also lists a dedicated GitHub Action and pull request comments. They were not chosen for this round. `--markdown` already writes a PR-comment body and `$GITHUB_STEP_SUMMARY`, and an Action is CI packaging around the existing CLI. Either can be picked up later on its own.
+
 ## 1. Releases
 
 | Release | Scope | Acceptance |
 |---|---|---|
-| **0.10.0** | **Local history:** record compare results and run summaries in a local append-only store; `evalgate history list / show / trend` | Recording never changes a decision or an exit code; the store holds no outputs; a corrupt store is reported line by line (exit 2); the order is stable (by entry id). |
-| **0.11.0** | **More than two candidates:** `evalgate compare BASELINE CAND1 CAND2 …` judges each candidate against the baseline with the same engine, plus an optional ranking on one declared metric | Each candidate's report is byte-identical to a two-run compare; any INVALID input exits 2; the ranking is deterministic and uses no aggregate score. |
-| **0.12.0** | **Failure groups:** a `failure_groups` report section (by check, category, and check × category; new vs persistent), and `evalgate history failures` for case/check pairs that keep failing across recorded entries | Reporting only: decisions are unchanged and the section is additive (`report_version` stays `"1"`); groups are sorted deterministically. |
-| **0.13.0** | **Interactive report viewer:** the HTML report gains sorting, filtering and search with inline JS (still standalone, no CDN); `evalgate history report OUT.html` makes a static trend page with inline SVG | Works offline from `file://`; no network requests; no outputs shown; same data as the JSON. |
-| **0.14.0** | **Report plugins:** `evalgate compare --format NAME=PATH` renders through a reporter registered by an installed package (entry point `evalgate.reporters`) | A plugin gets a read-only report and can't change the decision; a plugin failure exits 2; there is no code loading from paths or YAML. |
-| **0.15.0** | **Experiment tracker integration:** opt-in SDK functions (`evalgate.integrations.mlflow` / `wandb`) that log a report to the user's own tracker library, each with its own extra | The engine never imports them (tested); network access goes only through the user's tracker library, as with judges; no outputs are logged. |
-| **0.16.0** | **TypeScript SDK:** a package in `sdk/typescript/` that writes run directories (`run.json` + `cases.jsonl`, schema 1.0/1.1) and types the report JSON; comparison runs through the `evalgate` CLI | The TS writer produces byte-identical files to `EvalRun` for the same inputs (a conformance test); there is no TS copy of the engine. |
+| **0.10.0** | **Local history:** record compare results and run summaries in a local append-only store; `evalgate history list / show / trend` | Recording never changes the decision. A store failure is a tool error and exits 2, like any artifact write failure. The store holds what `--json` holds (no outputs). A corrupt store is reported line by line (exit 2). The order is stable (by entry id). |
+| **0.11.0** | **More than two candidates:** `evalgate compare BASELINE CAND1 CAND2 …` judges each candidate against the baseline with the same engine, plus an optional ranking on one declared metric | Each candidate's report is byte-identical to a two-run compare, with one artifact file per candidate. Exit 2 if any candidate is INVALID, else 1 if any FAILs, else 0. The ranking covers only non-INVALID candidates, sorts on one policy metric with its declared direction, breaks ties by argument order, is informational only (never a decision, never a baseline), and uses no aggregate score. |
+| **0.12.0** | **Failure groups:** a `failure_groups` report section (by check, category, and check × category; new vs persistent), and `evalgate history failures` for case/check pairs that keep failing across recorded entries of one kind and dataset | Reporting only: decisions are unchanged and the section is additive (`report_version` stays `"1"`); groups are sorted deterministically. |
+| **0.13.0** | **Interactive report viewer:** the HTML report gains sorting, filtering and search with inline JS (still standalone, no CDN); `evalgate history report OUT.html` makes a static trend page with inline SVG | Works offline from `file://`, with no network requests, no `serve` command and no auto-refresh. No outputs are shown, and it holds the same data as the JSON. JSON embedded inline escapes `<`, `>` and `&` (`<` …), so no label can break out of a `<script>`. |
+| **0.14.0** | **Report plugins:** `evalgate compare --format NAME=PATH` renders through a reporter registered by an installed package (entry point `evalgate.reporters`) | Plugins run only after the exit code is computed, and get a deep copy of the report. Any `BaseException` a plugin raises (including `SystemExit`) is caught and exits 2. Entry points are resolved lazily, only when `--format` names one, so an installed package never runs code during a plain `compare`. There is no code loading from paths or YAML. `os._exit` can't be prevented: trust stops at installed packages, and the docs say so. |
+| **0.15.0** | **Experiment tracker integration:** opt-in SDK functions (`evalgate.integrations.mlflow` / `wandb`) that log a report to the user's own tracker library, each with its own extra | `import evalgate` and the engine never import them (tested). Network access goes only through the user's tracker library, as with judges. No outputs are logged. Extra manifest fields are logged as tags, and the docs say so. |
+| **0.16.0** | **TypeScript SDK:** a package in `sdk/typescript/` that writes run directories (`run.json` + `cases.jsonl`, schema 1.0/1.1) and types the report JSON; comparison runs through the `evalgate` CLI | Conformance: `load_run` on the TS output gives a `Run` equal to the Python `EvalRun` output for the same inputs. Bytes may differ, because JS and Python write numbers differently. A pytest test runs the TS writer through `node` and skips when Node is missing; the TS package has its own `node --test` suite. Report types are generated from the Pydantic JSON Schema. There is no TS copy of the engine. |
 
-Pairwise judging stays deferred (native-evaluators design, section 6). It would get its own slice later.
+Pairwise judging stays deferred (native-evaluators design, section 6).
 
 **Ordering:**
 - History (0.10) comes first, because 0.12 (recurring failures) and 0.13 (trend page) read it.
 - 0.11 is independent of history, but it shares the CLI compare path with it, so it comes next.
-- The long-tail items follow, in the order the user listed them.
+- The long-tail items follow.
 
 Each release is published only when the user says so.
 
@@ -39,45 +43,98 @@ Each release is published only when the user says so.
 ### Decisions (defaults; object before T1 starts)
 
 **The store**
-- **What it is:** a directory chosen by the user, `--history DIR`. Nothing is recorded unless the flag is passed, and there is no default location.
+- **What it is:** a directory chosen by the user, `--history DIR`. Nothing is recorded unless the flag is passed, and there is no default location. The directory is created on first write (`parents=True`).
 - **Layout:**
   ```
   DIR/
-    index.jsonl          one entry per line, append-only
+    index.jsonl          one entry per line, LF line endings, UTF-8
     reports/000003.json  the full JSON report of compare entry 3, byte-identical to --json
   ```
-- **Entries are summaries, not copies of runs:**
-  - run identity (`run_id`, `application`, `application_version`, `dataset_id`, `dataset_version`);
-  - status and per-metric means;
-  - the failing `(case_id, check)` pairs.
-  - `Report` already never carries outputs, and a run summary is built from scores, metrics and checks only, so no output, prompt or `case` data can reach the store. Paths to run directories are not stored either.
+  Report files are named `f"{id:06d}.json"`, and the name grows wider past 999999.
+- **What it holds:** exactly what `--json` holds, plus summaries.
+  - That can include file paths and parser messages in the diagnostics of an INVALID report, and any extra fields a user put in `run.json`.
+  - It never holds outputs, prompts or `case` data: `Report` never carries them, and a run summary is built from scores, metrics and checks only.
+  - Run directory paths are not stored as fields.
 - **Entry kinds** (`kind` is the discriminator):
-  - `compare`: written by `evalgate compare … --history DIR`. It holds the status (PASS / FAIL / INVALID), the baseline and candidate identities, and one metric row per policy metric (`path`, `direction`, `baseline_mean`, `candidate_mean`, `delta_abs`). It also holds the candidate's failing check pairs, and the report id under `reports/`. An INVALID compare is recorded too, with no metrics, because "this pair couldn't be compared" is history worth keeping.
-  - `run`: written by `evalgate history add RUN_DIR --history DIR`. It holds the run identity, `cases`, `errors`, and the means of every `scores.*` and `metrics.*` path over ok cases. Repeats are collapsed first with the existing `collapse`. It also holds check pass rates and the failing check pairs. An INVALID run (by `validate_run`) is not recorded, and the command exits 2.
-- **Ids and order:** `id` is a sequence number, 1 for the first line, then 2, and so on. Every listing is in id order, which is recording order, never wall-clock order. `recorded_at` (UTC ISO-8601, seconds) is stored as metadata only. Nothing sorts or decides on it.
-- **Format:** each line carries `history_version: 1` and is strict JSON (`loads_strict`). An optional `label` (free text, `--label`) names an entry, for example a release tag. It is escaped in every renderer.
+  - `compare`: written by `evalgate compare … --history DIR`. It holds:
+    - `status` (PASS / FAIL / INVALID);
+    - `baseline` and `candidate` identities, each `run_id`, `application`, `application_version`, `dataset_id`, `dataset_version`. Both are `null` when that run failed to load;
+    - one metric row per distinct policy metric path: `path`, `direction`, `baseline_mean`, `candidate_mean`, `delta_abs`, `cases` (= `compared_cases`). Empty when INVALID;
+    - the candidate's failing `(case_id, check)` pairs (compared cases only, sorted);
+    - `report_sha256`, the hash of the stored report file.
+  - `run`: written by `evalgate history add RUN_DIR --history DIR`. It holds:
+    - the run identity;
+    - `cases`, counted after repeats are collapsed with the existing `collapse`, as `evalgate validate` prints them;
+    - `errors`;
+    - for every `scores.*` and `metrics.*` path, `{mean, cases}` over ok collapsed cases that have it;
+    - for every check, `{pass_rate, cases}` over ok collapsed cases that have it;
+    - the failing `(case_id, check)` pairs (sorted).
+- **INVALID input:** an INVALID compare is recorded, because "this pair couldn't be compared" is history worth keeping. An INVALID run (by `validate_run`) is not recorded, and `history add` exits 2: a run entry is only useful as a data point, and an invalid run has none.
+- **Ids:**
+  - The next id is the last line's id + 1, or 1 for an empty index.
+  - The reader requires ids to be strictly increasing. Gaps are allowed, so pruning lines by hand is fine. A duplicate or decreasing id is `history_parse`.
+  - Every listing is in id order, never wall-clock order.
+  - `recorded_at` (UTC, ISO-8601, seconds) is metadata only. Nothing sorts or decides on it. The SDK takes `recorded_at=` (a `datetime`) for reproducible stores, such as the example and tests.
+- **Format:** each line carries `history_version: 1` and is strict JSON (`loads_strict`). Any other version is `history_parse` with a clear message. An optional `label` (`--label`, up to 200 characters) names an entry, for example a release tag. It is escaped in every renderer, and control characters are shown literally.
 
 **Recording**
-- **Recording never changes a decision.** `compare --history` writes the entry after the decision and after the other artifacts (`--json`, `--report`, `--markdown`). The exit code is still 0/1/2 from the decision.
-- **If the store can't be written** (bad directory, or a corrupt `index.jsonl` that makes the next id unknowable), the command exits 2 and prints the history diagnostics. That is the same rule as any other artifact failure: a CI step must not silently lose its history. Nothing is appended to a corrupt store.
-- **Appending:** the report file is written first (atomically), then one complete line is appended to `index.jsonl` in a single write. A report file without an index line is harmless: it is never listed, and the next append overwrites it.
-- **Concurrency:** two processes appending at the same moment can collide on an id. EvalGate is a local, single-user tool, so this is documented and not locked. The limit is marked with a `shortcut:` comment.
+- **Order in `compare --history`:**
+  1. Decide.
+  2. Write `--json`, `--report` and `--markdown`.
+  3. Record the history entry.
+  4. Render the decision in the terminal.
+- **If recording fails** (unwritable directory, or a corrupt `index.jsonl` that leaves the next id unknown):
+  - the decision is still rendered, then the history diagnostics are printed, and the command exits 2;
+  - this is the same rule as any artifact write failure: a CI step must not silently lose its history, and exit 2 still blocks the release;
+  - `--json` can then say `"FAIL"` or `"PASS"` while the process exits 2, and the docs say so;
+  - nothing is appended to a corrupt store.
+- **Atomic append:**
+  - Read the index strictly, add the new line, and rewrite the whole file with the existing `_atomic_write` (temp file + `os.replace`).
+  - A crash or a full disk therefore never leaves a torn line. The O(n) rewrite is trivial at this scale.
+  - For a compare entry, the report file is written first, also atomically. A report file without an index line is never listed and is overwritten by the next append.
+- **Concurrency** (`shortcut:` comment):
+  - Two processes appending at once can pick the same id; the later rewrite wins, and one entry is lost.
+  - `report_sha256` makes a swapped report file detectable: `history show` checks it and reports `history_id` on a mismatch.
+  - The docs say a store must be appended from one job or branch at a time. For CI, they recommend keeping the store as a build artifact of the main branch, rather than committing it from several branches.
+- **Duplicates:** rerunning the same CI job records the same compare again. That is allowed and documented, with no deduplication.
 
-**Reading** (all reads are strict, and every bad line is reported by line number without values)
-- `evalgate history list --history DIR [--last N] [--json]`: a table of id, kind, label, status, application_version and recorded_at.
-- `evalgate history show ID --history DIR`: for a compare entry, renders the stored report with the existing terminal renderer. For a run entry, prints its summary.
-- `evalgate history trend PATH --history DIR [--application APP] [--last N] [--json]`: the mean of one metric path per entry, in id order.
-  - For a run entry the value is `means[PATH]`; for a compare entry it is the candidate mean of the policy metric with that path.
-  - Entries without that path are skipped and counted.
-- Exit codes: 0, or 2 for a missing or corrupt store or an unknown id. History commands never exit 1.
-- **New codes:** `history_parse`, `history_record`, `history_missing` (no `index.jsonl`), `history_id` (unknown id or missing report file), `history_write`.
+**Reading**
+- All reads are strict. Every bad line is reported by line number, and Pydantic errors are shown as location and type only, never the input value.
+- `evalgate history list --history DIR [--last N] [--json]`:
+  - a table of id, kind, label, status (`valid` for run entries), application_version, dataset and recorded_at;
+  - `--json`: `{"history_version": 1, "entries": [...]}`.
+- `evalgate history show ID --history DIR [--json]`:
+  - a compare entry renders its stored report with the existing terminal renderer, after checking `report_sha256`;
+  - a run entry prints its identity, then a table of means and pass rates;
+  - `--json` prints the entry, or for a compare entry `{"entry": …, "report": …}`.
+- `evalgate history trend PATH --history DIR [--kind run|compare] [--dataset ID[@VERSION]] [--application APP] [--last N] [--json]`:
+  - the mean of one metric path per entry, in id order;
+  - `--kind` defaults to `run`. Kinds are never mixed, because a compare mean covers only the compared cases;
+  - for a compare entry the value is the candidate mean for that path, and `--application` matches the candidate's application;
+  - **datasets:** each point shows its dataset. Without `--dataset`, a trend that spans more than one `(dataset_id, dataset_version)` prints a warning, because means over different datasets aren't comparable;
+  - entries without the path are skipped, and the skips are counted;
+  - `--last N` applies after filtering and skipping;
+  - `--json`: `{"history_version": 1, "path": …, "kind": …, "points": [...], "skipped": n}`.
+- **Exit codes:** 0, or 2 for any diagnostic. History commands never exit 1.
+- **Codes,** one meaning each:
+  - `history_parse`: any bad index line, on read or before an append;
+  - `history_record`: the input can't be summarised, e.g. an INVALID run or an overflowing mean;
+  - `history_write`: an OS error while writing;
+  - `history_missing`: no `index.jsonl`;
+  - `history_id`: an unknown id, or a missing or mismatched report file.
 
 **What history never does**
 - It never picks a baseline, never promotes a candidate, and never feeds a policy. Comparisons stay between two run directories the user names.
 
-**SDK**
-- `evalgate.history`: `record_report(report, dir, label=None) -> HistoryEntry`, `record_run(run_dir, dir, label=None)` and `read_history(dir) -> list[HistoryEntry]`.
-- The CLI commands are thin wrappers over these, so the CLI and the SDK share one engine.
+**Module placement** (pure core, I/O in `io/`)
+- Pure summaries live in `comparison/history.py`:
+  - `summarize_report(report) -> dict`;
+  - `summarize_run(run) -> dict`.
+- Models live in `models/history.py`.
+- I/O lives in `io/history.py`: `record_report(report, dir, *, label=None, recorded_at=None)`, `record_run(run_dir, dir, *, label=None, recorded_at=None)`, `read_history(dir)` and `load_entry_report(dir, id)`.
+- The SDK functions are re-exported from `evalgate`, as `EvalRun` and `compare` are.
+- The CLI commands are thin wrappers, so the CLI and the SDK share one engine.
+- An engine-isolation test (like the judge one) checks that `engine`, `api`, `comparison` (apart from `comparison/history.py`) and `policies` never import `io.history`.
 
 ### Tasks
 
@@ -85,56 +142,61 @@ Each release is published only when the user says so.
 T1 models + pure summaries ──▶ T2 store (io) ──▶ T3 CLI ──▶ T4 docs + release
 ```
 
-**T1. Models and pure summaries** (`models/history.py`, `history.py`)
-- `HistoryEntry`: a discriminated union of `CompareEntry` and `RunEntry`. Both are strict, `extra="forbid"`, and have `history_version: Literal[1]`, `id: int >= 1`, `recorded_at` and an optional `label`.
-- Pure functions:
-  - `summarize_report(report) -> dict`, the compare fields;
-  - `summarize_run(run) -> dict`, which collapses repeats first. A mean that overflows to inf makes the run unrecordable (`history_record` at add time), never an inf in the store.
+**T1. Models and pure summaries** (`models/history.py`, `comparison/history.py`)
+- `HistoryEntry`: a discriminated union of `CompareEntry` and `RunEntry`.
+  - Both are strict, `extra="forbid"`, with `history_version: Literal[1]`, `id: int >= 1`, `recorded_at`, and an optional `label` (up to 200 characters).
+  - Identities are optional on `CompareEntry`.
+- `summarize_run` collapses repeats first. A mean that overflows to inf, or any non-finite value, raises `ValueError`, which the caller turns into `history_record`.
 - Tests:
-  - a summary carries no outputs (sentinel stored with `store_output=True`);
-  - the failing pairs are sorted;
-  - means are hand-computed, including repeats;
-  - an INVALID report gives an entry without metrics.
+  - no outputs in a summary (a sentinel stored with `store_output=True`);
+  - failing pairs are sorted;
+  - means, case counts and pass rates are hand-computed, including repeats (collapsed `cases`);
+  - sparse paths have their own `cases`;
+  - an INVALID-on-load report gives an entry with null identities and no metrics;
+  - two policy metrics on the same path give one row;
+  - the purity and isolation test.
 
 **T2. Store** (`io/history.py`)
-- `append(dir, fields) -> HistoryEntry`:
-  - finds the next id by reading the index strictly (a corrupt index means no append, `history_record` or `history_parse`);
-  - writes `reports/<id>.json` atomically for compare entries;
-  - appends one line.
-- `read_history(dir)` is strict and reports every bad line.
-- `record_report`, `record_run` and `load_entry_report(dir, id)` sit on top.
+- Append and read as described above.
 - Tests:
-  - ids are sequential across appends;
-  - a stored report is byte-identical to `--json`;
-  - a corrupt line blocks the append and is reported by line;
-  - a missing dir is created on first append, but a path that is a file gives `history_write`;
-  - `history_missing` on read;
+  - ids are sequential;
+  - after pruning a middle line or the tail, the next id is last + 1;
+  - a duplicate or decreasing id, `history_version: 2`, a truncated last line, CRLF line endings and a missing trailing newline are each handled: CRLF and a missing final newline are read fine, and the rest are `history_parse`;
+  - a corrupt index blocks the append;
+  - a stored report is byte-identical to `--json`, and `report_sha256` matches;
+  - a tampered report file gives `history_id` on load;
+  - the directory is created; a path that is a file gives `history_write`;
+  - `history_missing`;
   - no `*.tmp` files are left behind;
-  - no outputs are stored (sentinel).
+  - no outputs are stored (sentinel);
+  - `recorded_at=` gives a reproducible file.
 
 **T3. CLI** (`cli.py`, `reporting/terminal.py`)
-- `compare --history DIR [--label TEXT]`, plus `history add / list / show / trend`, as a Typer sub-app wrapped in `_fail_closed`.
+- `compare --history DIR [--label TEXT]`, plus a `history` Typer sub-app with `add`, `list`, `show` and `trend`, all wrapped in `_fail_closed`.
 - Tests:
-  - each command's exit codes;
-  - `compare --history` keeps exit 1 on FAIL and records it;
-  - an INVALID compare is recorded and still exits 2;
-  - a store write failure exits 2;
-  - `--last`, `--application` and `--json` round-trip;
-  - markup in a label or run_id is printed literally;
+  - exit codes for each command;
+  - `compare --history` records PASS (exit 0) and FAIL (exit 1);
+  - an INVALID-on-load compare is recorded and still exits 2;
+  - PASS plus a store failure, and FAIL plus a store failure, both exit 2 with the decision still rendered;
+  - trend: the kind, dataset and application filters, `--last` after filtering, the skip count, and the mixed-dataset warning;
+  - `--json` shapes round-trip;
+  - markup, newlines or control characters in a label or run_id are shown literally;
   - the help text lists the commands.
 
 **T4. Docs and release** (new `docs/history.md`, `report-format.md` codes, README, `examples/`, CHANGELOG, `_version.py`)
 - **Docs page:**
-  - the layout, what is and isn't stored, and that ids are in recording order;
-  - the concurrency caveat;
+  - the layout, and what is and isn't stored (including paths in INVALID diagnostics, and manifest extras);
+  - ids and pruning;
+  - the concurrency caveat and the CI advice;
+  - exit 2 on a store failure even after a PASS or FAIL decision;
   - "history never picks a baseline";
-  - keeping a store in CI (commit it, or keep it as a build artifact).
-- **Example:** `examples/history/` builds a store from the existing example runs with a script. It is checked by a generator-parity test, with `recorded_at` fixed by a test hook.
+  - why trends don't mix kinds or datasets.
+- **Example:** `examples/history/` builds a store from the existing example runs with a script that uses fixed `recorded_at` values. It is checked by a generator-parity test.
 - CHANGELOG 0.10.0, and the version bump to 0.10.0.
 
 **Out of 0.10.0:**
 - any automatic baseline;
 - remote or shared stores;
 - locking;
-- deleting or editing entries (the store is append-only; to prune, edit the file yourself);
+- deleting or editing entries through EvalGate (the store is append-only; prune by hand);
 - charts (0.13.0) and failure trends (0.12.0).
