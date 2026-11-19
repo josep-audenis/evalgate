@@ -1,5 +1,6 @@
 """Evaluator core (native-evaluators design §1): interface, typing, fail closed."""
 
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -44,7 +45,9 @@ def test_apply_routes_results_by_kind() -> None:
         ("score", "0.5"),
         ("score", float("nan")),
         ("score", float("inf")),
-        ("score", 1e400),
+        ("score", float("-inf")),
+        ("score", 10**400),
+        ("score", Decimal("1")),
     ],
 )
 def test_wrong_type_is_an_evaluator_error_never_coerced(kind: str, value: object) -> None:
@@ -56,9 +59,38 @@ def test_int_score_is_a_float() -> None:
     assert result.scores == {"e": 3.0} and type(result.scores["e"]) is float
 
 
+class FakeNumpyBool:
+    """Duck-types a numpy bool scalar, so the unwrap path runs without numpy installed."""
+
+    class dtype:  # noqa: N801
+        kind = "b"
+
+    shape = ()
+
+    def __init__(self, value: bool) -> None:
+        self.value = value
+
+    def __bool__(self) -> bool:
+        return self.value
+
+
 def test_numpy_bool_check_is_accepted() -> None:
+    assert apply([const("check", FakeNumpyBool(False))], "x", {}).checks == {"e": False}
+
+
+def test_real_numpy_values() -> None:
     np = pytest.importorskip("numpy")
     assert apply([const("check", np.bool_(True))], "x", {}).checks == {"e": True}
+    assert apply([const("score", np.float64(0.5))], "x", {}).scores == {"e": 0.5}
+
+
+def test_duplicate_names_are_rejected() -> None:
+    with pytest.raises(ValueError, match="duplicate"):
+        apply([const("check", False, "d"), const("check", True, "d")], "x", {})
+
+
+def test_decorated_evaluator_is_callable() -> None:
+    assert has_hi("hi", {}) is True
 
 
 def test_exception_fails_closed_without_its_text() -> None:
@@ -93,6 +125,21 @@ def test_case_is_read_only_and_not_mutated() -> None:
     record = {"expected": "orig"}
     assert apply([mutate], "x", record).failed == "mutate"
     assert record == {"expected": "orig"}
+
+
+def test_nested_case_values_are_isolated() -> None:
+    @check(name="append", version="1")
+    def append(output: Any, case: Any) -> bool:
+        case["items"].append(1)
+        return True
+
+    @check(name="unchanged", version="1")
+    def unchanged(output: Any, case: Any) -> bool:
+        return bool(case["items"] == [])
+
+    record: dict[str, Any] = {"items": []}
+    assert apply([append, unchanged], "x", record).checks == {"append": True, "unchanged": True}
+    assert record == {"items": []}
 
 
 def test_evaluator_receives_case_fields() -> None:

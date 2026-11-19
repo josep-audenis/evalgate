@@ -1,5 +1,6 @@
 """Evaluator interface and runner. Pure: no I/O (docs/design/native-evaluators.md §1)."""
 
+import copy
 import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -30,6 +31,10 @@ class Evaluator:
             raise ValueError(f"evaluator kind must be 'check' or 'score', got {self.kind!r}")
         if not callable(self.fn):
             raise TypeError(f"evaluator {self.name}: fn must be callable")
+
+    def __call__(self, output: Any, case: Mapping[str, Any]) -> object:
+        """Call the wrapped function directly (for unit-testing an evaluator)."""
+        return self.fn(output, case)
 
 
 def check(*, name: str, version: str) -> Callable[[EvaluatorFn], Evaluator]:
@@ -65,10 +70,17 @@ def _result(ev: Evaluator, value: object) -> bool | float | None:
 def apply(evaluators: Sequence[Evaluator], output: Any, case: Mapping[str, Any]) -> Applied:
     """Run evaluators in order. Fail closed: the first exception or wrong-typed result stops
     the run and is reported by name only, since exception text can quote the output."""
-    view = MappingProxyType(dict(case))  # evaluators can't change the record for later ones
+    names = [ev.name for ev in evaluators]
+    if len(set(names)) != len(names):  # a later result would silently overwrite a failing one
+        raise ValueError(
+            f"duplicate evaluator names: {sorted({n for n in names if names.count(n) > 1})}"
+        )
     scores: dict[str, float] = {}
     checks: dict[str, bool] = {}
     for ev in evaluators:
+        # A deep, read-only copy per evaluator: none can change what the caller or a later
+        # evaluator sees.
+        view = MappingProxyType(copy.deepcopy(dict(case)))
         try:
             value = _result(ev, ev.fn(output, view))
         except Exception:  # not BaseException: Ctrl-C aborts the run, which discards it
