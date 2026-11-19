@@ -5,7 +5,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import IO, Any, Self
 
-from pydantic import JsonValue, TypeAdapter
+from pydantic import BaseModel, JsonValue, TypeAdapter
 
 from evalgate.evaluators.core import Evaluator, apply
 from evalgate.models import (
@@ -25,7 +25,8 @@ def _atomic_write(path: Path, text: str) -> None:
     os.replace(tmp, path)
 
 
-def write_json_report(report: Report, path: Path) -> None:
+def write_json_report(report: BaseModel, path: Path) -> None:
+    """Any report model (Report, CalibrationReport) as stable, indented JSON."""
     _atomic_write(path, report.model_dump_json(indent=2) + "\n")
 
 

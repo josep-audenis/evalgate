@@ -26,8 +26,9 @@ from evalgate.io import (
 from evalgate.io.deepeval import import_deepeval
 from evalgate.io.evaluate import evaluate_outputs
 from evalgate.io.importer import import_results
+from evalgate.io.labels import calibrate_run
 from evalgate.io.promptfoo import import_promptfoo
-from evalgate.reporting.terminal import render, render_diagnostics
+from evalgate.reporting.terminal import render, render_calibration, render_diagnostics
 from evalgate.validation import validate_run
 
 EXIT_PASS, EXIT_FAIL, EXIT_INVALID = 0, 1, 2
@@ -295,6 +296,33 @@ def evaluate(
             "status error (see cases.jsonl); they count against max_execution_errors",
             highlight=False,
         )
+
+
+@app.command()
+@_fail_closed
+def calibrate(
+    run_dir: Path,
+    labels: Annotated[
+        Path, typer.Option("--labels", help="labels.jsonl: human values per case_id.")
+    ],
+    json_out: Annotated[
+        Path | None, typer.Option("--json", help="Write the calibration report here.")
+    ] = None,
+) -> None:
+    """Measure agreement between a run's checks/scores and human labels.
+
+    Reporting only: accuracy and Cohen's kappa for checks, MAE and Spearman for scores.
+    Exits 0 with a report, 2 on bad input; never 1, and never feeds a policy.
+    """
+    try:
+        report = calibrate_run(run_dir, labels)
+    except InputError as exc:
+        render_diagnostics(exc.diagnostics, console)
+        console.print("[bold yellow]INVALID[/]: no calibration report")
+        raise typer.Exit(EXIT_INVALID) from exc
+    if json_out:
+        write_json_report(report, json_out)
+    render_calibration(report, console)
 
 
 if __name__ == "__main__":  # python -m evalgate.cli

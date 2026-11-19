@@ -5,6 +5,7 @@ from rich.markup import escape as e  # every input-derived string goes through t
 from rich.table import Table
 
 from evalgate.models import Diagnostic, Report
+from evalgate.models.calibration import CalibrationReport
 
 _TOP = 10
 _STATUS_STYLE = {"PASS": "bold green", "FAIL": "bold red", "INVALID": "bold yellow"}
@@ -106,3 +107,43 @@ def render(report: Report, console: Console) -> None:
         console.print(f"{mark} {e(r.rule)}: {e(r.message)}", highlight=False)
     render_diagnostics(report.diagnostics, console)
     console.print(f"decision: [{_STATUS_STYLE[report.status]}]{report.status}[/]")
+
+
+SMALL_CALIBRATION = 30  # advisory, like SMALL_SAMPLE: few cases make agreement figures noisy
+
+
+def _figure(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.3f}"
+
+
+def render_calibration(report: CalibrationReport, console: Console) -> None:
+    """One row per labelled (kind, name). Reporting only: there is no decision."""
+    console.print(
+        f"calibration of [bold]{e(report.run_id)}[/] against "
+        f"{report.labelled_cases} labelled case(s)",
+        highlight=False,
+    )
+    table = Table()
+    table.add_column("kind")
+    table.add_column("name", overflow="fold")  # the column that matters: never truncate it
+    # Short headers so the table fits 80-column CI logs.
+    for column in ("n", "cases", "err", "miss", "acc", "kappa", "mae", "rho"):
+        table.add_column(column, justify="right")
+    for x in report.entries:
+        table.add_row(
+            x.kind,
+            e(x.name),
+            str(x.n),
+            str(x.n_cases),
+            str(x.errors),
+            str(x.missing),
+            *(_figure(v) for v in (x.accuracy, x.kappa, x.mae, x.spearman)),
+        )
+    console.print(table)
+    if small := [x for x in report.entries if x.n_cases < SMALL_CALIBRATION]:
+        names = ", ".join(f"{x.kind} {x.name}" for x in small)
+        console.print(
+            f"[yellow]warning[/] fewer than {SMALL_CALIBRATION} labelled cases for "
+            f"{e(names)}: agreement figures are noisy",
+            highlight=False,
+        )
