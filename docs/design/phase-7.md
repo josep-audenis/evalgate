@@ -379,10 +379,11 @@ A report lists every failing `(case, check)` pair, but a reviewer wants the patt
   - The reader accepts 1 and 2, so a store may mix them.
   - A 0.10 or 0.11 reader meeting a v2 line prints its existing, accurate "unsupported history_version" diagnostic, instead of reading an unknown field as corruption.
   - The `--json` envelopes of `list`, `show` and `trend` keep `history_version: 1`, since their shape is unchanged; `entries` may hold v2 lines.
-- **`case_ids` field:** v2 entries carry it, sorted. It is allowed only on v2 lines.
-  - Run entries: the ok cases after collapsing repeats.
-  - Compare entries: the compared cases, read from the new `failure_groups` population. Compare entries also take their `failing_checks` from that population, which fixes the 0.10 summary letting candidate-only cases into `failing_checks`. So `failing <= of` always holds.
-  - For a stored report without `failure_groups` (written before 0.12), the entry is recorded as v1 with no `case_ids`.
+- **`case_ids` field** (run entries only):
+  - It is required on v2 run entries and not allowed on v1 lines or on compare entries.
+  - It lists the ok cases after collapsing repeats, sorted.
+  - A report doesn't list its compared cases, so compare entries have no `case_ids` and their `of` is `null`.
+- **Compare entries' `failing_checks`** now come from `failure_groups.by_check`, that is, from compared cases only. This fixes 0.10 letting candidate-only cases into `failing_checks`. A stored report without `failure_groups` (written before 0.12) is summarised the 0.10 way and recorded as a v1 entry.
 - **Privacy note:** `docs/history.md` gains a line saying v2 entries store every case id they cover. Ids can embed user data, and a larger index makes each append's rewrite slower.
 
 **`evalgate history failures`**
@@ -393,7 +394,7 @@ A report lists every failing `(case, check)` pair, but a reviewer wants the patt
   - Entries without an identity never match `--application` or `--dataset`.
 - **Per `(case_id, check)` pair:**
   - `failing`: the number of selected entries in which it fails;
-  - `of`: the number of selected entries whose `case_ids` include the case. It counts entries containing the case, not entries that ran that check, and is `null` if any selected entry is v1 (no `case_ids`);
+  - `of`: the number of selected entries whose `case_ids` include the case. It counts entries containing the case, not entries that ran that check, and is `null` for `--kind compare`, or if any selected run entry is v1 (no `case_ids`). For run entries `failing <= of` always holds;
   - `first` and `last`: the ids of the first and last entries in which it fails;
   - `streak`: the number of most recent selected entries in which it fails, without a gap. Any selected entry where the pair doesn't fail ends the streak, including one that lacks the case or where it errored. The docs say a broken streak isn't proof of a fix.
 - **Listing:** pairs with `failing >= K` (`--min`, default 2, at least 1; anything else exits 2), sorted by `streak` descending, then `failing` descending, then `case_id` and `check`.
@@ -436,8 +437,9 @@ T3 history v2, case_ids, failures (needs T1) ───────────�
   - hand-computed `failing`, `of`, `first`, `last` and `streak`, including the latest entry lacking the case;
   - an INVALID compare in the window is ignored;
   - a mixed v1/v2 store gives `of: null`;
-  - `case_ids` on a v1 line is rejected;
-  - `failing <= of`;
+  - `case_ids` on a v1 line or on a compare entry is rejected, and is required on a v2 run entry;
+  - compare entries' `of` is `null`, and their `failing_checks` exclude candidate-only cases;
+  - `failing <= of` for run entries;
   - `--min 0` exits 2;
   - kind and dataset selection, and `--last`;
   - JSON shape, exit codes, escaping;
