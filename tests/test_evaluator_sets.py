@@ -13,7 +13,7 @@ SET = {"is_json": "1+aaa", "short": "1+bbb"}
 
 
 def run(evaluators: dict[str, str] | None) -> Run:
-    manifest: dict[str, Any] = V12 | {"evaluators": evaluators} if evaluators else {}
+    manifest: dict[str, Any] = (V12 | {"evaluators": evaluators}) if evaluators else {}
     return make_run([case("a"), case("b")], **manifest)
 
 
@@ -65,13 +65,25 @@ def test_only_one_run_declaring_evaluators_is_invalid(
     "base,cand,code",
     [
         (SET, {"is_json": "2"}, "evaluator_set_mismatch"),
+        (SET, SET | {"extra": "1"}, "evaluator_set_mismatch"),
         (SET, None, "evaluator_set_partial"),
+        (None, SET, "evaluator_set_partial"),
     ],
 )
 def test_policy_opt_out_downgrades_to_warning(
-    base: dict[str, str], cand: dict[str, str] | None, code: str
+    base: dict[str, str] | None, cand: dict[str, str] | None, code: str
 ) -> None:
     policy = make_policy(comparison={"require_same_evaluator": False})
     report = evaluate(run(base), run(cand), policy)
     assert ("warning", code) in diags(report)
     assert report.status == "PASS"
+
+
+def test_mismatch_message_is_sorted_and_truncated() -> None:
+    base = {f"e{i}": "1" for i in range(8)}
+    cand = {f"e{i}": "2" for i in range(8)}
+    report = evaluate(run(base), run(cand), make_policy())
+    message = next(d.message for d in report.diagnostics if d.code == "evaluator_set_mismatch")
+    assert message.endswith(
+        "e0 (1 vs 2), e1 (1 vs 2), e2 (1 vs 2), e3 (1 vs 2), e4 (1 vs 2) (+3 more)"
+    )
