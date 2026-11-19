@@ -167,6 +167,31 @@ def test_unknown_label_name() -> None:
     assert "checks.x" in diagnostics[0].message
 
 
+def test_declared_name_with_the_other_kind_is_unknown() -> None:
+    r = run(
+        {"case_id": "a", "scores": {"x": 1}, "checks": {"y": T}},
+        evaluators={"x": "1", "y": "1"},
+        schema_version="1.2",
+    )
+    _, diagnostics = calibrate(r, [label("a", checks={"x": T, "y": T})])
+    assert [d.code for d in diagnostics] == ["labels_unknown"]
+    assert "checks.x" in diagnostics[0].message
+
+
+def test_errored_and_valueless_repeats_count_as_errors_only() -> None:
+    # Precedence: pairs > errors > missing. An errored repeat plus an ok repeat without the
+    # name counts once, in errors; the valueless ok row is not reported separately.
+    r = run(
+        {"case_id": "a", "repeat": 0, "status": "error", "error": "x"},
+        {"case_id": "a", "repeat": 1, "checks": {"other": T}},
+        {"case_id": "b", "repeat": 0, "checks": {"ok": T}},
+        {"case_id": "b", "repeat": 1, "checks": {"ok": T}},
+        schema_version="1.1",
+    )
+    e = entries(r, [label("a", checks={"ok": T}), label("b", checks={"ok": T})])["check", "ok"]
+    assert (e.n, e.errors, e.missing) == (2, 1, 0)
+
+
 def test_declared_but_all_errored_is_not_unknown_but_is_empty() -> None:
     r = run(
         {"case_id": "a", "status": "error", "error": "evaluator j failed"},

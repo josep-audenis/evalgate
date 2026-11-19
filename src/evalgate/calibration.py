@@ -6,7 +6,7 @@ Reporting only (docs/design/native-evaluators.md §11): nothing here affects a d
 from collections import defaultdict
 from collections.abc import Sequence
 from fractions import Fraction
-from math import sqrt
+from math import fsum, sqrt
 from typing import Literal
 
 from evalgate.models.calibration import CalibrationEntry, CalibrationReport, LabelLine
@@ -15,6 +15,7 @@ from evalgate.models.run import CaseResult, Run
 
 Kind = Literal["check", "score"]
 _SECTION: dict[Kind, str] = {"check": "checks", "score": "scores"}
+_OTHER: dict[Kind, Kind] = {"check": "score", "score": "check"}
 
 
 def _error(code: str, message: str) -> Diagnostic:
@@ -55,12 +56,12 @@ def spearman(pairs: Sequence[tuple[float, float]]) -> float | None:
         return None
     xs = _ranks([a for a, _ in pairs])
     ys = _ranks([b for _, b in pairs])
-    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
-    sxx = sum((x - mx) ** 2 for x in xs)
-    syy = sum((y - my) ** 2 for y in ys)
+    mx, my = fsum(xs) / len(xs), fsum(ys) / len(ys)
+    sxx = fsum((x - mx) ** 2 for x in xs)
+    syy = fsum((y - my) ** 2 for y in ys)
     if sxx == 0 or syy == 0:
         return None
-    return sum((x - mx) * (y - my) for x, y in zip(xs, ys, strict=True)) / sqrt(sxx * syy)
+    return fsum((x - mx) * (y - my) for x, y in zip(xs, ys, strict=True)) / sqrt(sxx * syy)
 
 
 def _entry(
@@ -93,7 +94,7 @@ def _entry(
         bools = [(bool(a), bool(b)) for a, b in pairs]
         figures = {"accuracy": sum(a == b for a, b in bools) / n, "kappa": kappa(bools)}
     elif n:
-        figures = {"mae": sum(abs(a - b) for a, b in pairs) / n, "spearman": spearman(pairs)}
+        figures = {"mae": fsum(abs(a - b) for a, b in pairs) / n, "spearman": spearman(pairs)}
     return CalibrationEntry(
         kind=kind,
         name=name,
@@ -130,7 +131,8 @@ def calibrate(run: Run, labels: Sequence[LabelLine]) -> tuple[CalibrationReport,
             f"{run.manifest.run_id} has it and the manifest doesn't declare it",
         )
         for kind, name in wanted
-        if name not in present[kind] and name not in declared
+        # Declared names carry no kind: one only present as the other kind is still a typo.
+        if name not in present[kind] and (name not in declared or name in present[_OTHER[kind]])
     ]
     entries = [_entry(kind, name, labels, rows) for kind, name in wanted]
     report = CalibrationReport(
