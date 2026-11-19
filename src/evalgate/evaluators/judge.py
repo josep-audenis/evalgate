@@ -9,6 +9,8 @@ turns into `status: error`, never a default value. The engine never imports this
 import hashlib
 import json
 import math
+import os
+import tempfile
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -123,6 +125,37 @@ def _parse(rubric: Rubric, reply: object) -> bool | float:
     return value
 
 
+def _cache_read(path: Path, rubric: Rubric) -> bool | float | None:
+    """A cached value, or None (a miss) unless the entry is exactly `{"value": <valid>}`."""
+    try:
+        data = loads_strict(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError, RecursionError):
+        return None
+    if not isinstance(data, dict) or set(data) != {"value"}:
+        return None
+    return _value(rubric, data["value"])
+
+
+def _cache_write(path: Path, value: bool | float) -> None:
+    """Atomic write; any OSError is ignored, since the value returned is correct anyway."""
+    tmp: str | None = None
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(_canonical({"value": value}))
+        os.replace(tmp, path)
+        tmp = None
+    except OSError:
+        pass
+    finally:
+        if tmp is not None:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+
 def judge(
     rubric: Rubric,
     complete: Callable[[str], str],
@@ -136,6 +169,10 @@ def judge(
     `model_id` is a label you declare (EvalGate can't check what `complete` calls); it is part
     of the version, so a different model makes a comparison INVALID. Include sampling settings
     in it, e.g. "claude-sonnet-5-5@t0".
+
+    `cache_dir` (opt-in) keeps each parsed result, keyed by this version and the rendered
+    prompt; never the prompt or reply. It is trusted local state: anyone who can write there
+    can forge results, and a cached judge hides model drift by design.
     """
     if not isinstance(rubric, Rubric):
         raise TypeError("rubric must be a Rubric")
@@ -143,13 +180,25 @@ def judge(
         raise TypeError("complete must be callable: (prompt: str) -> str")
     if not isinstance(model_id, str) or not model_id:
         raise ValueError(f"model_id must be a non-empty string, got {model_id!r}")
+    cache = None if cache_dir is None else Path(cache_dir)
     template = Template(rubric.template)
     identifiers = template.get_identifiers()
+    version = _version(rubric, model_id)
 
     def fn(output: Any, case: Mapping[str, Any]) -> bool | float:
         # Only the identifiers the template uses; `$output` is always the output. One pass, so
         # a `$name` inside a value is inserted literally.
         values = {i: _text(output if i == "output" else case[i]) for i in identifiers}
-        return _parse(rubric, complete(template.substitute(values)))
+        prompt = template.substitute(values)
+        entry = None
+        if cache is not None:
+            key = hashlib.sha256(_canonical([version, prompt]).encode()).hexdigest()
+            entry = cache / f"{key}.json"
+            if (hit := _cache_read(entry, rubric)) is not None:
+                return hit
+        value = _parse(rubric, complete(prompt))  # raises before caching: errors aren't cached
+        if entry is not None:
+            _cache_write(entry, value)
+        return value
 
-    return Evaluator(name, _version(rubric, model_id), rubric.kind, fn)
+    return Evaluator(name, version, rubric.kind, fn)
