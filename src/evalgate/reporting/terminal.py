@@ -7,24 +7,13 @@ from rich.console import Console
 from rich.markup import escape as e  # every input-derived string goes through this
 from rich.table import Table
 
-from evalgate.models import Comparison, Diagnostic, Report
+from evalgate.models import Diagnostic, Report
 from evalgate.models.calibration import CalibrationReport
 from evalgate.models.history import HistoryEntry, Identity, RunEntry
 from evalgate.models.multi import MultiSummary
-from evalgate.models.report import CheckCategoryGroup, CheckGroup
 
 _TOP = 10
 _GROUPS = 5
-
-
-def failure_group_rows(cmp: Comparison) -> list[tuple[str, CheckGroup | CheckCategoryGroup]]:
-    """Top failure groups, by check x category; by check alone when nothing is categorised."""
-    groups = cmp.failure_groups
-    if groups is None:
-        return []
-    if groups.by_check_category:
-        return [(f"{g.check} / {g.category}", g) for g in groups.by_check_category[:_GROUPS]]
-    return [(g.check, g) for g in groups.by_check[:_GROUPS]]
 
 
 _STATUS_STYLE = {"PASS": "bold green", "FAIL": "bold red", "INVALID": "bold yellow"}
@@ -120,13 +109,21 @@ def render(report: Report, console: Console) -> None:
             console.print(f"newly failing checks ({len(cmp.newly_failing_checks)}):")
             for ch in cmp.newly_failing_checks[:_TOP]:
                 console.print(f"  {e(ch.case_id)}: {e(ch.check)}", highlight=False)
-        if report.status != "INVALID" and (rows := failure_group_rows(cmp)):
+        groups = cmp.failure_groups
+        if report.status != "INVALID" and groups and (rows := groups.top(_GROUPS)):
             console.print(
                 f"failure groups (top {_GROUPS}): failing = new + persistent + no baseline"
             )
-            for name, g in rows:
+            for check, category, g in rows:
+                where = f" in {e(category)}" if category is not None else ""
                 console.print(
-                    f"  {e(name)}: {g.failing} = {g.new} + {g.persistent} + {g.no_baseline}",
+                    f"  {e(check)}{where}: {g.failing} = {g.new} + {g.persistent} + "
+                    f"{g.no_baseline}",
+                    highlight=False,
+                )
+            if groups.by_check_category and groups.uncategorized:
+                console.print(
+                    f"  ({groups.uncategorized} failing pair(s) without a category not grouped)",
                     highlight=False,
                 )
 

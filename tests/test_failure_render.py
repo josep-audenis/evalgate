@@ -42,16 +42,16 @@ def test_top_five_with_counts_in_terminal_and_markdown() -> None:
     report = evaluate(base, cand, POLICY)
     out = terminal(report)
     assert "failure groups (top 5)" in out
-    assert "check0 / cat: 3 = 3 + 0 + 0" in out
-    assert "check5 / cat" not in out  # only the top 5
+    assert "check0 in cat: 3 = 3 + 0 + 0" in out
+    assert "check5 in cat" not in out  # only the top 5
     md = render_markdown(report)
-    assert "### Failure groups" in md and md.count("/ cat` | 3 | 3 | 0 | 0 |") == 5
+    assert "### Failure groups" in md and md.count("| `cat` | 3 | 3 | 0 | 0 |") == 5
 
 
 def test_falls_back_to_by_check_without_categories() -> None:
     report = evaluate(run(case("a", s=True)), run(case("a", s=False)), POLICY)
     assert "  s: 1 = 1 + 0 + 0" in terminal(report)
-    assert "| `s` | 1 | 1 | 0 | 0 |" in render_markdown(report)
+    assert "| `s` | — | 1 | 1 | 0 | 0 |" in render_markdown(report)
 
 
 def test_nothing_shown_when_nothing_fails() -> None:
@@ -85,5 +85,31 @@ def test_names_are_escaped() -> None:
         POLICY,
     )
     out = terminal(report)
-    assert "[bold]chk / [red]cat[/]" in out
-    assert "`[bold]chk / [red]cat[/]`" in render_markdown(report)
+    assert "[bold]chk in [red]cat[/]" in out
+    assert "| `[bold]chk` | `[red]cat[/]` |" in render_markdown(report)
+
+
+def test_hostile_names_cannot_break_the_markdown_table() -> None:
+    check = "a|b`c`\n<img src=x> @octocat"
+    category = "cat|z\n# head `x`"
+    report = evaluate(
+        run(case("a", category, **{check: True}), case("b", None, ok=True)),
+        run(case("a", category, **{check: False}), case("b", None, ok=False)),
+        POLICY,
+    )
+    md = render_markdown(report)
+    section = md.split("### Failure groups")[1].split("\n\n")[1]
+    rows = section.splitlines()
+    assert len(rows) == 3  # header, separator, one group
+    for row in rows:
+        assert len(row.replace("\\|", "").split("|")) - 2 == 6, row
+    assert "1 failing pair(s) without a category not grouped" in md
+
+
+def test_uncategorized_note_in_terminal() -> None:
+    report = evaluate(
+        run(case("a", "cat", s=True), case("b", None, s=True)),
+        run(case("a", "cat", s=False), case("b", None, s=False)),
+        POLICY,
+    )
+    assert "1 failing pair(s) without a category not grouped" in terminal(report)

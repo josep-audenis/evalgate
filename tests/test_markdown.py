@@ -66,7 +66,7 @@ def test_untrusted_text_cannot_break_tables() -> None:
     md = render_markdown(evaluate(make_run(base, run_id="@octocat"), make_run(cand), make_policy()))
     for line in md.splitlines():
         if line.startswith("| "):
-            assert cells(line) in (3, 5, 7), line  # rules, failure groups, metrics tables
+            assert cells(line) in (3, 6, 7), line  # rules, failure groups, metrics tables
     assert "`@octocat`" in md  # run ids are code too
 
 

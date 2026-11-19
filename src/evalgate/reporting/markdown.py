@@ -4,9 +4,9 @@ import re
 import unicodedata
 
 from evalgate.models import Report
-from evalgate.reporting.terminal import failure_group_rows
 
 _TOP = 10  # items per collapsed list
+_GROUPS = 5  # failure groups shown
 _MAX_RULES = 50  # table rows; failures first, so they are always shown
 _MAX_DIAGNOSTICS = 20
 _MAX_TEXT = 300  # characters per input-derived value (a message may list every case)
@@ -91,6 +91,24 @@ def render_markdown(report: Report) -> str:
             )
         out.append("")
 
+    groups = cmp.failure_groups if cmp else None
+    if report.status != "INVALID" and groups and (rows := groups.top(_GROUPS)):
+        # Before the long lists, so total-size truncation never cuts it.
+        out += [
+            "### Failure groups",
+            "",
+            "| Check | Category | Failing | New | Persistent | No baseline |",
+            "|---|---|--:|--:|--:|--:|",
+        ]
+        out += [
+            f"| {_c(check, cell=True)} | {'—' if cat is None else _c(cat, cell=True)} | "
+            f"{g.failing} | {g.new} | {g.persistent} | {g.no_baseline} |"
+            for check, cat, g in rows
+        ]
+        if groups.by_check_category and groups.uncategorized:
+            out.append(f"\n{groups.uncategorized} failing pair(s) without a category not grouped.")
+        out.append("")
+
     if cmp:
         out += _details(
             "Regressed cases",
@@ -103,19 +121,6 @@ def render_markdown(report: Report) -> str:
             "Newly failing checks",
             [f"{_c(ch.case_id)}: {_c(ch.check)}" for ch in cmp.newly_failing_checks],
         )
-        if report.status != "INVALID" and (rows := failure_group_rows(cmp)):
-            out += [
-                "### Failure groups",
-                "",
-                "| Group | Failing | New | Persistent | No baseline |",
-                "|---|--:|--:|--:|--:|",
-            ]
-            out += [
-                f"| {_c(name, cell=True)} | {g.failing} | {g.new} | {g.persistent} | "
-                f"{g.no_baseline} |"
-                for name, g in rows
-            ]
-            out.append("")
     out.append(f"<sub>evalgate {report.evalgate_version}</sub>")
     text = "\n".join(out) + "\n"
     if len(text) > _MAX_TOTAL:  # only with very many failed rules
