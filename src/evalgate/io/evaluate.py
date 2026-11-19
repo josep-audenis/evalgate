@@ -57,7 +57,7 @@ class OutputLine(BaseModel):
         has_output = "output" in self.model_fields_set
         if self.status == "ok" and not has_output:
             raise ValueError("`output` is required when status is ok")
-        if self.status == "ok" and self.error is not None:
+        if self.status == "ok" and "error" in self.model_fields_set:
             raise ValueError("`error` is only allowed when status is error")
         if self.status == "error" and has_output:
             raise ValueError("`output` is not allowed when status is error")
@@ -86,7 +86,7 @@ def _row(line: OutputLine) -> dict[str, Any]:
     return row
 
 
-def read_outputs(path: Path) -> list[dict[str, Any]]:
+def read_outputs(path: Path, reserved: frozenset[str] = frozenset()) -> list[dict[str, Any]]:
     """Parse OUTPUTS.jsonl into write_rows rows. Every bad line is reported; values never are."""
     text = _read_text(path).removeprefix("﻿")
     rows: list[dict[str, Any]] = []
@@ -111,12 +111,32 @@ def read_outputs(path: Path) -> list[dict[str, Any]]:
             diagnostics.append(_error("outputs_parse", f"{path}: line {n}: not a JSON object"))
             continue
         try:
-            rows.append(_row(OutputLine.model_validate(data)))
-            lines.append(n)
+            line = OutputLine.model_validate(data)
         except ValidationError as exc:
             for e in exc.errors():  # location and message only: no input values
                 loc = ".".join(map(str, e["loc"])) or "<line>"
                 diagnostics.append(_error("outputs_record", f"{path}: line {n}: {loc}: {e['msg']}"))
+            continue
+        # A passed-in value named like an evaluator would read as the evaluator's result.
+        if clash := sorted((line.scores.keys() | line.metrics.keys()) & reserved):
+            names = ", ".join(clash)
+            diagnostics.append(
+                _error("outputs_record", f"{path}: line {n}: named like an evaluator: {names}")
+            )
+            continue
+        rows.append(_row(line))
+        lines.append(n)
+    with_repeat = [n for r, n in zip(rows, lines, strict=True) if "repeat" in r]
+    if with_repeat and len(with_repeat) != len(rows):
+        without = [n for r, n in zip(rows, lines, strict=True) if "repeat" not in r]
+        diagnostics.append(
+            _error(
+                "outputs_record",
+                f"{path}: `repeat` must be on every line or none; missing on line(s) "
+                + ", ".join(map(str, without[:5]))
+                + (f" (+{len(without) - 5} more)" if len(without) > 5 else ""),
+            )
+        )
     # Duplicates are caught here, by line number, rather than one at a time by EvalRun.
     keys = [(r["case_id"], r.get("repeat")) for r in rows]
     counts = Counter(keys)
@@ -150,7 +170,7 @@ def evaluate_outputs(
         raise InputError(
             [_error("import_run_id", f"{config}: set manifest.run_id or pass --run-id")]
         )
-    rows = read_outputs(source)
+    rows = read_outputs(source, frozenset(e.name for e in setup.evaluators))
     return write_rows(
         source,
         rows,

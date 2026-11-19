@@ -280,7 +280,7 @@ def test_byte_identical_with_repeats_and_store_output(tmp_path: Path) -> None:
     assert files(tmp_path / "cli") == files(tmp_path / "sdk")
 
 
-def test_scores_pass_through_and_clashes_fail_closed(tmp_path: Path) -> None:
+def test_scores_pass_through_and_non_finite_fails_closed(tmp_path: Path) -> None:
     lines = [
         {"case_id": "a", "status": "ok", "output": "{}", "expected": "{}", "scores": {"q": 0.5}}
     ]
@@ -291,3 +291,44 @@ def test_scores_pass_through_and_clashes_fail_closed(tmp_path: Path) -> None:
     clash = [{"case_id": "a", "status": "ok", "output": "x", "scores": {"q": float("nan")}}]
     with pytest.raises(InputError):
         evaluate_outputs(outputs(tmp_path, clash), config(tmp_path), tmp_path / "bad")
+
+
+def test_score_or_metric_named_like_an_evaluator_is_rejected(tmp_path: Path) -> None:
+    lines = [
+        {"case_id": "a", "status": "ok", "output": "{}", "scores": {"is_json": 0.5}},
+        {"case_id": "b", "status": "ok", "output": "{}", "metrics": {"concise": 1}},
+    ]
+    with pytest.raises(InputError) as exc:
+        evaluate_outputs(outputs(tmp_path, lines), config(tmp_path), tmp_path / "out")
+    messages = [d.message for d in exc.value.diagnostics]
+    assert [d.code for d in exc.value.diagnostics] == ["outputs_record", "outputs_record"]
+    assert "line 1: named like an evaluator: is_json" in messages[0]
+    assert "line 2: named like an evaluator: concise" in messages[1]
+
+
+def test_repeat_on_some_lines_only_is_reported_by_line(tmp_path: Path) -> None:
+    lines = [
+        {"case_id": "a", "status": "ok", "output": "x", "repeat": 0},
+        {"case_id": "b", "status": "ok", "output": "x"},
+    ]
+    with pytest.raises(InputError) as exc:
+        evaluate_outputs(outputs(tmp_path, lines), config(tmp_path), tmp_path / "out")
+    assert [d.code for d in exc.value.diagnostics] == ["outputs_record"]
+    assert "missing on line(s) 2" in exc.value.diagnostics[0].message
+
+
+def test_error_field_rejected_on_ok_line_even_null(tmp_path: Path) -> None:
+    lines = [{"case_id": "a", "status": "ok", "output": "x", "error": None}]
+    with pytest.raises(InputError) as exc:
+        evaluate_outputs(outputs(tmp_path, lines), config(tmp_path), tmp_path / "out")
+    assert [d.code for d in exc.value.diagnostics] == ["outputs_record"]
+
+
+def test_out_under_a_file_says_so(tmp_path: Path) -> None:
+    blocker = tmp_path / "afile"
+    blocker.write_text("x")
+    with pytest.raises(InputError) as exc:
+        evaluate_outputs(outputs(tmp_path, LINES), config(tmp_path), blocker / "sub")
+    assert [d.code for d in exc.value.diagnostics] == ["import_exists"]
+    assert "is a file, not a directory" in exc.value.diagnostics[0].message
+    assert "--overwrite" not in exc.value.diagnostics[0].message

@@ -57,11 +57,11 @@ evalgate compare evals/baseline evals/candidate --policy evalgate.yaml
 | `case_id` | Required, non-empty. |
 | `status` | `ok` or `error` (the application failed on this case). |
 | `output` | Required when `ok`, not allowed when `error`. Any JSON value; `null` counts as an output. |
-| `error` | Only with `status: error`. Optional; defaults to `"error"`. |
+| `error` | Only with `status: error` (even `null` is rejected on an `ok` line). Optional; defaults to `"error"`. |
 | `expected` | Optional. What `exact_match` and `numeric_close` compare against (`field: expected`). Absent is different from `null`: an evaluator that needs it and doesn't find it is an evaluator error. |
-| `scores`, `metrics` | Optional numbers you already have, such as a grader's score or latency, recorded as they are. A score with the same name as an evaluator is an error. |
+| `scores`, `metrics` | Optional numbers you already have, such as a grader's score or latency, recorded as they are. A score or metric named like one of your evaluators is an error (`outputs_record`), so it can't be mistaken for that evaluator's result. |
 | `metadata` | Optional object, such as `{"category": "billing"}` for [category limits](statistics.md#category-limits). |
-| `repeat` | Optional [repeat](design/repeated-runs.md) index, on every line or on none. |
+| `repeat` | Optional [repeat](design/repeated-runs.md) index, on every line or on none (`outputs_record` otherwise). |
 
 Evaluators see the case as `{"case_id", "metadata", "expected"}`: never `scores`, `metrics` or the error.
 
@@ -100,12 +100,14 @@ Fails closed, like `evalgate import`: unknown keys and wrong types are rejected,
 | `schema` | The config doesn't match the format above. |
 | `evaluators_config` | An evaluator can't be built (bad arguments, invalid or remote JSON Schema, `schema_file` problem, missing `[schema]` extra), or two share a name. |
 | `outputs_parse` | A line isn't a JSON object, has a duplicate key, or a non-finite number (`NaN`, `1e999`). |
-| `outputs_record` | A line doesn't match the table above, or repeats a `case_id` (and `repeat`). |
+| `outputs_record` | A line doesn't match the table above, repeats a `case_id` (and `repeat`), names a score or metric like an evaluator, or `repeat` is on some lines only. |
 | `no_cases` | The outputs file has no lines. |
 | `import_run_id` | No run id in the manifest or `--run-id`. |
-| `import_exists` | `--out` already holds a run; pass `--overwrite`. |
+| `import_exists` | `--out` already holds a run (pass `--overwrite`), or it or a parent is a file. |
 
-The SDK equivalent is `evalgate.evaluate_outputs(source, config, out, run_id=None, overwrite=False)`.
+Missing or unreadable files give the usual `file_missing` / `file_unreadable`.
+
+The SDK equivalent is `evalgate.evaluate_outputs(source, config, out, *, run_id=None, overwrite=False)`.
 
 ## Built-in evaluators
 

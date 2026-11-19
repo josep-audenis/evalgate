@@ -1,5 +1,6 @@
 # For `evalgate evaluate` (no Python): the same checks as make_runs.py, except that
-# answer_shape uses a JSON Schema instead of a Pydantic model (needs evalgate-ai[schema]).
+# answer_shape uses a JSON Schema instead of a Pydantic model (needs evalgate-ai[schema]),
+# and application_version is left out (the SDK runs set v1/v2). Decisions are the same.
 version: 1
 
 manifest:

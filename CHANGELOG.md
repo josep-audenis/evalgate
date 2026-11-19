@@ -12,7 +12,7 @@ All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](http
   - **`OUTPUTS.jsonl`:** one case per line: `case_id`, `status` (`ok`/`error`), `output` (when ok), and optionally `expected`, `scores`, `metrics`, `metadata`, `repeat`, `error`. Evaluators see `{case_id, metadata, expected}` as the case.
   - **`evaluators.yaml`:** a `manifest` block (as in an import mapping), `store_output`, and a list of built-ins by `type` and `name` with the same arguments as in Python. `json_schema` takes an inline `schema` or a `schema_file` inside the config's directory. `matches_model` and custom evaluators stay Python-only: the config never loads code.
   - **One engine:** the command writes through `EvalRun`, so its `run.json` and `cases.jsonl` are byte-identical to recording the same outputs with the SDK, and the evaluator versions match.
-  - **Fail closed:** unknown keys and wrong types are rejected; every bad line or config entry is reported, and nothing is written unless everything is valid (exit 2). Messages name a line and a field, never an output's value. Duplicate keys and non-finite numbers (`NaN`, `1e999`) are rejected.
+  - **Fail closed:** unknown keys and wrong types are rejected; every bad line or config entry is reported, and nothing is written unless everything is valid (exit 2). Messages name a line and a field, never an output's value. Duplicate keys, non-finite numbers (`NaN`, `1e999`), a `scores`/`metrics` name that matches an evaluator, and `repeat` on only some lines are rejected.
   - **New diagnostic codes:** `evaluators_yaml`, `evaluators_config`, `outputs_parse`, `outputs_record`.
   - The summary reports how many cases became `status: error` because an evaluator failed.
 - **`python -m evalgate.cli`** now runs the CLI (it did nothing before).
@@ -21,7 +21,7 @@ All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](http
 ### Changed
 
 - **`ImportSummary`** gains `evaluator_errors` (0 for imports). `EvalRun` gains an `evaluator_errors` counter.
-- **`import_exists` messages** (`evalgate import` and `evaluate`) now name `--overwrite`, and an `--out` that is a file says so instead of showing a raw OS error.
+- **`import_exists` messages** (`evalgate import` and `evaluate`) now name `--overwrite`, and an `--out` that is (or is under) a file says so instead of showing a raw OS error.
 
 ### Testing
 

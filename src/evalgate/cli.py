@@ -275,7 +275,7 @@ def evaluate(
     """Score OUTPUTS.jsonl with built-in evaluators and write an EvalGate run directory.
 
     Each line: case_id, status (ok/error), output (when ok), and optionally expected,
-    metadata, metrics, repeat, error. Outputs are not stored unless the config says so.
+    scores, metrics, metadata, repeat, error. Outputs are not stored unless the config says so.
     """
     try:
         summary = evaluate_outputs(outputs, config, out, run_id=run_id, overwrite=overwrite)
