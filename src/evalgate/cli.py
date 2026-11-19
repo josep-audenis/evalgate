@@ -24,6 +24,7 @@ from evalgate.io import (
     write_policy_template,
 )
 from evalgate.io.deepeval import import_deepeval
+from evalgate.io.evaluate import evaluate_outputs
 from evalgate.io.importer import import_results
 from evalgate.io.promptfoo import import_promptfoo
 from evalgate.reporting.terminal import render, render_diagnostics
@@ -254,3 +255,47 @@ def import_(
             f"[dim]not imported (unmapped): {escape(', '.join(summary.ignored_fields))}[/]",
             highlight=False,
         )
+
+
+@app.command()
+@_fail_closed
+def evaluate(
+    outputs: Path,
+    config: Annotated[
+        Path, typer.Option("--config", help="evaluators.yaml: manifest and built-in evaluators.")
+    ],
+    out: Annotated[Path, typer.Option("--out", help="Run directory to write.")],
+    run_id: Annotated[
+        str | None, typer.Option("--run-id", help="Run id (default: manifest.run_id).")
+    ] = None,
+    overwrite: Annotated[
+        bool, typer.Option("--overwrite", help="Replace an existing run.")
+    ] = False,
+) -> None:
+    """Score OUTPUTS.jsonl with built-in evaluators and write an EvalGate run directory.
+
+    Each line: case_id, status (ok/error), output (when ok), and optionally expected,
+    metadata, metrics, repeat, error. Outputs are not stored unless the config says so.
+    """
+    try:
+        summary = evaluate_outputs(outputs, config, out, run_id=run_id, overwrite=overwrite)
+    except InputError as exc:
+        render_diagnostics(exc.diagnostics, console)
+        console.print("[bold yellow]INVALID[/]: nothing was written")
+        raise typer.Exit(EXIT_INVALID) from exc
+    console.print(
+        f"[bold green]evaluated[/]: {summary.cases} cases"
+        + (f" x {summary.repeats} repeats" if summary.repeats > 1 else "")
+        + f" -> {escape(str(out))}",
+        highlight=False,
+    )
+    if summary.evaluator_errors:
+        console.print(
+            f"[bold yellow]{summary.evaluator_errors} evaluator error(s)[/]: recorded as "
+            "status error (see cases.jsonl); they count against max_execution_errors",
+            highlight=False,
+        )
+
+
+if __name__ == "__main__":  # python -m evalgate.cli
+    app()
