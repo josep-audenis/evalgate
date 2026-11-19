@@ -15,7 +15,7 @@ from rich.console import Console
 from rich.markup import escape
 
 from evalgate._version import __version__
-from evalgate.api import compare as run_compare
+from evalgate.api import compare_many
 from evalgate.comparison.history import trend as history_trend
 from evalgate.comparison.repeats import repeats_per_case
 from evalgate.io import (
@@ -36,6 +36,7 @@ from evalgate.models.history import MAX_LABEL, RunEntry
 from evalgate.reporting.terminal import (
     render,
     render_calibration,
+    render_candidates,
     render_diagnostics,
     render_history_list,
     render_run_entry,
@@ -105,17 +106,26 @@ def validate(run_dir: Path) -> None:
     console.print(f"[bold green]valid[/]: {escape(run.manifest.run_id)}, {shape}")
 
 
+def _artifact_path(path: Path | None, n: int, many: bool) -> Path | None:
+    # str.replace, never str.format: other braces and Windows backslashes stay as they are.
+    if path is None or not many:
+        return path
+    return Path(str(path).replace("{n}", str(n)))
+
+
 @app.command()
 @_fail_closed
 def compare(
     baseline: Path,
-    candidate: Path,
+    candidates: Annotated[list[Path], typer.Argument(metavar="CANDIDATE...")],
     policy: Annotated[Path, typer.Option("--policy")] = Path("evalgate.yaml"),
     json_out: Annotated[
-        Path | None, typer.Option("--json", help="Write the machine-readable report here.")
+        Path | None,
+        typer.Option("--json", help="Write the machine-readable report here ({n}: candidate)."),
     ] = None,
     html_out: Annotated[
-        Path | None, typer.Option("--report", help="Write a standalone HTML report here.")
+        Path | None,
+        typer.Option("--report", help="Write a standalone HTML report here ({n}: candidate)."),
     ] = None,
     md_out: Annotated[
         Path | None,
@@ -130,34 +140,100 @@ def compare(
     label: Annotated[
         str | None, typer.Option("--label", help="Name the history entry (e.g. a release tag).")
     ] = None,
+    summary_out: Annotated[
+        Path | None,
+        typer.Option("--summary", help="Write a JSON summary of all candidates here."),
+    ] = None,
+    rank_by: Annotated[
+        str | None,
+        typer.Option("--rank-by", help="Rank candidates on this policy metric (informational)."),
+    ] = None,
 ) -> None:
-    """Compare a candidate run against a baseline under a release policy."""
+    """Compare one or more candidate runs against a baseline under a release policy.
+
+    Exit 2 if any candidate is INVALID, else 1 if any FAILs, else 0. With several candidates,
+    artifact paths must contain {n} (the candidate's position).
+    """
+    many = len(candidates) > 1
+    usage = None
     if label is not None and history is None:
-        console.print("[bold yellow]INVALID[/]: --label only applies with --history")
-        raise typer.Exit(EXIT_INVALID)
-    if label is not None and len(label) > MAX_LABEL:
-        console.print(f"[bold yellow]INVALID[/]: --label longer than {MAX_LABEL} characters")
-        raise typer.Exit(EXIT_INVALID)
-    report = run_compare(baseline, candidate, policy)
-    # Artifacts first: a terminal rendering problem must not lose the machine-readable result.
-    if json_out:
-        write_json_report(report, json_out)
-    if html_out:
-        write_html_report(report, html_out)
-    if md_out:
-        write_markdown_report(report, md_out)
-    history_error = None
-    if history is not None:
+        usage = "--label only applies with --history"
+    elif label is not None and len(label) > MAX_LABEL:
+        usage = f"--label longer than {MAX_LABEL} characters"
+    elif many and (
+        missing := [
+            flag
+            for flag, value in (
+                ("--json", json_out),
+                ("--report", html_out),
+                ("--markdown", md_out),
+            )
+            if value is not None and "{n}" not in str(value)
+        ]
+    ):
+        usage = f"with several candidates, {', '.join(missing)} must contain {{n}}"
+    if usage is None:
         try:
-            record_report(report, history, label=label)
-        except InputError as exc:
-            history_error = exc
-    render(report, console)
+            result = compare_many(baseline, candidates, policy, rank_by=rank_by)
+        except ValueError as exc:
+            usage = str(exc)
+    if usage is not None:
+        console.print(f"[bold yellow]INVALID[/]: {escape(usage)}", highlight=False)
+        raise typer.Exit(EXIT_INVALID)
+
+    # Order: decide, artifacts (in order), summary, history, render; a failure stops writing,
+    # but everything is still rendered before exiting 2.
+    write_error: str | None = None
+    history_error: InputError | None = None
+    writes: list[tuple[Path, Callable[[], None]]] = [
+        (path, functools.partial(writer, report, path))
+        for n, report in enumerate(result.reports, 1)
+        for writer, template in (
+            (write_json_report, json_out),
+            (write_html_report, html_out),
+            (write_markdown_report, md_out),
+        )
+        if (path := _artifact_path(template, n, many)) is not None
+    ]
+    if summary_out is not None:
+        writes.append(
+            (summary_out, functools.partial(write_json_report, result.summary(), summary_out))
+        )
+    for path, write in writes:
+        try:
+            write()
+        except Exception as exc:  # any writer failure: keep the decisions visible, then exit 2
+            write_error = f"cannot write {path}: {getattr(exc, 'strerror', None) or exc!r}"
+            break
+    recorded = 0
+    if write_error is None and history is not None:
+        for report in result.reports:
+            try:
+                record_report(report, history, label=label)
+            except InputError as exc:
+                history_error = exc
+                break
+            recorded += 1
+
+    if many or rank_by is not None:
+        for n, (path, report) in enumerate(zip(candidates, result.reports, strict=True), 1):
+            console.print(f"\n[bold]candidate {n}:[/] {escape(str(path))}", highlight=False)
+            render(report, console)
+        render_candidates(result.summary(), candidates, console)
+    else:
+        render(result.reports[0], console)
+    if write_error is not None:
+        console.print(
+            f"[bold yellow]{escape(write_error)}[/]: exit 2 (see the decision above)",
+            highlight=False,
+        )
+        raise typer.Exit(EXIT_INVALID)
     if history_error is not None:  # a tool error: the decision above stands, CI must still stop
         render_diagnostics(history_error.diagnostics, console)
-        console.print("[bold yellow]history not recorded[/]: exit 2 (see the decision above)")
+        done = f"only {recorded} of {len(result.reports)} recorded" if many else "not recorded"
+        console.print(f"[bold yellow]history {done}[/]: exit 2 (see the decision above)")
         raise typer.Exit(EXIT_INVALID)
-    raise typer.Exit(EXIT_CODES[report.status])
+    raise typer.Exit(result.exit_code)
 
 
 @app.command()
