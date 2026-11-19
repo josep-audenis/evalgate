@@ -162,7 +162,7 @@ def test_two_policy_metrics_on_one_path_give_one_row(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "change",
     [
-        {"history_version": 2},
+        {"history_version": 3},
         {"id": 0},
         {"recorded_at": "2026-11-19 12:00"},
         {"recorded_at": "2026-13-45T99:99:99Z"},

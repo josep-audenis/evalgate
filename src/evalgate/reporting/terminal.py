@@ -287,3 +287,34 @@ def render_candidates(summary: MultiSummary, paths: Sequence[Path], console: Con
             highlight=False,
         )
     console.print(f"decision exit code: {summary.exit_code}", highlight=False)
+
+
+def render_failures(result: dict[str, object], console: Console) -> None:
+    pairs = result["pairs"]
+    assert isinstance(pairs, list)
+    console.print(
+        f"recurring failures over {result['entries']} {result['kind']} entries "
+        f"({len(pairs)} pair(s))",
+        highlight=False,
+    )
+    table = Table()
+    for column in ("case", "check", "failing", "of", "first", "last", "streak"):
+        numeric = column not in ("case", "check")
+        table.add_column(column, overflow="fold", justify="right" if numeric else "left")
+    for p in pairs:
+        of = "n/a" if p["of"] is None else str(p["of"])
+        table.add_row(
+            _text(p["case_id"]),
+            _text(p["check"]),
+            str(p["failing"]),
+            of,
+            str(p["first"]),
+            str(p["last"]),
+            str(p["streak"]),
+        )
+    console.print(table)
+    if result["mixed_datasets"]:
+        console.print(
+            "[yellow]warning[/] entries come from more than one dataset; filter with --dataset",
+            highlight=False,
+        )
