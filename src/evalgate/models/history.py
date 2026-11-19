@@ -102,6 +102,15 @@ class RunEntry(_Entry):
             raise ValueError("case_ids is only allowed on history_version 2 entries")
         if self.history_version == 2 and self.case_ids is None:
             raise ValueError("case_ids is required on history_version 2 run entries")
+        if self.history_version == 2 and self.case_ids is not None:
+            # What EvalGate writes, so `failing <= of` holds; a hand edit can't break it silently.
+            if self.case_ids != sorted(set(self.case_ids)):
+                raise ValueError("case_ids must be sorted and unique")
+            if not {f.case_id for f in self.failing_checks} <= set(self.case_ids):
+                raise ValueError("every failing case must be in case_ids")
+            pairs = [(f.case_id, f.check) for f in self.failing_checks]
+            if len(pairs) != len(set(pairs)):
+                raise ValueError("failing_checks has a duplicate (case_id, check) pair")
         return self
 
 

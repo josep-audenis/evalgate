@@ -204,6 +204,7 @@ def recurring_failures(
         if isinstance(entry, CompareEntry) and entry.status == "INVALID":
             continue
         identity = entry.run if isinstance(entry, RunEntry) else entry.candidate
+        # A null identity only occurs on INVALID compares, which are already excluded.
         if identity is None or not _matches_dataset(identity, dataset):
             continue
         if application is not None and identity.application != application:
@@ -219,8 +220,8 @@ def recurring_failures(
     of_known = kind == "run" and all(s is not None for s in case_sets)
     failing_at: dict[tuple[str, str], list[int]] = defaultdict(list)
     for i, entry in enumerate(selected):
-        for f in entry.failing_checks:
-            failing_at[(f.case_id, f.check)].append(i)
+        for pair in sorted({(f.case_id, f.check) for f in entry.failing_checks}):  # once per entry
+            failing_at[pair].append(i)
     pairs: list[dict[str, Any]] = []
     for (case_id, check), indexes in failing_at.items():
         if len(indexes) < min_failing:

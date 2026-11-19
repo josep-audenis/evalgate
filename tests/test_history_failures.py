@@ -85,10 +85,16 @@ def test_mixed_v1_and_v2_store_reads(tmp_path: Path) -> None:
     [
         lambda e: e | {"history_version": 1},  # case_ids on a v1 line
         lambda e: {k: v for k, v in e.items() if k != "case_ids"},  # missing on a v2 run entry
+        lambda e: e | {"case_ids": ["b", "a"]},  # not sorted
+        lambda e: e | {"case_ids": ["a", "a"]},  # not unique
+        lambda e: e | {"case_ids": ["z"]},  # failing case "a" not in case_ids
+        lambda e: e | {"failing_checks": e["failing_checks"] * 2},  # duplicate pair
+        lambda e: e | {"history_version": True},
+        lambda e: e | {"history_version": 1.0},
     ],
 )
 def test_case_ids_rules(tmp_path: Path, change: Any) -> None:
-    store = store_of(tmp_path, {"a": {"s": True}})
+    store = store_of(tmp_path, {"a": {"s": False}})
     entry = json.loads((store / "index.jsonl").read_text())
     (store / "index.jsonl").write_text(json.dumps(change(entry)) + "\n")
     with pytest.raises(InputError) as exc:
