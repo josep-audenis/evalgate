@@ -8,12 +8,14 @@ import csv
 import io
 import json
 import re
+from collections.abc import Sequence
 from math import isfinite
 from pathlib import Path
 from typing import Any, NamedTuple
 
 import yaml
 
+from evalgate.evaluators.core import Evaluator
 from evalgate.io.reader import InputError, _error, _parse, _read_text, _UniqueKeyLoader
 from evalgate.io.writer import EvalRun
 from evalgate.models import Diagnostic
@@ -31,6 +33,8 @@ class ImportSummary(NamedTuple):
     cases: int
     repeats: int
     ignored_fields: list[str]
+    # Cases recorded as `status: error` because an evaluator failed (evaluate_outputs only).
+    evaluator_errors: int = 0
 
 
 def load_mapping(path: Path) -> ImportMapping:
@@ -302,8 +306,11 @@ def write_rows(
     *,
     overwrite: bool,
     ignored_fields: list[str],
+    evaluators: Sequence[Evaluator] = (),
+    store_output: bool = False,
 ) -> ImportSummary:
-    """Write converted rows (EvalRun.record() arguments plus `status`) as a run. Shared by adapters.
+    """Write converted rows (EvalRun.record() arguments plus `status`) as a run. Shared by
+    adapters and `evaluate_outputs`, which also passes evaluators and rows with `output`/`case`.
 
     Rows carry `repeat` either on every row or on none. Nothing is committed on any error.
     """
@@ -331,18 +338,22 @@ def write_rows(
             path=out,
             overwrite=overwrite,
             repeats=repeats,
+            evaluators=evaluators,
+            store_output=store_output,
         ) as run:
             for n, row in enumerate(rows, 1):
-                kwargs = {k: row[k] for k in ("metadata", "repeat") if k in row}
+                kwargs: dict[str, Any] = {k: row[k] for k in ("metadata", "repeat") if k in row}
                 try:
                     if row["status"] == "error":
                         run.record_error(row["case_id"], row.get("error", "error"), **kwargs)
                     else:
+                        if "output" in row:
+                            kwargs |= {"output": row["output"], "case": row.get("case")}
                         run.record(
                             row["case_id"],
-                            scores=row["scores"],
-                            metrics=row["metrics"],
-                            checks=row["checks"],
+                            scores=row.get("scores"),
+                            metrics=row.get("metrics"),
+                            checks=row.get("checks"),
                             **kwargs,
                         )
                 except ValueError as exc:  # duplicates, pydantic validation
