@@ -185,18 +185,27 @@ def compare(
     # but everything is still rendered before exiting 2.
     write_error: str | None = None
     history_error: InputError | None = None
-    try:
-        for n, report in enumerate(result.reports, 1):
-            if path := _artifact_path(json_out, n, many):
-                write_json_report(report, path)
-            if path := _artifact_path(html_out, n, many):
-                write_html_report(report, path)
-            if path := _artifact_path(md_out, n, many):
-                write_markdown_report(report, path)
-        if summary_out is not None:
-            write_json_report(result.summary(), summary_out)
-    except OSError as exc:
-        write_error = f"cannot write {exc.filename or 'an artifact'}: {exc.strerror or exc}"
+    writes: list[tuple[Path, Callable[[], None]]] = [
+        (path, functools.partial(writer, report, path))
+        for n, report in enumerate(result.reports, 1)
+        for writer, template in (
+            (write_json_report, json_out),
+            (write_html_report, html_out),
+            (write_markdown_report, md_out),
+        )
+        if (path := _artifact_path(template, n, many)) is not None
+    ]
+    if summary_out is not None:
+        writes.append(
+            (summary_out, functools.partial(write_json_report, result.summary(), summary_out))
+        )
+    for path, write in writes:
+        try:
+            write()
+        except Exception as exc:  # any writer failure: keep the decisions visible, then exit 2
+            write_error = f"cannot write {path}: {getattr(exc, 'strerror', None) or exc!r}"
+            break
+    recorded = 0
     if write_error is None and history is not None:
         for report in result.reports:
             try:
@@ -204,20 +213,25 @@ def compare(
             except InputError as exc:
                 history_error = exc
                 break
+            recorded += 1
 
     if many or rank_by is not None:
         for n, (path, report) in enumerate(zip(candidates, result.reports, strict=True), 1):
             console.print(f"\n[bold]candidate {n}:[/] {escape(str(path))}", highlight=False)
             render(report, console)
-        render_candidates(result, candidates, console)
+        render_candidates(result.summary(), candidates, console)
     else:
         render(result.reports[0], console)
     if write_error is not None:
-        console.print(f"[bold yellow]{escape(write_error)}[/]: exit 2 (see the decision above)")
+        console.print(
+            f"[bold yellow]{escape(write_error)}[/]: exit 2 (see the decision above)",
+            highlight=False,
+        )
         raise typer.Exit(EXIT_INVALID)
     if history_error is not None:  # a tool error: the decision above stands, CI must still stop
         render_diagnostics(history_error.diagnostics, console)
-        console.print("[bold yellow]history not recorded[/]: exit 2 (see the decision above)")
+        done = f"only {recorded} of {len(result.reports)} recorded" if many else "not recorded"
+        console.print(f"[bold yellow]history {done}[/]: exit 2 (see the decision above)")
         raise typer.Exit(EXIT_INVALID)
     raise typer.Exit(result.exit_code)
 

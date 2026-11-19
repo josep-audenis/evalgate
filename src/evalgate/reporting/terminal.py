@@ -2,7 +2,6 @@
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from rich.console import Console
 from rich.markup import escape as e  # every input-derived string goes through this
@@ -10,11 +9,8 @@ from rich.table import Table
 
 from evalgate.models import Diagnostic, Report
 from evalgate.models.calibration import CalibrationReport
-from evalgate.models.multi import MultiSummary
-
-if TYPE_CHECKING:
-    from evalgate.api import MultiResult as MultiResultLike
 from evalgate.models.history import HistoryEntry, Identity, RunEntry
+from evalgate.models.multi import MultiSummary
 
 _TOP = 10
 _STATUS_STYLE = {"PASS": "bold green", "FAIL": "bold red", "INVALID": "bold yellow"}
@@ -240,9 +236,8 @@ def render_trend(trend: dict[str, object], console: Console) -> None:
         )
 
 
-def render_candidates(result: "MultiResultLike", paths: Sequence[Path], console: Console) -> None:
+def render_candidates(summary: MultiSummary, paths: Sequence[Path], console: Console) -> None:
     """The closing table of a multi-candidate compare. The ranking is informational only."""
-    summary: MultiSummary = result.summary()
     ranks = {i.n: i for i in summary.ranking or []}
     table = Table(
         title="candidates" + (f" ranked by {e(summary.rank_by)}" if summary.rank_by else "")
@@ -271,4 +266,4 @@ def render_candidates(result: "MultiResultLike", paths: Sequence[Path], console:
             "their means aren't directly comparable",
             highlight=False,
         )
-    console.print(f"exit code: {summary.exit_code}", highlight=False)
+    console.print(f"decision exit code: {summary.exit_code}", highlight=False)

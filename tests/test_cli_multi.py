@@ -156,3 +156,89 @@ def test_candidate_paths_are_escaped(tmp_path: Path, monkeypatch: pytest.MonkeyP
 
 def test_help_names_candidates() -> None:
     assert "CANDIDATE..." in runner.invoke(app, ["compare", "--help"]).output
+
+
+def test_single_candidate_artifacts_terminal_and_history_are_byte_identical(tmp_path: Path) -> None:
+    from io import StringIO
+
+    from rich.console import Console
+
+    from evalgate.io.history import _report_text
+    from evalgate.reporting.html import render_html
+    from evalgate.reporting.markdown import render_markdown
+    from evalgate.reporting.terminal import render
+
+    report = compare(BASE, CAND, POLICY)
+    result = run(
+        BASE, CAND, "--policy", POLICY, "--json", str(tmp_path / "r.json"),
+        "--report", str(tmp_path / "r.html"), "--markdown", str(tmp_path / "r.md"),
+        "--history", str(tmp_path / "h"),
+    )  # fmt: skip
+    assert result.exit_code == EXIT_FAIL
+    assert (tmp_path / "r.html").read_text(encoding="utf-8") == render_html(report)
+    assert (tmp_path / "r.md").read_text(encoding="utf-8") == render_markdown(report)
+    console = Console(file=StringIO(), width=80)
+    render(report, console)
+    words = console.file.getvalue().split()  # type: ignore[attr-defined]
+    assert result.output.split() == words  # same text; line wrapping depends on width
+    [entry] = read_history(tmp_path / "h")
+    import hashlib
+
+    assert entry.report_sha256 == hashlib.sha256(_report_text(report).encode()).hexdigest()  # type: ignore[union-attr]
+
+
+def test_any_writer_exception_still_renders_every_decision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import evalgate.cli as cli
+
+    def boom(report: object, path: Path) -> None:
+        raise ValueError("renderer bug")
+
+    monkeypatch.setattr(cli, "write_html_report", boom)
+    result = run(
+        BASE, CAND, BASE, "--policy", POLICY,
+        "--json", str(tmp_path / "r-{n}.json"), "--report", str(tmp_path / "r-{n}.html"),
+    )  # fmt: skip
+    assert result.exit_code == EXIT_INVALID
+    assert "candidate 2:" in result.output and "decision exit code: 1" in result.output
+    assert "cannot write" in result.output and str(tmp_path / "r-1.html") in result.output.replace(
+        "\n", ""
+    )
+    assert (tmp_path / "r-1.json").exists() and not (tmp_path / "r-2.json").exists()
+
+
+def test_history_failure_partway(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import evalgate.cli as cli
+    from evalgate.io import InputError
+    from evalgate.models import Diagnostic
+
+    real = cli.record_report
+    calls = {"n": 0}
+
+    def flaky(report: Any, store: Path, **kwargs: Any) -> Any:
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise InputError([Diagnostic(level="error", code="history_write", message="[red]boom")])
+        return real(report, store, **kwargs)
+
+    monkeypatch.setattr(cli, "record_report", flaky)
+    store = tmp_path / "h"
+    result = run(BASE, CAND, BASE, CAND, "--policy", POLICY, "--history", str(store))
+    assert result.exit_code == EXIT_INVALID
+    assert [e.id for e in read_history(store)] == [1]
+    assert "only 1 of 3 recorded" in result.output and "[red]boom" in result.output
+    assert "candidate 3:" in result.output
+
+
+def test_case_count_warning_is_printed(tmp_path: Path) -> None:
+    import shutil
+
+    errored = tmp_path / "errored"
+    shutil.copytree(QS / "baseline", errored)
+    lines = (errored / "cases.jsonl").read_text().splitlines()
+    first = json.loads(lines[0])
+    lines[0] = json.dumps({"case_id": first["case_id"], "status": "error", "error": "timeout"})
+    (errored / "cases.jsonl").write_text("\n".join(lines) + "\n")
+    result = run(BASE, BASE, str(errored), "--policy", POLICY, "--rank-by", "quality")
+    assert "different numbers of cases" in result.output.replace("\n", " ")
