@@ -1,6 +1,6 @@
 # Design: Phase 7 (local history, multiple candidates, failure groups, and the long tail)
 
-Status: **planned.** Section 2 has the 0.10.0 task breakdown. Each later release gets its own task breakdown in a plan PR when its turn comes, as was done for each Phase 6 slice.
+Status: **0.10.0 implemented** (local history, see [docs/history.md](../history.md)); later releases planned. Each later release gets its own task breakdown in a plan PR when its turn comes, as was done for each Phase 6 slice.
 
 SPEC Phase 7 lists exploration items, not commitments. This doc puts the chosen ones in order, and each release after 0.10.0 is still gated on demand: if usage shows an item isn't needed, it is dropped.
 

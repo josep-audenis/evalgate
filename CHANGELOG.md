@@ -2,6 +2,45 @@
 
 All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change behaviour; anything that does is listed under **Changed**.
 
+## 0.10.0
+
+Local history (SPEC Phase 7, first slice): keep a record of release decisions and runs, and see how metrics move across releases. It's opt-in; decisions, exit codes and the JSON report are unchanged from 0.9.0.
+
+### Added
+
+- **`evalgate compare … --history DIR [--label TEXT]`** appends a `compare` entry to a local store after the decision and the other artifacts. See [docs/history.md](docs/history.md).
+  - Every status is recorded, INVALID included.
+  - The full report is kept as `reports/<id>.json`, byte-identical to `--json`, with its SHA-256 in the entry.
+  - If the store can't be written, the decision is still printed and the command exits 2.
+- **`evalgate history add RUN_DIR`** records a `run` entry: identity, case and error counts, score and metric means, check pass rates, and failing checks (repeats collapsed). An INVALID run isn't recorded.
+- **`evalgate history list / show ID / trend PATH`**, each with `--json`.
+  - `trend` never mixes entry kinds (`--kind run|compare`).
+  - It filters with `--dataset`, `--application` and `--last`, and warns when its points span more than one dataset.
+- **SDK:** `evalgate.record_report`, `record_run`, `read_history`, `load_entry_report`; `recorded_at=` makes stores reproducible.
+- **The store:**
+  - It is append-only, strict and line-by-line. Ids increase, gaps are allowed, and the next id is the last + 1. Appends rewrite the index atomically.
+  - It never holds outputs.
+  - It never picks a baseline or feeds a policy.
+- **New diagnostic codes:** `history_missing`, `history_parse`, `history_id`, `history_record`, `history_write`.
+- **`examples/history`:** builds a store from the quickstart runs.
+
+### Changed
+
+- **Files EvalGate writes use LF line endings on every OS**, with no more CRLF on Windows: `--json`, `--report`, `--markdown`, `run.json`, `cases.jsonl` and `evalgate init`. The same inputs now give the same bytes everywhere.
+- **Atomic writes use a per-process temporary file,** and remove it if the write fails.
+
+### Testing
+
+- New tests cover:
+  - summaries computed by hand (repeats, sparse paths, compared cases only, INVALID reports);
+  - the strict entry model;
+  - id allocation after pruning;
+  - every malformed-line kind, including Unicode line separators inside strings;
+  - atomic writes and their failure paths, the report hash, and privacy sentinels;
+  - every CLI command and exit code, including a store failure after PASS and after FAIL;
+  - trend filters;
+  - an engine-isolation scan.
+
 ## 0.9.0
 
 LLM judges and judge calibration (SPEC Phase 6, third slice). Judges are optional, Python-only and stdlib-only; decisions, exit codes and the JSON report are unchanged from 0.8.0.

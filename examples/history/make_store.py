@@ -1,0 +1,38 @@
+"""Build a small local history store from the quickstart runs, then read it back.
+
+It records both quickstart runs as run entries (two releases of the same app on the same
+dataset) and their compare (FAIL), with fixed times so the store is the same on every machine.
+
+Run from the repo root:  python examples/history/make_store.py
+Then try:                evalgate history list --history examples/history/store
+                         evalgate history trend scores.quality --history examples/history/store
+                         evalgate history show 3 --history examples/history/store
+
+The store isn't committed (`store/` is regenerated): it embeds the EvalGate version in its
+stored report, so a committed copy would change with every release.
+"""
+
+import shutil
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+import evalgate
+
+HERE = Path(__file__).parent
+QUICKSTART = HERE.parent / "quickstart"
+STORE = HERE / "store"
+T0 = datetime(2026, 11, 1, 9, 0, tzinfo=UTC)
+
+shutil.rmtree(STORE, ignore_errors=True)
+evalgate.record_run(QUICKSTART / "baseline", STORE, label="v1.4.0", recorded_at=T0)
+evalgate.record_run(
+    QUICKSTART / "candidate", STORE, label="v1.5.0", recorded_at=T0 + timedelta(days=7)
+)
+report = evalgate.compare(
+    QUICKSTART / "baseline", QUICKSTART / "candidate", QUICKSTART / "evalgate.yaml"
+)
+evalgate.record_report(report, STORE, label="v1.5.0 gate", recorded_at=T0 + timedelta(days=7))
+
+for entry in evalgate.read_history(STORE):
+    status = getattr(entry, "status", "valid")
+    print(f"{entry.id}  {entry.kind:<7}  {status:<7}  {entry.label}")
