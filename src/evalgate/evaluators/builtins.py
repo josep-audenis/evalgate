@@ -77,7 +77,9 @@ def json_valid(*, name: str) -> Evaluator:
 def matches_model(model: type[BaseModel], *, name: str, version: str) -> Evaluator:
     """Passes when the output (JSON text or a Python value) validates against a Pydantic model.
 
-    `version` is required: the hashed JSON schema can't see validator code or custom types.
+    `version` is required, and must be bumped when the model changes in ways its JSON schema
+    can't show: validator code, custom types, or config such as strict mode. JSON text is parsed
+    as strictly as `json_valid` (no NaN/Infinity, no duplicate keys) before validation.
     """
     if not (isinstance(model, type) and issubclass(model, BaseModel)):
         raise TypeError("matches_model needs a pydantic BaseModel subclass")
@@ -87,11 +89,14 @@ def matches_model(model: type[BaseModel], *, name: str, version: str) -> Evaluat
 
     def fn(output: object, case: Mapping[str, Any]) -> bool:
         try:
-            if isinstance(output, str | bytes):
+            if isinstance(output, bytes):
+                output = output.decode("utf-8")
+            if isinstance(output, str):
+                _strict_json(output)
                 model.model_validate_json(output)
             else:
                 model.model_validate(output)
-        except ValidationError:
+        except (_Invalid, ValidationError, UnicodeDecodeError, RecursionError):
             return False
         return True
 
@@ -101,35 +106,61 @@ def matches_model(model: type[BaseModel], *, name: str, version: str) -> Evaluat
 def json_schema(schema: Mapping[str, Any], *, name: str) -> Evaluator:
     """Passes when the output is strict JSON valid under a JSON Schema (Draft 2020-12).
 
-    Needs the optional extra: `pip install evalgate-ai[schema]`.
+    Needs the optional extra: `pip install evalgate-ai[schema]`. Offline: only local `$ref`s
+    ("#...") are allowed; a remote one raises at construction. `format` is an annotation only
+    (not asserted), as Draft 2020-12 specifies by default.
     """
     try:
         from importlib.metadata import version as dist_version
 
         from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
+        from referencing import Registry
     except ImportError as exc:
         raise ImportError(
             "json_schema needs the optional jsonschema dependency: "
             "pip install 'evalgate-ai[schema]'"
         ) from exc
-    Draft202012Validator.check_schema(schema)  # raises SchemaError for an invalid schema
-    validator = Draft202012Validator(schema)
+    # Canonical copy: the validator and the version hash see exactly the same JSON.
+    canonical = json.loads(json.dumps(schema, allow_nan=False))
+    remote = sorted(_remote_refs(canonical))
+    if remote:
+        raise ValueError(f"json_schema allows only local $refs (offline): {remote}")
+    Draft202012Validator.check_schema(canonical)  # raises SchemaError for an invalid schema
+    # Empty registry: never fall back to jsonschema's network retrieval.
+    validator = Draft202012Validator(canonical, registry=Registry())
     major = dist_version("jsonschema").split(".")[0]
 
     def fn(output: object, case: Mapping[str, Any]) -> bool:
         try:
-            data = _strict_json(output)
-        except _Invalid:
+            return bool(validator.is_valid(_strict_json(output)))
+        except (_Invalid, RecursionError):
             return False
-        return bool(validator.is_valid(data))
 
-    return _make("json_schema", name, {"schema": dict(schema), "jsonschema": major}, fn)
+    return _make("json_schema", name, {"schema": canonical, "jsonschema": major}, fn)
+
+
+def _remote_refs(node: Any) -> list[str]:
+    if isinstance(node, list):
+        return [r for item in node for r in _remote_refs(item)]
+    if not isinstance(node, dict):
+        return []
+    found = [
+        v
+        for k, v in node.items()
+        if k in ("$ref", "$dynamicRef") and not (isinstance(v, str) and v.startswith("#"))
+    ]
+    return found + [r for v in node.values() for r in _remote_refs(v)]
 
 
 def regex(pattern: str, *, name: str, must_match: bool = True) -> Evaluator:
-    """Passes when `pattern` is found in the output (or, with `must_match=False`, is not)."""
+    """Passes when `pattern` is found in the output (or, with `must_match=False`, is not).
+
+    Uses Python's `re` (no timeout): avoid catastrophic patterns such as `(a+)+$`.
+    """
     if not isinstance(pattern, str):
         raise TypeError("regex pattern must be a string")
+    if type(must_match) is not bool:
+        raise TypeError("regex must_match must be a bool")
     compiled = re.compile(pattern)  # re.error for a bad pattern
 
     def fn(output: object, case: Mapping[str, Any]) -> bool:
@@ -143,6 +174,8 @@ def regex(pattern: str, *, name: str, must_match: bool = True) -> Evaluator:
 def _substring(factory: str, text: str, name: str, ignore_case: bool, present: bool) -> Evaluator:
     if not isinstance(text, str) or not text:
         raise ValueError(f"{factory} needs non-empty text")
+    if type(ignore_case) is not bool:
+        raise TypeError(f"{factory} ignore_case must be a bool")
     needle = text.casefold() if ignore_case else text
 
     def fn(output: object, case: Mapping[str, Any]) -> bool:
@@ -173,6 +206,8 @@ def _expected(case: Mapping[str, Any], field: str) -> Any:
 def exact_match(*, name: str, field: str = "expected", normalize: Iterable[str] = ()) -> Evaluator:
     """Passes when the output equals `case[field]`, after the chosen `normalize` steps
     ("strip", "casefold") for strings. Values of different types never match."""
+    if not isinstance(field, str) or not field:
+        raise ValueError("exact_match field must be a non-empty string")
     steps = tuple(dict.fromkeys(normalize))
     unknown = [s for s in steps if s not in _NORMALIZE]
     if isinstance(normalize, str) or unknown:
@@ -187,10 +222,21 @@ def exact_match(*, name: str, field: str = "expected", normalize: Iterable[str] 
         expected = _expected(case, field)
         if isinstance(output, str) and isinstance(expected, str):
             return norm(output) == norm(expected)
-        return type(output) is type(expected) and bool(output == expected)
+        return _same(output, expected)
 
     args = {"field": field, "normalize": sorted(steps)}
     return _make("exact_match", name, args, fn)
+
+
+def _same(a: Any, b: Any) -> bool:
+    """Equality that also requires equal types at every level (so True != 1, 1 != 1.0)."""
+    if type(a) is not type(b):
+        return False
+    if isinstance(a, dict):
+        return a.keys() == b.keys() and all(_same(a[k], b[k]) for k in a)
+    if isinstance(a, list | tuple):
+        return len(a) == len(b) and all(_same(x, y) for x, y in zip(a, b, strict=True))
+    return bool(a == b)
 
 
 def length(
@@ -243,7 +289,9 @@ def numeric_close(
     *, name: str, field: str = "expected", abs_tol: float = 0.0, rel_tol: float = 0.0
 ) -> Evaluator:
     """Passes when the output (a number or numeric string) is within tolerance of
-    `case[field]` (`math.isclose`). Unparseable output fails the check."""
+    `case[field]` (`math.isclose`). Unparseable output fails the check. Strings are parsed with
+    Python's `float()` (so " 1_000 " and "1e3" parse; "0x10" doesn't), and values are compared
+    as floats."""
     for label, tol in (("abs_tol", abs_tol), ("rel_tol", rel_tol)):
         if _number(tol) is None or isinstance(tol, str) or tol < 0:
             raise ValueError(f"numeric_close {label} must be a finite number >= 0")

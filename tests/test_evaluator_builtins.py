@@ -1,7 +1,9 @@
 """Built-in evaluators (native-evaluators design §2): pass/fail, errors, argument versioning."""
 
 import builtins
+import importlib.metadata
 import re
+import urllib.request
 from typing import Any
 
 import pytest
@@ -224,3 +226,88 @@ def test_json_schema_version_tracks_schema() -> None:
     a = json_schema({"type": "object"}, name="s").version
     assert a == json_schema({"type": "object"}, name="s").version
     assert a != json_schema({"type": "array"}, name="s").version
+
+
+# --- review follow-ups ----------------------------------------------------------------------
+
+
+def test_json_schema_never_goes_online(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("jsonschema")
+
+    def no_network(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("network access")
+
+    monkeypatch.setattr(urllib.request, "urlopen", no_network)
+    remote = {"properties": {"a": {"$ref": "https://example.com/s.json"}}}
+    with pytest.raises(ValueError, match="local"):
+        json_schema(remote, name="s")
+    with pytest.raises(ValueError, match="local"):
+        json_schema({"$dynamicRef": "other.json#x"}, name="s")
+    local = {
+        "$id": "https://example.com/root.json",
+        "$defs": {"pos": {"type": "integer", "minimum": 1}},
+        "properties": {"a": {"$ref": "#/$defs/pos"}},
+    }
+    ev = json_schema(local, name="s")
+    assert run(ev, '{"a": 2}') is True
+    assert run(ev, '{"a": 0}') is False
+
+
+def test_deeply_nested_output_fails_the_check_not_the_evaluator() -> None:
+    pytest.importorskip("jsonschema")
+    deep = "[" * 900 + "]" * 900
+    assert run(json_schema({"items": {"$ref": "#"}}, name="s"), deep) is False
+    assert run(matches_model(Answer, name="m", version="1"), "[" * 5000) is False
+
+
+def test_matches_model_parses_json_strictly() -> None:
+    class X(BaseModel):
+        x: float
+
+    ev = matches_model(X, name="m", version="1")
+    assert run(ev, '{"x": 1.5}') is True
+    assert run(ev, b'{"x": 1.5}') is True
+    assert run(ev, '{"x": NaN}') is False
+    assert run(ev, '{"x": 1, "x": 2}') is False
+    assert run(ev, bytes([255])) is False
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: regex("a", name="r", must_match="no"),  # type: ignore[arg-type]
+        lambda: regex("a", name="r", must_match=1),  # type: ignore[arg-type]
+        lambda: contains("a", name="c", ignore_case=1),  # type: ignore[arg-type]
+        lambda: exact_match(name="e", field=""),
+    ],
+)
+def test_non_bool_flags_and_empty_field_raise(make: Any) -> None:
+    with pytest.raises((TypeError, ValueError)):
+        make()
+
+
+def test_json_schema_version_includes_jsonschema_major(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("jsonschema")
+    before = json_schema({"type": "object"}, name="s").version
+    monkeypatch.setattr(importlib.metadata, "version", lambda dist: "99.0.0")
+    assert json_schema({"type": "object"}, name="s").version != before
+
+
+def test_json_schema_canonicalizes_before_hashing() -> None:
+    pytest.importorskip("jsonschema")
+    a = json_schema({"properties": {"1": {"type": "string"}}}, name="s")
+    b = json_schema({"properties": {1: {"type": "string"}}}, name="s")  # same JSON
+    assert a.version == b.version
+    assert run(a, '{"1": 2}') is run(b, '{"1": 2}') is False
+
+
+@pytest.mark.parametrize("bad", ["inf", "-inf", "nan", "1e400", 10**400, "0x10", "", None, [1]])
+def test_numeric_close_unparseable_outputs_fail(bad: Any) -> None:
+    assert run(numeric_close(name="n", abs_tol=1e9), bad, {"expected": 1}) is False
+
+
+def test_exact_match_requires_equal_types_when_nested() -> None:
+    ev = exact_match(name="e")
+    assert run(ev, {"a": [1, "x"]}, {"expected": {"a": [1, "x"]}}) is True
+    assert run(ev, {"a": True}, {"expected": {"a": 1}}) is False
+    assert run(ev, [1.0], {"expected": [1]}) is False
