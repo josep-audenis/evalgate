@@ -224,7 +224,7 @@ def render_trend(trend: dict[str, object], console: Console) -> None:
             str(p["cases"]),
         )
     console.print(table)
-    if len({p["dataset"] for p in points}) > 1:
+    if trend["mixed_datasets"]:
         console.print(
             "[yellow]warning[/] points come from more than one dataset: their means aren't "
             "comparable; filter with --dataset",

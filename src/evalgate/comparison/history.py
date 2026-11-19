@@ -6,7 +6,7 @@ reach a history entry.
 
 import math
 from statistics import fmean
-from typing import Any
+from typing import Any, Literal
 
 from evalgate.comparison.repeats import collapse
 from evalgate.models import Report, Run, RunManifest
@@ -102,17 +102,18 @@ def summarize_run(run: Run) -> dict[str, Any]:
 
 
 def _matches_dataset(identity: Identity, dataset: str | None) -> bool:
-    if dataset is None:
-        return True
-    name, _, version = dataset.partition("@")
-    return identity.dataset_id == name and (not version or identity.dataset_version == version)
+    # Exact match on the id or on "id@version"; no parsing, so an id may contain "@".
+    return dataset is None or dataset in (
+        identity.dataset_id,
+        f"{identity.dataset_id}@{identity.dataset_version}",
+    )
 
 
 def trend(
     entries: list[HistoryEntry],
     path: str,
     *,
-    kind: str = "run",
+    kind: Literal["run", "compare"] = "run",
     dataset: str | None = None,
     application: str | None = None,
     last: int | None = None,
@@ -120,10 +121,14 @@ def trend(
     """One metric path across entries of one kind, in id order. `--last` applies after
     filtering and skipping. Kinds never mix: a compare mean covers compared cases only."""
     points: list[dict[str, Any]] = []
+    datasets: list[tuple[str, str]] = []  # parallel to points; tuples, so ids may hold '@'
     skipped = 0
     for entry in entries:
+        if entry.kind != kind:
+            continue
         identity = entry.run if isinstance(entry, RunEntry) else entry.candidate
-        if entry.kind != kind or identity is None:
+        if identity is None:  # an INVALID compare whose candidate didn't load: no value
+            skipped += dataset is None and application is None  # can't match a filter
             continue
         if not _matches_dataset(identity, dataset):
             continue
@@ -139,6 +144,7 @@ def trend(
         if value is None:
             skipped += 1
             continue
+        datasets.append((identity.dataset_id, identity.dataset_version))
         points.append(
             {
                 "id": entry.id,
@@ -152,10 +158,12 @@ def trend(
         )
     if last is not None:
         points = points[-last:] if last else []
+        datasets = datasets[-last:] if last else []
     return {
         "history_version": 1,
         "path": path,
         "kind": kind,
         "points": points,
         "skipped": skipped,
+        "mixed_datasets": len(set(datasets)) > 1,
     }

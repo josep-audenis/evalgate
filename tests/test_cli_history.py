@@ -223,3 +223,95 @@ def test_help_lists_history_commands() -> None:
     out = invoke("history", "--help").output
     assert all(c in out for c in ("add", "list", "show", "trend"))
     assert "history" in invoke("--help").output
+
+
+def make_run(path: Path, *, application: str, run_id: str, dataset: str = "d") -> Path:
+    shutil.copytree(QS / "candidate", path)
+    manifest = json.loads((path / "run.json").read_text())
+    manifest |= {"application": application, "run_id": run_id, "dataset_id": dataset}
+    (path / "run.json").write_text(json.dumps(manifest))
+    return path
+
+
+def test_compare_trend_matches_the_candidates_application(tmp_path: Path) -> None:
+    base = make_run(tmp_path / "base", application="old-app", run_id="b")
+    cand = make_run(tmp_path / "cand", application="new-app", run_id="c")
+    store = tmp_path / "h"
+    policy = str(QS / "evalgate.yaml")
+    runner.invoke(
+        app, ["compare", str(base), str(cand), "--policy", policy, "--history", str(store)]
+    )
+    entries = read_history(store)
+    assert (
+        len(trend(entries, "scores.quality", kind="compare", application="new-app")["points"]) == 1
+    )
+    assert trend(entries, "scores.quality", kind="compare", application="old-app")["points"] == []
+
+
+def test_dataset_id_with_at_sign(tmp_path: Path) -> None:
+    store = tmp_path / "h"
+    record_run(make_run(tmp_path / "r", application="a", run_id="r", dataset="d@x"), store)
+    entries = read_history(store)
+    assert len(trend(entries, "scores.quality", dataset="d@x")["points"]) == 1
+    version = entries[0].run.dataset_version  # type: ignore[union-attr]
+    assert len(trend(entries, "scores.quality", dataset=f"d@x@{version}")["points"]) == 1
+    assert trend(entries, "scores.quality", dataset="d")["points"] == []
+
+
+def test_mixed_datasets_flag_uses_exact_identity(tmp_path: Path) -> None:
+    store = tmp_path / "h"
+    record_run(make_run(tmp_path / "a", application="a", run_id="a", dataset="x@y"), store)
+    record_run(make_run(tmp_path / "b", application="a", run_id="b", dataset="x"), store)
+    assert trend(read_history(store), "scores.quality")["mixed_datasets"] is True
+
+
+def test_invalid_compare_without_candidate_is_counted_as_skipped(tmp_path: Path) -> None:
+    store = tmp_path / "h"
+    compare(store, candidate=QS / "baseline")  # PASS
+    compare(store, candidate=tmp_path / "missing")  # INVALID, no candidate identity
+    result = trend(read_history(store), "scores.quality", kind="compare")
+    assert (len(result["points"]), result["skipped"]) == (1, 1)
+    out = invoke("history", "trend", "scores.quality", "--history", str(store), "--kind", "compare")
+    assert "1 point(s), 1 skipped" in out.output
+
+
+def test_hostile_run_id_and_label_in_list_and_trend(tmp_path: Path) -> None:
+    store = tmp_path / "h"
+    run = make_run(tmp_path / "r", application="[red]A[/]", run_id="[bold]R[/]")
+    record_run(run, store, label="[blink]L[/]\x1b[2J")
+    for args in (("list",), ("trend", "scores.quality")):
+        out = invoke("history", *args, "--history", str(store)).output.replace("\n", "")
+        assert "\x1b" not in out
+        assert "L[/]" in out
+
+
+def test_json_shapes(tmp_path: Path) -> None:
+    store = tmp_path / "h"
+    record_run(QS / "baseline", store, label="日本 ✓")
+    compare(store)
+    listed = invoke("history", "list", "--history", str(store), "--json").output
+    assert listed.isascii()  # escaped, so it survives any console encoding when piped
+    assert set(json.loads(listed)) == {"history_version", "entries"}
+    run_show = json.loads(invoke("history", "show", "1", "--history", str(store), "--json").output)
+    assert set(run_show) == {"entry"}
+    cmp_show = json.loads(invoke("history", "show", "2", "--history", str(store), "--json").output)
+    assert set(cmp_show) == {"entry", "report"}
+    trend_out = invoke("history", "trend", "scores.quality", "--history", str(store), "--json")
+    data = json.loads(trend_out.output)
+    assert set(data) == {"history_version", "path", "kind", "points", "skipped", "mixed_datasets"}
+    assert set(data["points"][0]) == {
+        "id",
+        "label",
+        "recorded_at",
+        "application_version",
+        "dataset",
+        "value",
+        "cases",
+    }
+    assert data["points"][0]["label"] == "日本 ✓"
+
+
+def test_long_label_is_rejected_before_comparing(tmp_path: Path) -> None:
+    result = compare(tmp_path / "h", "--label", "x" * 201)
+    assert result.exit_code == EXIT_INVALID and "decision" not in result.output
+    assert not (tmp_path / "h").exists()
