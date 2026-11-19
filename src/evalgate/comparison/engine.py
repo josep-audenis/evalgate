@@ -17,6 +17,12 @@ from evalgate.models import (
     MetricRule,
     Run,
 )
+from evalgate.models.report import (
+    CategoryGroup,
+    CheckCategoryGroup,
+    CheckGroup,
+    FailureGroups,
+)
 
 
 def _pct(x: float, base_mean: float) -> float | None:
@@ -95,7 +101,16 @@ def compare(
     newly_passing: list[CheckChange] = []
     # check -> [cases, baseline failures, candidate failures, newly failing, newly passing]
     counts: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0, 0, 0])
+    failures: list[tuple[str, str, str, str | None]] = []  # case, check, bucket, category
     for b_case, c_case in pairs:
+        category = b_case.metadata.get("category")
+        for check, passed in sorted(c_case.checks.items()):
+            if not passed:
+                was = b_case.checks.get(check)
+                bucket = "no_baseline" if was is None else "new" if was else "persistent"
+                failures.append(
+                    (c_case.case_id, check, bucket, category if isinstance(category, str) else None)
+                )
         for check in sorted(b_case.checks.keys() & c_case.checks.keys()):
             was, now = b_case.checks[check], c_case.checks[check]
             n = counts[check]
@@ -140,4 +155,55 @@ def compare(
             CategoryDelta(category=category, metric=metric, **_delta(values, confidence))
             for (category, metric), values in sorted(by_category.items())
         ],
+        failure_groups=_failure_groups(failures),
+    )
+
+
+_BUCKETS = ("new", "persistent", "no_baseline")
+
+
+def _counts(rows: list[tuple[str, str, str, str | None]]) -> dict[str, int]:
+    return {"failing": len(rows)} | {b: sum(r[2] == b for r in rows) for b in _BUCKETS}
+
+
+def _failure_groups(rows: list[tuple[str, str, str, str | None]]) -> FailureGroups:
+    """Group (case, check, bucket, category) rows; most failing first, then by key."""
+    by_check: dict[str, list[tuple[str, str, str, str | None]]] = defaultdict(list)
+    by_category: dict[str, list[tuple[str, str, str, str | None]]] = defaultdict(list)
+    by_both: dict[tuple[str, str], list[tuple[str, str, str, str | None]]] = defaultdict(list)
+    for row in rows:
+        by_check[row[1]].append(row)
+        if row[3] is not None:
+            by_category[row[3]].append(row)
+            by_both[(row[1], row[3])].append(row)
+    return FailureGroups(
+        by_check=sorted(
+            (
+                CheckGroup(check=k, cases=sorted({r[0] for r in v}), **_counts(v))
+                for k, v in by_check.items()
+            ),
+            key=lambda g: (-g.failing, g.check),
+        ),
+        by_category=sorted(
+            (
+                CategoryGroup(
+                    category=k,
+                    checks=sorted({r[1] for r in v}),
+                    cases=sorted({r[0] for r in v}),
+                    **_counts(v),
+                )
+                for k, v in by_category.items()
+            ),
+            key=lambda g: (-g.failing, g.category),
+        ),
+        by_check_category=sorted(
+            (
+                CheckCategoryGroup(
+                    check=check, category=cat, cases=sorted({r[0] for r in v}), **_counts(v)
+                )
+                for (check, cat), v in by_both.items()
+            ),
+            key=lambda g: (-g.failing, g.check, g.category),
+        ),
+        uncategorized=sum(r[3] is None for r in rows),
     )

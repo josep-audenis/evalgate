@@ -57,6 +57,7 @@ Codes:
 | `check_stats[]` | list | Per check present in both runs of a compared case: `check`, `cases`, `baseline_failures`, `candidate_failures`, `newly_failing`, `newly_passing`, `p_value` (below). Sorted by check |
 | `repeats` | object \| null | Only when a run has more than one repeat per case (below). null otherwise |
 | `categories[]` | list | Per `metadata.category` (taken from the baseline) and metric: `category`, `metric`, `cases`, `baseline_mean`, `candidate_mean`, `delta_abs`, and since 0.4.0 `delta_pct` and `ci` (same shape as `metrics[]`) |
+| `failure_groups` | object \| null | Since 0.12.0: failing checks of compared cases, grouped (below). null only in reports written before 0.12.0 |
 
 `delta_abs` is always candidate minus baseline. Whether that is better or worse depends on `direction`.
 
@@ -87,6 +88,32 @@ Repeated runs (schema `"1.1"` or later) are combined per case before comparing: 
 | `baseline_repeats`, `candidate_repeats` | int | Repeats per case in each run (1 when a run has none) |
 | `checks[]` | list | `check`, `baseline_pass_rate`, `candidate_pass_rate`: mean over compared cases of the fraction of a case's repeats that pass. Shows flakiness that the strict per-case outcome hides |
 | `metrics[]` | list | `name`, `baseline_sd`, `candidate_sd`: mean over compared cases of the SD across a case's repeats (null for a run with 1 repeat). The size of run-to-run noise |
+
+### `comparison.failure_groups`
+
+Reporting only: no policy rule reads it.
+
+**What it covers:** the candidate's failing checks on compared cases, meaning cases that are `ok` in both runs, after repeats are collapsed.
+
+**Buckets:** each failing `(case, check)` pair is in exactly one of three buckets:
+- `new`: the check passes in the baseline;
+- `persistent`: it fails in the baseline too;
+- `no_baseline`: the baseline case has no such check.
+
+Every group has `failing == new + persistent + no_baseline`.
+
+| Field | Type | Meaning |
+|---|---|---|
+| `by_check[]` | list | `check`, `failing`, `new`, `persistent`, `no_baseline`, `cases`. In this list, `failing` equals the length of `cases` |
+| `by_category[]` | list | `category`, the counts, `checks`, `cases`. `failing` counts pairs; `cases` lists distinct cases |
+| `by_check_category[]` | list | `check`, `category`, the counts, `cases` |
+| `uncategorized` | int | Failing pairs whose case has no string `metadata.category` in the baseline |
+
+**Categories** come from the baseline, as for `categories[]`.
+
+**Sorting:** lists are sorted by `failing` (descending), then by key; `cases` and `checks` are sorted.
+
+**Size:** nothing is truncated, so the lists repeat case ids that `candidate_failing_checks` already lists.
 
 ## `rules[]`
 

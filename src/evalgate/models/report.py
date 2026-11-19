@@ -106,6 +106,48 @@ class RepeatSummary(BaseModel):
     metrics: list[RepeatMetric]
 
 
+class CheckGroup(BaseModel):
+    check: str
+    failing: int  # == len(cases); kept for symmetry with the other groups
+    new: int  # passing in the baseline
+    persistent: int  # failing in the baseline too
+    no_baseline: int  # the baseline case has no such check
+    cases: list[str]
+
+
+class CategoryGroup(BaseModel):
+    category: str
+    failing: int  # failing (case, check) pairs
+    new: int
+    persistent: int
+    no_baseline: int
+    checks: list[str]
+    cases: list[str]  # distinct cases
+
+
+class CheckCategoryGroup(BaseModel):
+    check: str
+    category: str
+    failing: int
+    new: int
+    persistent: int
+    no_baseline: int
+    cases: list[str]
+
+
+class FailureGroups(BaseModel):
+    """Failing checks of compared cases, grouped. Reporting only: no rule reads this.
+
+    Every group has failing == new + persistent + no_baseline. Lists are sorted by failing
+    (descending), then key. Categories are the baseline's string `metadata.category`.
+    """
+
+    by_check: list[CheckGroup]
+    by_category: list[CategoryGroup]
+    by_check_category: list[CheckCategoryGroup]
+    uncategorized: int  # failing pairs whose case has no (string) baseline category
+
+
 class Comparison(BaseModel):
     matched_cases: int
     compared_cases: int  # matched cases with `status: ok` in both runs
@@ -120,6 +162,8 @@ class Comparison(BaseModel):
     check_stats: list[CheckStat]
     categories: list[CategoryDelta]
     repeats: RepeatSummary | None = None
+    # Since 0.12; None only in reports written before it.
+    failure_groups: FailureGroups | None = None
 
 
 class RuleResult(BaseModel):
