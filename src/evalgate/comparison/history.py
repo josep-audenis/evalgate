@@ -25,6 +25,7 @@ def summarize_report(report: Report) -> dict[str, Any]:
     """The `compare` entry fields of a report (without id, time, label and report hash)."""
     rows: dict[str, dict[str, Any]] = {}
     failing: list[dict[str, str]] = []
+    version = 2
     # An INVALID report (e.g. a policy diagnostic) can still carry a comparison: never summarise it.
     if report.comparison is not None and report.status != "INVALID":
         # Two policy metrics on one path have the same means; the first one's direction is kept.
@@ -40,15 +41,20 @@ def summarize_report(report: Report) -> dict[str, Any]:
                     "cases": m.cases,
                 },
             )
-        skip = set(report.comparison.baseline_errors)  # compared cases only
-        failing = [
-            {"case_id": c.case_id, "check": c.check}
-            for c in sorted(
-                report.comparison.candidate_failing_checks, key=lambda c: (c.case_id, c.check)
-            )
-            if c.case_id not in skip
-        ]
+        groups = report.comparison.failure_groups
+        if groups is not None:  # 0.12+: exactly the compared cases
+            pairs = {(case, g.check) for g in groups.by_check for case in g.cases}
+        else:  # a report from before 0.12: the 0.10 approximation, recorded as a v1 entry
+            skip = set(report.comparison.baseline_errors)
+            pairs = {
+                (c.case_id, c.check)
+                for c in report.comparison.candidate_failing_checks
+                if c.case_id not in skip
+            }
+            version = 1
+        failing = [{"case_id": case, "check": check} for case, check in sorted(pairs)]
     return {
+        "history_version": version,
         "kind": "compare",
         "status": report.status,
         "baseline": _identity(report.baseline),
@@ -98,6 +104,7 @@ def summarize_run(run: Run) -> dict[str, Any]:
         "means": _stats(means),
         "checks": _stats(checks),
         "failing_checks": sorted(failing, key=lambda f: (f["case_id"], f["check"])),
+        "case_ids": sorted(c.case_id for c in ok),
     }
 
 

@@ -55,9 +55,10 @@ def _parse(index: Path, text: str) -> list[HistoryEntry]:
             msg = getattr(exc, "msg", None) or str(exc)  # a position or fixed text, no content
             diagnostics.append(_error("history_parse", f"{where}: not valid JSON: {msg}"))
             continue
-        if isinstance(data, dict) and data.get("history_version") is not HISTORY_VERSION:
+        version = data.get("history_version") if isinstance(data, dict) else None
+        if isinstance(data, dict) and (type(version) is not int or version not in (1, 2)):
             what = "missing" if "history_version" not in data else "unsupported"
-            message = f"{where}: {what} history_version (expected 1)"
+            message = f"{where}: {what} history_version (expected 1 or 2)"
             diagnostics.append(_error("history_parse", message))
             continue
         try:
