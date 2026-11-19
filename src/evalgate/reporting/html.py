@@ -5,43 +5,27 @@ from html import escape
 
 from evalgate.models import CaseDelta, CheckChange, Report
 
-# EvalGate design system tokens (night default, paper when the OS is light). No web font:
-# the report stays offline, so Martian Mono renders only where it is installed.
 _CSS = """
-:root { --bg:#0c0d0c; --bg-2:#121412; --fg:#d9d6cd; --dim:#96938a; --faint:#2c2d2a;
-  --sel:#23251f; --red:#ff6b57; --green:#8fd694; --yellow:#e8c547;
-  --mono:"Martian Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; }
-@media (prefers-color-scheme: light) { :root { --bg:#e8e8e3; --bg-2:#dfdfd9; --fg:#191a17;
-  --dim:#5d5c55; --faint:#c3c3bb; --sel:#d4d4cc; --red:#922512; --green:#2a6e35;
-  --yellow:#6e5300; } }
-body { background:var(--bg); color:var(--fg); margin:0 auto; max-width:1240px;
-  padding:24px clamp(16px, 4vw, 56px) 56px; font:400 13px/1.65 var(--mono); font-stretch:87.5%;
-  -webkit-font-smoothing:antialiased; }
-::selection { background:var(--fg); color:var(--bg); }
-h1 { font-size:15px; font-weight:700; margin:0 0 18px; }
-h2 { font-size:15px; font-weight:700; letter-spacing:.02em; text-transform:uppercase;
-  margin:56px 0 18px; }
-p, ul { max-width:92ch; }
-.muted { color:var(--dim); } .better { color:var(--green); } .worse { color:var(--red); }
-.warn { color:var(--yellow); }
-.decision { font-size:clamp(28px, 6vw, 56px); font-weight:760; font-stretch:75%; line-height:1;
-  letter-spacing:-.03em; margin:0 0 8px; }
-.decision .k { font-weight:400; color:var(--dim); }
-.status { font-weight:760; } .PASS { color:var(--green); } .FAIL { color:var(--red); }
-.INVALID { color:var(--yellow); }
-.scroll { overflow-x:auto; border:1px solid var(--faint); background:var(--bg-2); }
+:root { --bg:#fff; --fg:#1b1f24; --muted:#59636e; --line:#d8dee4; --head:#f6f8fa;
+  --pass:#1a7f37; --fail:#cf222e; --invalid:#9a6700; --better:#1a7f37; --worse:#cf222e; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0d1117; --fg:#e6edf3; --muted:#9198a1;
+  --line:#30363d; --head:#161b22; --pass:#3fb950; --fail:#f85149; --invalid:#d29922;
+  --better:#3fb950; --worse:#f85149; } }
+body { background:var(--bg); color:var(--fg); margin:0 auto; max-width:1100px; padding:24px 16px;
+  font:14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+h1 { font-size:20px; margin:0 0 4px; } h2 { font-size:16px; margin:28px 0 8px; }
+.muted { color:var(--muted); } .better { color:var(--better); } .worse { color:var(--worse); }
+.status { display:inline-block; padding:2px 10px; border-radius:6px; color:#fff; font-weight:600; }
+.PASS { background:var(--pass); } .FAIL { background:var(--fail); }
+.INVALID { background:var(--invalid); }
+.scroll { overflow-x:auto; }
 table { border-collapse:collapse; width:100%; }
-th, td { border-bottom:1px solid var(--faint); padding:6px 14px; text-align:left;
+th, td { border-bottom:1px solid var(--line); padding:6px 10px; text-align:left;
   vertical-align:top; }
-tr:last-child td { border-bottom:0; }
-th { color:var(--dim); font-weight:400; }
+th { background:var(--head); font-weight:600; }
 td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
-.scroll + .scroll { margin-top:18px; }
-pre { font:inherit; line-height:1.75; background:var(--bg-2); border:1px solid var(--faint);
-  padding:12px 16px; overflow-x:auto; }
+pre { background:var(--head); padding:12px; border-radius:6px; overflow-x:auto; }
 """
-
-_EXIT = {"PASS": 0, "FAIL": 1, "INVALID": 2}
 
 
 def _num(x: float, sign: bool = False) -> str:
@@ -94,10 +78,8 @@ def render_html(report: Report) -> str:
     title = f"{b.run_id} → {c.run_id}" if b and c else "comparison"
     parts.append(
         f"<h1>EvalGate: {escape(title)}</h1>"
-        f'<p class="decision"><span class="k">decision: </span>'
-        f'<span class="status {report.status}">{report.status}</span></p>'
-        f'<p class="muted">exit {_EXIT[report.status]} · '
-        f"evalgate {escape(report.evalgate_version)}</p>"
+        f'<p><span class="status {report.status}">{report.status}</span> '
+        f'<span class="muted">evalgate {escape(report.evalgate_version)}</span></p>'
     )
 
     failed = [r for r in report.rules if not r.passed]
@@ -118,7 +100,7 @@ def render_html(report: Report) -> str:
                     ["level", "code", "message"],
                     (
                         [
-                            f'<span class="{"worse" if d.level == "error" else "warn"}">'
+                            f'<span class="{"worse" if d.level == "error" else "muted"}">'
                             f"{d.level}</span>",
                             escape(d.code),
                             escape(d.message),
