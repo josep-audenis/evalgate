@@ -121,7 +121,7 @@ def json_schema(schema: Mapping[str, Any], *, name: str) -> Evaluator:
             "pip install 'evalgate-ai[schema]'"
         ) from exc
     # Canonical copy: the validator and the version hash see exactly the same JSON.
-    canonical = json.loads(json.dumps(schema, allow_nan=False))
+    canonical = json.loads(json.dumps(dict(schema), allow_nan=False))
     remote = sorted(_remote_refs(canonical))
     if remote:
         raise ValueError(f"json_schema allows only local $refs (offline): {remote}")
