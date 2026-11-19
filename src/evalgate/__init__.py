@@ -4,6 +4,7 @@ from evalgate._version import __version__
 from evalgate.api import compare
 from evalgate.io import EvalRun, InputError
 from evalgate.io.deepeval import import_deepeval
+from evalgate.io.evaluate import evaluate_outputs
 from evalgate.io.importer import ImportSummary, import_results
 from evalgate.io.promptfoo import import_promptfoo
 from evalgate.models import Report
@@ -15,6 +16,7 @@ __all__ = [
     "Report",
     "__version__",
     "compare",
+    "evaluate_outputs",
     "import_deepeval",
     "import_promptfoo",
     "import_results",
