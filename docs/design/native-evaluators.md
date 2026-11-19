@@ -1,6 +1,6 @@
 # Design: native evaluators (SPEC Phase 6)
 
-Status: **0.8.0 implemented** (SDK, built-ins and `evalgate evaluate`; see [docs/evaluators.md](../evaluators.md)). The 0.9.0 judge slice is not implemented yet. Decisions on the former open questions are in section 8.
+Status: **0.8.0 implemented** (SDK, built-ins and `evalgate evaluate`; see [docs/evaluators.md](../evaluators.md)). The 0.9.0 judge slice is planned in section 11, not implemented yet. Decisions on the former open questions are in section 8.
 
 ## Problem
 
@@ -112,7 +112,7 @@ Today a pair is INVALID when `evaluator_version` differs. Native evaluators make
 
 Only after the deterministic slices ship and get used. It meets the SPEC constraint like this:
 
-- It ships as `evalgate-ai[judge]`, with **no provider SDK dependency**. The user passes `complete: Callable[[str], str]` (their own client). EvalGate never makes network calls. The user's callable does.
+- It needs **no provider SDK dependency** (section 11 drops the planned `[judge]` extra, since the judge is stdlib-only). The user passes `complete: Callable[[str], str]` (their own client). EvalGate never makes network calls. The user's callable does.
 - `judge(rubric, complete, *, model_id, kind="score"|"check")`. A rubric is a versioned prompt template with a strict output format, so a reply that doesn't parse is an evaluator error, which makes the case `status: error`, never a default score.
 - Its version is `rubric.version + model_id`, so changing the judge model or rubric makes a comparison INVALID through `evaluator_set_mismatch`. `model_id` is a label the user declares: EvalGate can't verify that `complete` actually calls that model. Keeping them in sync, and testing for drift, is on the user.
 - **Cache:** a local directory keyed by `sha256(model_id, rubric version, rendered prompt)`, storing only the parsed result, never the prompt or the reply. It makes reruns cheap and reproducible. It's opt-in (`cache_dir=`), because a cached judge hides model drift by design.
@@ -295,3 +295,111 @@ evaluators:
 - Add a CHANGELOG 0.8.0 entry and bump the version to 0.8.0. Mark the design doc's status as 0.8.0 implemented.
 
 **Out of 0.8.0:** CSV outputs files (JSONL only), `matches_model` and custom code from YAML, LLM judges (0.9.0), and pairwise judging (deferred).
+
+## 11. 0.9.0 task breakdown
+
+The goal is LLM judges as ordinary evaluators: a versioned rubric, a `judge()` factory that calls the user's own client, an opt-in result cache, and `evalgate calibrate` to measure a judge against human labels. There are five tasks, each landing with its own tests, and the pre-push checks must stay green.
+
+```
+T1 rubric + judge() ──▶ T2 cache ─────────────┐
+                                              ├──▶ T5 docs + example + release
+T3 calibration engine ──▶ T4 calibrate CLI ───┘
+```
+
+T1 and T3 don't depend on each other.
+
+### Decisions this plan makes (defaults; object before T1 starts)
+
+- **No `[judge]` extra.** The judge needs nothing beyond the stdlib: templates use `string.Template`, replies are parsed with `json`, and the model client is the user's callable. An extra with no dependencies would only confuse `pip install`. `judge` and `Rubric` live in `evalgate.evaluators` next to the built-ins. Nothing in `comparison/`, `policies/` or `validation.py` imports them, so the engine is unchanged. This replaces the "ships as `evalgate-ai[judge]`" line in section 5.
+- **SDK-only.** A judge needs a callable, so `evaluators.yaml` and `evalgate evaluate` don't get a `judge` type. The CLI stays offline.
+- **`string.Template`, not `str.format`.** `str.format` allows attribute and index access (`{output.__class__}`), so a template could reach object internals. `Template.substitute` only replaces `$name`. A placeholder the case doesn't have raises, which makes that case an evaluator error.
+- **One strict reply format, no custom parsers.** The whole reply, stripped, must be one JSON object: `{"pass": true|false}` for a check, `{"score": <number>}` for a score. An optional `"reason"` string is allowed and discarded. Anything else gives an evaluator error, and so `status: error`: prose around the JSON, a Markdown fence, extra keys, `NaN`, a duplicate key, a bool score, or a score outside the rubric's `scale`. Users who need another format write a custom `@score` that calls their client. That keeps the parser versionable.
+- **The version covers the template.** `judge(...).version` is `<rubric.version>+<model_id>+<sha256 of (impl, kind, template, scale)>[:12]`. Editing the template, the scale or the model therefore makes the comparison INVALID even if the user forgets to bump `rubric.version`, and the readable prefix shows *what* changed in `evaluator_set_mismatch` messages.
+- **The cache stores values only.** Its key is `sha256(impl, model_id, the version hash above, rendered prompt)`. An entry is `<key>.json` holding `{"value": true}` or `{"value": 0.8}`, written atomically (temp file + `os.replace`). It never holds the prompt, the reply or the reason. An unreadable or malformed entry counts as a miss and is overwritten, never trusted. Evaluator errors are not cached.
+- **No concurrency or retries in EvalGate.** `record()` stays sequential. Retries, rate limits and timeouts belong to the user's `complete`. An exception from `complete` is an evaluator error, as for any evaluator. Parallel judging is deferred until someone needs it.
+- **Calibration works on any check or score**, not only judges. Labels name the checks and scores they grade. A label name that no case in the run has is an error (likely a typo). Run results without labels are ignored, so a run can mix judges and deterministic evaluators.
+- **Calibration has no decision.** `evalgate calibrate` exits 0 when it produced a report, and 2 on bad input. It never exits 1, and its figures never feed a policy.
+- **Repeats are pooled.** With repeats, each repeat is compared with the case's single label, so `n` counts case × repeat pairs. Cases with `status: error` are excluded and counted, never treated as agreement or disagreement.
+
+### API shape
+
+```python
+from evalgate.evaluators import Rubric, judge
+
+FAITHFUL = Rubric(
+    version="1",
+    kind="check",
+    template=(
+        "Question: $question\nReference: $expected\nAnswer: $output\n"
+        'Is the answer faithful to the reference? Reply with only {"pass": true} or {"pass": false}.'
+    ),
+)
+HELPFUL = Rubric(version="2", kind="score", scale=(1, 5), template="...")
+
+def complete(prompt: str) -> str:  # the user's own client; EvalGate never calls the network
+    return client.messages.create(...).content[0].text
+
+EVALUATORS = [
+    judge(FAITHFUL, complete, name="faithful", model_id="claude-sonnet-5-5", cache_dir=".judge-cache"),
+    judge(HELPFUL, complete, name="helpful", model_id="claude-sonnet-5-5"),
+]
+```
+
+`$output` is the output (a `str` is inserted as is, anything else as canonical JSON). Every other `$name` is the top-level `case[name]`, inserted the same way.
+
+**T1. Rubric and `judge()`** (`evaluators/judge.py`, `evaluators/__init__.py`)
+- `Rubric` is a frozen dataclass: `version`, `kind` (`check` / `score`) and `template`, plus `scale: tuple[float, float]`, which is required for scores and forbidden for checks.
+- It is validated at construction:
+  - the template must parse as a `string.Template`, and use `$output` at least once;
+  - `scale` must be finite with min < max.
+- `judge(rubric, complete, *, name, model_id, cache_dir=None)` returns an `Evaluator`. The function renders the prompt, calls `complete`, checks that the reply is a `str` and parses it under the strict format.
+- Tests:
+  - a pass and a fail for a check, and a score inside the scale;
+  - each malformed reply from the decision above gives `status: error` through `EvalRun`. That covers a fence, prose, extra keys, a bool score, `NaN`, out of scale, a non-str reply and a duplicate key;
+  - a missing placeholder gives an evaluator error;
+  - `complete` raising gives an evaluator error, and its text appears nowhere in `cases.jsonl`;
+  - the version changes when the template, scale, kind, model or rubric version changes, and stays the same otherwise;
+  - `$output` with a dict output is inserted as canonical JSON;
+  - no network is used: socket creation is patched to raise, and a fake `complete` passes.
+
+**T2. Cache** (`evaluators/judge.py`)
+- `cache_dir=` works as the decision above describes. The directory is created on first write.
+- Tests:
+  - a second run with a `complete` that raises still gives the same results from the cache, so a hit equals a fresh call;
+  - changing the template, model or prompt input is a miss;
+  - a corrupted entry is a miss and is rewritten;
+  - an evaluator error is not cached;
+  - no cache file contains the prompt, the reply or a test string from the reason;
+  - writes are atomic: no `*.tmp` files are left after a run.
+
+**T3. Calibration engine** (`calibration.py` pure, `models/calibration.py`, `io/labels.py`)
+- **Labels file:** `labels.jsonl`, one strict line per case: `case_id`, plus `checks: {name: bool}` and/or `scores: {name: number}`. It uses the strict JSON reading from `io/evaluate.py` (duplicate keys, non-finite numbers and unknown fields are rejected, and errors are reported by line without values). A duplicate `case_id` is an error.
+- **`calibrate(run, labels) -> CalibrationReport`,** with entries sorted by name. Each entry has `name`, `kind`, `n`, `errors` (excluded cases with `status: error`), `missing` (labelled cases absent from the run, or present without that name), and:
+  - checks: `accuracy` and Cohen's `kappa`. `kappa` is `null` when expected agreement is 1, for example when both raters always say true;
+  - scores: `mae` and Spearman `spearman`, using average ranks for ties. `spearman` is `null` when either side is constant or n < 2.
+- **New diagnostic codes (exit 2):**
+  - `labels_parse` / `labels_record` for a bad labels line;
+  - `labels_unknown` for a label name that no case in the run has;
+  - `labels_empty` when no labelled pair remains.
+  - The run is validated with `validate_run` first, so an INVALID run is never calibrated.
+- **Tests:** every figure is checked against small examples computed by hand in the test file. That includes ties for Spearman, κ = 1, κ = 0, negative κ, and the undefined cases. Also: pooled repeats, error exclusion, missing counts, and that the output order is deterministic.
+
+**T4. `evalgate calibrate` CLI and report** (`cli.py`, `reporting/terminal.py`)
+- `evalgate calibrate RUN_DIR --labels labels.jsonl [--json OUT]`, wrapped in `_fail_closed`.
+  - Its terminal table has one row per name, showing n, errors, missing and the figures, with "n/a" for `null`.
+  - A warning prints when n < 30 for any row: an advisory, as with `SMALL_SAMPLE`.
+  - `--json` writes `CalibrationReport.model_dump_json` with a stable key order.
+- Tests:
+  - exit 0 with a report, and exit 2 for each new code and for an INVALID run;
+  - the JSON output round-trips;
+  - no output text appears in the terminal or JSON output (checked with `store_output=True` and a test string);
+  - the help text lists the command.
+
+**T5. Docs, example and release** (new `docs/judges.md`, `docs/report-format.md`, `examples/judge/`, `README.md`, `CHANGELOG.md`, `_version.py`)
+- **Docs page:**
+  - the rubric format, the reply contract, versioning, the cache and its drift caveat, `model_id` being a declared label, privacy, and calibrate;
+  - guidance: temperature 0, repeats for noisy judges, recalibrating when the model changes.
+- **Example:** `examples/judge/` uses a deterministic fake `complete` (keyword rules, no network), so it runs offline in tests. It has a baseline and candidate pair that FAILs for a documented reason, a `labels.jsonl`, and the committed `calibrate` output. Register it in `test_examples.py` with a generator-parity check.
+- **Release:** add the new codes to `report-format.md`, a CHANGELOG 0.9.0 entry, and bump the version to 0.9.0. Mark this doc as 0.9.0 implemented. Mark SPEC Phase 6 done except pairwise judging.
+
+**Out of 0.9.0:** a `[judge]` extra, provider SDKs or any built-in client, judges from YAML, custom reply parsers, concurrency and retries, pairwise preference judging (section 6), and a calibration threshold in the policy.
