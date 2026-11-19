@@ -5,10 +5,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
-from evalgate import evaluate_outputs
+from evalgate import __version__, evaluate_outputs
 from evalgate.cli import EXIT_INVALID, app
 from evalgate.io import load_run
 
@@ -103,4 +104,23 @@ def test_python_dash_m_runs_the_cli() -> None:
     result = subprocess.run(
         [sys.executable, "-m", "evalgate.cli", "--version"], capture_output=True, text=True
     )
-    assert result.returncode == 0 and result.stdout.startswith("evalgate ")
+    assert result.returncode == 0 and result.stdout.strip() == f"evalgate {__version__}"
+
+
+def test_unexpected_error_exits_2(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(*args: object, **kwargs: object) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("evalgate.cli.evaluate_outputs", boom)
+    src, cfg = setup(tmp_path, GOOD)
+    result = runner.invoke(
+        app, ["evaluate", str(src), "--config", str(cfg), "--out", str(tmp_path / "out")]
+    )
+    assert result.exit_code == EXIT_INVALID and "internal error" in result.output
+
+
+def test_out_path_markup_is_not_interpreted(tmp_path: Path) -> None:
+    src, cfg = setup(tmp_path, GOOD)
+    out = tmp_path / "[red]out"
+    result = runner.invoke(app, ["evaluate", str(src), "--config", str(cfg), "--out", str(out)])
+    assert result.exit_code == 0 and "[red]out" in result.output
