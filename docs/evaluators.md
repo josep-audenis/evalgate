@@ -50,7 +50,7 @@ All of them are checks, and each needs a `name=`, which becomes the check's name
 | `not_contains(text, name=, ignore_case=False)` | The output doesn't contain `text`. |
 | `exact_match(name=, field="expected", normalize=())` | The output equals `case[field]`. For strings, `normalize` can apply `"strip"` and/or `"casefold"` first. Other values must have the same type at every level (`True` doesn't match `1`). |
 | `length(name=, min=None, max=None, unit="chars")` | The output string's length is within the bounds. `unit="words"` counts whitespace-separated words. |
-| `numeric_close(name=, field="expected", abs_tol=0, rel_tol=0)` | The output (a number, or a string Python's `float()` parses) is within tolerance of `case[field]`, as `math.isclose` defines it. |
+| `numeric_close(name=, field="expected", abs_tol=0, rel_tol=0)` | The output (a number, or a string Python's `float()` parses) is within tolerance of `case[field]`, as `math.isclose` defines it. `case[field]` must be a number: a missing field or a string such as `"3"` is an evaluator error. |
 
 Notes:
 - `json_schema` works offline: only local `$ref`s (`"#..."`) are allowed, and a schema with a remote reference is rejected when the evaluator is created. `format` is an annotation only, as Draft 2020-12 specifies by default.

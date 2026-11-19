@@ -14,6 +14,8 @@ Native evaluators (SPEC Phase 6, first slice): EvalGate can now score outputs it
   - **Fail closed:** an evaluator that raises or returns the wrong type records the case as `status: error` (`evaluator <name> failed`, with no exception text), never as a pass. A bad output just fails the check.
   - **Versions:** `run.json` declares each evaluator's name and version. A built-in's version includes a hash of its arguments, so changing `length(max=...)` changes it.
   - `case` (the dataset record) is passed to evaluators and never written.
+  - Duplicate evaluator names raise when `EvalRun` is created; an evaluator name that clashes with a score or check you pass yourself raises when recording.
+  - Lower-level API: `Evaluator`, `apply` and `Applied` are exported too.
 - **Stored outputs.** `EvalRun(..., store_output=True)` writes each `ok` case's output to `cases.jsonl` as an `output` field, for debugging. Outputs must be JSON and finite. They never appear in reports or affect decisions.
 - **New diagnostics:** `evaluator_set_mismatch` and `evaluator_set_partial` (follow `comparison.require_same_evaluator`: INVALID by default), and `evaluators_schema` (INVALID).
 - **`examples/native-evaluators`:** a candidate whose average quality improves while one answer stops being valid JSON.
@@ -24,6 +26,7 @@ Native evaluators (SPEC Phase 6, first slice): EvalGate can now score outputs it
 - **`evaluators` in `run.json` is now a reserved name.** A 1.0 or 1.1 run that used it as custom metadata is INVALID (`evaluators_schema`), or rejected when loaded if it isn't a name-to-version map.
 - **`output` on a case is now a typed field** (any JSON value). Run files that already used it load and decide unchanged, but in the SDK, `CaseResult(output=...)` with a value that isn't JSON now raises.
 - **`repeat_schema`** now says "1.1 or later".
+- **`EvalRun(evaluators=..., store_output=...)`** are now real parameters (0.6 stored any extra keyword as run metadata), and `store_output` must be a bool.
 
 ### Testing
 

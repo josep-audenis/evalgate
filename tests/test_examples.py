@@ -1,9 +1,8 @@
 """Bundled examples must keep producing the outcome the docs describe."""
 
 import json
+import runpy
 import shutil
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -52,7 +51,7 @@ def test_native_evaluators_example_matches_its_generator(tmp_path: Path) -> None
     # The committed run dirs must be exactly what make_runs.py writes (same evaluator versions).
     src = EXAMPLES / "native-evaluators"
     shutil.copy(src / "make_runs.py", tmp_path / "make_runs.py")
-    subprocess.run([sys.executable, str(tmp_path / "make_runs.py")], check=True)
+    runpy.run_path(str(tmp_path / "make_runs.py"))  # in-process: uses the evalgate under test
     for run in ("baseline", "candidate"):
         assert json.loads((tmp_path / run / "run.json").read_text()) == json.loads(
             (src / run / "run.json").read_text()

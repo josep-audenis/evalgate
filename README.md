@@ -166,7 +166,7 @@ with EvalRun(
         run.record(case["id"], output=agent(case), case=case)
 ```
 
-Results become ordinary checks you can require in your policy. Built-ins cover JSON, Pydantic models, JSON Schema, regex, substrings, exact and numeric matches and length; `@check` / `@score` wrap your own functions. Changing an evaluator or its arguments changes its version, so comparing runs scored differently is INVALID. Outputs aren't stored unless you pass `store_output=True`, and never appear in reports. See [native evaluators](https://github.com/josep-audenis/evalgate/blob/main/docs/evaluators.md).
+Results become ordinary checks you can require in your policy. Built-ins cover JSON, Pydantic models, JSON Schema, regex, substrings, exact and numeric matches and length; `@check` / `@score` wrap your own functions. A built-in's version includes its arguments; for your own evaluators (and `matches_model`) you bump `version=`. Comparing runs scored differently is INVALID. Outputs aren't stored unless you pass `store_output=True`, and never appear in reports. See [native evaluators](https://github.com/josep-audenis/evalgate/blob/main/docs/evaluators.md).
 
 ## How decisions are made
 
@@ -211,6 +211,7 @@ Version 0.7.0 (alpha). See the [changelog](https://github.com/josep-audenis/eval
 
 Not yet included:
 - dedicated adapters for tools other than promptfoo and DeepEval; the generic importer covers their CSV/JSON exports
+- native evaluators from the CLI or a YAML file (planned for 0.8), and optional LLM judges (planned for 0.9)
 
 Planned work is in the [spec](https://github.com/josep-audenis/evalgate/blob/main/docs/SPEC.md).
 

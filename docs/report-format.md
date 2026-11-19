@@ -75,7 +75,7 @@ One-sided exact McNemar test of whether the candidate fails the check more often
 
 ### `comparison.repeats`
 
-Repeated runs (schema `"1.1"`) are combined per case before comparing: metric values are averaged over a case's repeats, a check passes only if it passes in every repeat, and any errored repeat makes the case an error. All other fields therefore describe **cases**, never repeats, and repeats never increase the sample size. See [design/repeated-runs.md](design/repeated-runs.md).
+Repeated runs (schema `"1.1"` or later) are combined per case before comparing: metric values are averaged over a case's repeats, a check passes only if it passes in every repeat, and any errored repeat makes the case an error. All other fields therefore describe **cases**, never repeats, and repeats never increase the sample size. See [design/repeated-runs.md](design/repeated-runs.md).
 
 | Field | Type | Meaning |
 |---|---|---|
