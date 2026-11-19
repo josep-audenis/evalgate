@@ -2,6 +2,31 @@
 
 All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change behaviour; anything that does is listed under **Changed**.
 
+## 0.8.0
+
+`evalgate evaluate`: score outputs with the built-in evaluators from a YAML config, without writing Python (SPEC Phase 6, second slice). Decisions, exit codes and the JSON report are unchanged from 0.7.0.
+
+### Added
+
+- **`evalgate evaluate OUTPUTS.jsonl --config evaluators.yaml --out DIR [--run-id ID] [--overwrite]`** (also `evalgate.evaluate_outputs`). See [docs/evaluators.md](docs/evaluators.md#without-python-evalgate-evaluate).
+  - **`OUTPUTS.jsonl`:** one case per line: `case_id`, `status` (`ok`/`error`), `output` (when ok), and optionally `expected`, `scores`, `metrics`, `metadata`, `repeat`, `error`. Evaluators see `{case_id, metadata, expected}` as the case.
+  - **`evaluators.yaml`:** a `manifest` block (as in an import mapping), `store_output`, and a list of built-ins by `type` and `name` with the same arguments as in Python. `json_schema` takes an inline `schema` or a `schema_file` inside the config's directory. `matches_model` and custom evaluators stay Python-only: the config never loads code.
+  - **One engine:** the command writes through `EvalRun`, so its `run.json` and `cases.jsonl` are byte-identical to recording the same outputs with the SDK, and the evaluator versions match.
+  - **Fail closed:** unknown keys and wrong types are rejected; every bad line or config entry is reported, and nothing is written unless everything is valid (exit 2). Messages name a line and a field, never an output's value. Duplicate keys and non-finite numbers (`NaN`, `1e999`) are rejected.
+  - **New diagnostic codes:** `evaluators_yaml`, `evaluators_config`, `outputs_parse`, `outputs_record`.
+  - The summary reports how many cases became `status: error` because an evaluator failed.
+- **`python -m evalgate.cli`** now runs the CLI (it did nothing before).
+- **`examples/native-evaluators`** gains `evaluators.yaml`, `answer.schema.json` and `outputs-*.jsonl`, the no-Python version of the same scenario.
+
+### Changed
+
+- **`ImportSummary`** gains `evaluator_errors` (0 for imports). `EvalRun` gains an `evaluator_errors` counter.
+- **`import_exists` messages** (`evalgate import` and `evaluate`) now name `--overwrite`, and an `--out` that is a file says so instead of showing a raw OS error.
+
+### Testing
+
+- New tests cover the config loader (including hand-written YAML edge cases), the outputs reader, the CLI, and the example via the CLI path. A test checks that the CLI and the SDK write byte-identical files, also with repeats and `store_output`.
+
 ## 0.7.0
 
 Native evaluators (SPEC Phase 6, first slice): EvalGate can now score outputs itself while you record a run. It's optional; runs without native evaluators get the same decisions as in 0.6.0, and are written byte for byte the same.

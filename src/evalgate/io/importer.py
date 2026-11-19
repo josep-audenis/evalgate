@@ -361,6 +361,11 @@ def write_rows(
             if diagnostics:
                 raise InputError(diagnostics)  # inside `with`: nothing is committed
     except FileExistsError as exc:
-        raise InputError([_error("import_exists", str(exc))]) from exc
+        # Shared by the CLI and the SDK, so name both spellings of the option.
+        if out.exists() and not out.is_dir():
+            message = f"{out} is a file, not a run directory"
+        else:
+            message = f"{out} already holds a run; pass --overwrite (overwrite=True in Python)"
+        raise InputError([_error("import_exists", message)]) from exc
 
     return summary._replace(evaluator_errors=run.evaluator_errors)

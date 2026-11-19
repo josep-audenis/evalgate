@@ -1,6 +1,6 @@
 # Design: native evaluators (SPEC Phase 6)
 
-Status: **0.7.0 implemented** (SDK and built-ins; see [docs/evaluators.md](../evaluators.md)). The 0.8.0 CLI and 0.9.0 judge slices are not implemented yet. Decisions on the former open questions are in section 8.
+Status: **0.8.0 implemented** (SDK, built-ins and `evalgate evaluate`; see [docs/evaluators.md](../evaluators.md)). The 0.9.0 judge slice is not implemented yet. Decisions on the former open questions are in section 8.
 
 ## Problem
 

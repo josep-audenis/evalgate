@@ -52,6 +52,8 @@ def test_native_evaluators_example_matches_its_generator(tmp_path: Path) -> None
     src = EXAMPLES / "native-evaluators"
     shutil.copy(src / "make_runs.py", tmp_path / "make_runs.py")
     runpy.run_path(str(tmp_path / "make_runs.py"))  # in-process: uses the evalgate under test
+    for name in ("outputs-baseline.jsonl", "outputs-candidate.jsonl"):
+        assert (tmp_path / name).read_text() == (src / name).read_text()
     for run in ("baseline", "candidate"):
         assert json.loads((tmp_path / run / "run.json").read_text()) == json.loads(
             (src / run / "run.json").read_text()
@@ -59,3 +61,20 @@ def test_native_evaluators_example_matches_its_generator(tmp_path: Path) -> None
         got = [json.loads(x) for x in (tmp_path / run / "cases.jsonl").read_text().splitlines()]
         want = [json.loads(x) for x in (src / run / "cases.jsonl").read_text().splitlines()]
         assert got == want
+
+
+def test_native_evaluators_example_via_cli_config(tmp_path: Path) -> None:
+    # The no-Python path (outputs-*.jsonl + evaluators.yaml) reaches the same decision.
+    pytest.importorskip("jsonschema")
+    d = EXAMPLES / "native-evaluators"
+    for run in ("baseline", "candidate"):
+        evalgate.evaluate_outputs(
+            d / f"outputs-{run}.jsonl", d / "evaluators.yaml", tmp_path / run, run_id=run
+        )
+    report = evalgate.compare(tmp_path / "baseline", tmp_path / "candidate", d / "evalgate.yaml")
+    assert report.status == "FAIL"
+    assert {r.rule for r in report.rules if not r.passed} == {
+        "checks.required.is_json",
+        "checks.required.answer_shape",
+        "checks.max_new_failures",
+    }

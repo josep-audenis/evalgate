@@ -278,3 +278,16 @@ def test_byte_identical_with_repeats_and_store_output(tmp_path: Path) -> None:
                 case={"case_id": "a", "metadata": {}, "expected": 1},
             )
     assert files(tmp_path / "cli") == files(tmp_path / "sdk")
+
+
+def test_scores_pass_through_and_clashes_fail_closed(tmp_path: Path) -> None:
+    lines = [
+        {"case_id": "a", "status": "ok", "output": "{}", "expected": "{}", "scores": {"q": 0.5}}
+    ]
+    evaluate_outputs(outputs(tmp_path, lines), config(tmp_path), tmp_path / "out")
+    (case,) = load_run(tmp_path / "out").cases
+    assert case.scores == {"q": 0.5} and case.checks["is_json"] is True
+
+    clash = [{"case_id": "a", "status": "ok", "output": "x", "scores": {"q": float("nan")}}]
+    with pytest.raises(InputError):
+        evaluate_outputs(outputs(tmp_path, clash), config(tmp_path), tmp_path / "bad")

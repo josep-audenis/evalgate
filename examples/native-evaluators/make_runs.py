@@ -3,6 +3,9 @@
 The candidate answers better on average, but one answer comes back wrapped in a Markdown code
 fence, so it is no longer valid JSON. EvalGate's `is_json` check catches it.
 
+It also writes outputs-baseline.jsonl / outputs-candidate.jsonl, the same outputs in the format
+`evalgate evaluate` reads (see evaluators.yaml), for the no-Python path.
+
 Run from the repo root:  python examples/native-evaluators/make_runs.py
 Then compare:            evalgate compare examples/native-evaluators/baseline \
                              examples/native-evaluators/candidate \
@@ -50,6 +53,18 @@ def agent(case_id: str, version: str) -> tuple[str, float]:
 
 
 for run_id, version in (("baseline", "v1"), ("candidate", "v2")):
+    lines = [
+        {
+            "case_id": case["id"],
+            "status": "ok",
+            "output": agent(case["id"], version)[0],
+            "scores": {"quality": agent(case["id"], version)[1]},
+            "metadata": {"category": case["category"]},
+        }
+        for case in DATASET
+    ]
+    with open(HERE / f"outputs-{run_id}.jsonl", "w", encoding="utf-8", newline="\n") as f:
+        f.writelines(json.dumps(line) + "\n" for line in lines)
     with EvalRun(
         run_id,
         dataset="support-suite",

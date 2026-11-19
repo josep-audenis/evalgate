@@ -38,7 +38,7 @@ def _unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 class OutputLine(BaseModel):
-    """One line of OUTPUTS.jsonl."""
+    """One line of OUTPUTS.jsonl. `scores`/`metrics` are passed through like EvalRun.record()."""
 
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
@@ -48,6 +48,7 @@ class OutputLine(BaseModel):
     error: str | None = None
     expected: JsonValue = None
     metadata: dict[str, Any] = {}
+    scores: dict[str, Number] = {}  # e.g. from your own grader; joined with evaluator results
     metrics: dict[str, Number] = {}
     repeat: Annotated[int, Field(ge=0)] | None = None
 
@@ -72,7 +73,12 @@ def _row(line: OutputLine) -> dict[str, Any]:
         case: dict[str, Any] = {"case_id": line.case_id, "metadata": line.metadata}
         if "expected" in line.model_fields_set:
             case["expected"] = line.expected
-        row |= {"output": line.output, "case": case, "metrics": line.metrics}
+        row |= {
+            "output": line.output,
+            "case": case,
+            "scores": line.scores,
+            "metrics": line.metrics,
+        }
     if line.metadata:
         row["metadata"] = line.metadata
     if line.repeat is not None:

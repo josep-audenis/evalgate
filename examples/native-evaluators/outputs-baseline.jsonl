@@ -1,0 +1,5 @@
+{"case_id": "refund-001", "status": "ok", "output": "{\"answer\": \"Here is how to resolve refund-001.\", \"confidence\": 0.8}", "scores": {"quality": 0.8}, "metadata": {"category": "billing"}}
+{"case_id": "refund-002", "status": "ok", "output": "{\"answer\": \"Here is how to resolve refund-002.\", \"confidence\": 0.8}", "scores": {"quality": 0.8}, "metadata": {"category": "billing"}}
+{"case_id": "account-001", "status": "ok", "output": "{\"answer\": \"Here is how to resolve account-001.\", \"confidence\": 0.8}", "scores": {"quality": 0.8}, "metadata": {"category": "account"}}
+{"case_id": "account-002", "status": "ok", "output": "{\"answer\": \"Here is how to resolve account-002.\", \"confidence\": 0.8}", "scores": {"quality": 0.8}, "metadata": {"category": "account"}}
+{"case_id": "shipping-001", "status": "ok", "output": "{\"answer\": \"Here is how to resolve shipping-001.\", \"confidence\": 0.8}", "scores": {"quality": 0.8}, "metadata": {"category": "shipping"}}

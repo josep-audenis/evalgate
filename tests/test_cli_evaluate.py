@@ -124,3 +124,18 @@ def test_out_path_markup_is_not_interpreted(tmp_path: Path) -> None:
     out = tmp_path / "[red]out"
     result = runner.invoke(app, ["evaluate", str(src), "--config", str(cfg), "--out", str(out)])
     assert result.exit_code == 0 and "[red]out" in result.output
+
+
+def test_existing_run_and_file_messages(tmp_path: Path) -> None:
+    src, cfg = setup(tmp_path, GOOD)
+    out = tmp_path / "out"
+    args = ["evaluate", str(src), "--config", str(cfg), "--out", str(out)]
+    assert runner.invoke(app, args).exit_code == 0
+    again = runner.invoke(app, args)
+    assert "--overwrite" in again.output
+    file_out = tmp_path / "a_file"
+    file_out.write_text("x")
+    result = runner.invoke(
+        app, ["evaluate", str(src), "--config", str(cfg), "--out", str(file_out)]
+    )
+    assert result.exit_code == EXIT_INVALID and "is a file" in result.output
