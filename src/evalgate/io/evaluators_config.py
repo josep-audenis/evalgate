@@ -34,10 +34,15 @@ def _schema_file(config_path: Path, ref: str) -> dict[str, object]:
     path = (base / ref).resolve()
     if not path.is_relative_to(base):  # no reading files outside the config's directory
         raise ValueError(f"schema_file {ref!r} is outside the config's directory")
+    if not path.is_file():
+        raise ValueError(f"schema_file {ref!r} not found")
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        raise ValueError(f"schema_file {ref!r} not found") from None
+        # As strict as inline YAML: duplicate keys and NaN/Infinity are errors, not dropped.
+        data = json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=builtins._unique,
+            parse_constant=builtins._reject_constant,
+        )
     except (OSError, UnicodeDecodeError, ValueError) as exc:
         raise ValueError(f"schema_file {ref!r} is not readable JSON: {exc}") from None
     if not isinstance(data, dict):
@@ -84,9 +89,14 @@ def load_evaluators_config(path: Path) -> EvaluatorsSetup:
     for i, spec in enumerate(config.evaluators):
         try:
             evaluators.append(_build(spec, path))
+        except AssertionError:
+            raise  # an internal bug, not a config problem
         except Exception as exc:  # factory argument errors, invalid schema, missing extra
             where = f"{path}: evaluators.{i} ({spec.name})"
-            diagnostics.append(_error("evaluators_config", f"{where}: {exc}"))
+            # jsonschema errors carry a short `message`; str() dumps the whole metaschema.
+            message = getattr(exc, "message", None)
+            detail = message if isinstance(message, str) else exc
+            diagnostics.append(_error("evaluators_config", f"{where}: {detail}"))
     names = [e.name for e in config.evaluators]
     dupes = sorted({n for n in names if names.count(n) > 1})
     if dupes:

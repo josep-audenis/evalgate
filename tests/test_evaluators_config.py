@@ -117,15 +117,21 @@ def test_schema_errors(tmp_path: Path, evaluators: list[dict[str, Any]], top: An
         [{"type": "json_schema", "name": "a", "schema_file": "../outside.json"}],
         [{"type": "json_schema", "name": "a", "schema_file": "bad.json"}],
         [{"type": "json_schema", "name": "a", "schema_file": "list.json"}],
+        [{"type": "json_schema", "name": "a", "schema_file": "dupe.json"}],
+        [{"type": "json_schema", "name": "a", "schema_file": "nan.json"}],
+        [{"type": "json_schema", "name": "a", "schema_file": "."}],
     ],
 )
 def test_build_errors(tmp_path: Path, evaluators: list[dict[str, Any]]) -> None:
-    pytest.importorskip("jsonschema")
+    if any(e.get("type") == "json_schema" for e in evaluators):
+        pytest.importorskip("jsonschema")
     sub = tmp_path / "cfg"
     sub.mkdir()
     (tmp_path / "outside.json").write_text("{}")
     (sub / "bad.json").write_text("{not json")
     (sub / "list.json").write_text("[]")
+    (sub / "dupe.json").write_text('{"type": "object", "type": "string"}')
+    (sub / "nan.json").write_text('{"maximum": NaN}')
     with pytest.raises(InputError) as exc:
         load_evaluators_config(write(sub, evaluators))
     assert codes(exc) == {"evaluators_config"}
@@ -175,3 +181,55 @@ def test_missing_file(tmp_path: Path) -> None:
     with pytest.raises(InputError) as exc:
         load_evaluators_config(tmp_path / "nope.yaml")
     assert codes(exc) == {"file_missing"}
+
+
+def test_absolute_schema_file_outside_is_rejected(tmp_path: Path) -> None:
+    pytest.importorskip("jsonschema")
+    outside = tmp_path / "outside.json"
+    outside.write_text("{}")
+    sub = tmp_path / "cfg"
+    sub.mkdir()
+    path = write(sub, [{"type": "json_schema", "name": "a", "schema_file": str(outside)}])
+    with pytest.raises(InputError) as exc:
+        load_evaluators_config(path)
+    assert codes(exc) == {"evaluators_config"}
+
+
+def test_invalid_schema_message_is_short(tmp_path: Path) -> None:
+    pytest.importorskip("jsonschema")
+    path = write(tmp_path, [{"type": "json_schema", "name": "a", "schema": {"type": "nonsense"}}])
+    with pytest.raises(InputError) as exc:
+        load_evaluators_config(path)
+    assert "\n" not in exc.value.diagnostics[0].message
+
+
+HEADER = "version: 1\nmanifest: {dataset_id: d, dataset_version: v, evaluator_version: e}\n"
+
+
+@pytest.mark.parametrize(
+    "entry,ok",
+    [
+        ("{type: numeric_close, name: n, abs_tol: 1}", True),  # YAML int for a float: fine
+        ("{type: contains, name: c, text: hi, ignore_case: yes}", True),  # YAML 1.1 bool
+        ("{type: length, name: l, max: 3.0}", False),
+        ("{type: length, name: l, max: true}", False),
+        ("{type: contains, name: c, text: yes}", False),  # parsed as a bool, not text
+        ("{type: exact_match, name: e, normalize: strip}", False),
+        ("{type: numeric_close, name: n, abs_tol: .nan}", False),
+    ],
+)
+def test_hand_written_yaml(tmp_path: Path, entry: str, ok: bool) -> None:
+    path = tmp_path / "evaluators.yaml"
+    path.write_text(HEADER + f"evaluators:\n  - {entry}\n")
+    if ok:
+        load_evaluators_config(path)
+    else:
+        with pytest.raises(InputError):
+            load_evaluators_config(path)
+
+
+def test_yaml_int_tolerance_matches_python_version(tmp_path: Path) -> None:
+    path = tmp_path / "evaluators.yaml"
+    path.write_text(HEADER + "evaluators:\n  - {type: numeric_close, name: n, abs_tol: 1}\n")
+    (ev,) = load_evaluators_config(path).evaluators
+    assert ev.version == numeric_close(name="n", abs_tol=1.0).version
