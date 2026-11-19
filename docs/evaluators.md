@@ -2,7 +2,7 @@
 
 EvalGate normally compares results that another tool already scored. If you don't have an eval framework, or only need a few simple checks, EvalGate can score outputs itself while you record a run. Doing so is optional: everything else works the same with precomputed results.
 
-Evaluators run before the comparison, inside the Python SDK. Each one turns an output into a check (`true`/`false`) or a score, written into `cases.jsonl` like any other value. Comparison, policies, statistics and reports don't change.
+Evaluators run before the comparison, inside the Python SDK or with [`evalgate evaluate`](#without-python-evalgate-evaluate). Each one turns an output into a check (`true`/`false`) or a score, written into `cases.jsonl` like any other value. Comparison, policies, statistics and reports don't change.
 
 ```python
 from pydantic import BaseModel
@@ -35,6 +35,79 @@ checks:
 ```
 
 A runnable version is in [examples/native-evaluators](../examples/native-evaluators): the candidate's average quality improves, but one answer comes back wrapped in a Markdown code fence, so `is_json` fails and the release is blocked.
+
+## Without Python: `evalgate evaluate`
+
+Write one JSON line per case to an outputs file, list the evaluators in a YAML file, and convert:
+
+```bash
+evalgate evaluate outputs.jsonl --config evaluators.yaml --out evals/candidate
+evalgate compare evals/baseline evals/candidate --policy evalgate.yaml
+```
+
+`outputs.jsonl`, one object per line:
+
+```json
+{"case_id": "refund-001", "status": "ok", "output": "{\"answer\": \"...\"}", "expected": "...", "scores": {"quality": 0.86}, "metadata": {"category": "billing"}}
+{"case_id": "refund-002", "status": "error", "error": "timeout"}
+```
+
+| Field | |
+|---|---|
+| `case_id` | Required, non-empty. |
+| `status` | `ok` or `error` (the application failed on this case). |
+| `output` | Required when `ok`, not allowed when `error`. Any JSON value; `null` counts as an output. |
+| `error` | Only with `status: error` (even `null` is rejected on an `ok` line). Optional; defaults to `"error"`. An `error` line takes only `case_id`, `status`, `error`, `metadata` and `repeat`. |
+| `expected` | Optional. What `exact_match` and `numeric_close` compare against (`field: expected`). Absent is different from `null`: an evaluator that needs it and doesn't find it is an evaluator error. |
+| `scores`, `metrics` | Optional numbers you already have, such as a grader's score or latency, recorded as they are. A score or metric named like one of your evaluators is an error (`outputs_record`), so it can't be mistaken for that evaluator's result. |
+| `metadata` | Optional object, such as `{"category": "billing"}` for [category limits](statistics.md#category-limits). |
+| `repeat` | Optional [repeat](design/repeated-runs.md) index, on every line or on none (`outputs_record` otherwise). |
+
+Evaluators see the case as `{"case_id", "metadata", "expected"}`: never `scores`, `metrics` or the error.
+
+`evaluators.yaml`:
+
+```yaml
+version: 1
+manifest:                      # the same block as an import mapping
+  dataset_id: support-suite
+  dataset_version: v3
+  evaluator_version: native-v1
+  # run_id, application, application_version: optional; --run-id overrides run_id
+store_output: false            # optional; true stores each output in cases.jsonl
+evaluators:
+  - type: json_valid
+    name: is_json
+  - type: json_schema
+    name: answer_shape
+    schema_file: answer.schema.json   # inside this config's directory; or inline `schema:`
+  - type: length
+    name: concise
+    max: 300
+  - type: not_contains
+    name: no_ai_disclaimer
+    text: as an AI
+    ignore_case: true
+```
+
+Each entry has a `type` (any built-in below except `matches_model`, which needs a Python class) and a `name`, plus that evaluator's arguments with the same names as in Python. Custom evaluators are Python-only: the config never loads code. The versions are the same as the Python API's, so a run written by `evalgate evaluate` and one written by `EvalRun` with the same evaluators compare as equal, and the files are byte-identical.
+
+Fails closed, like `evalgate import`: unknown keys and wrong types are rejected, every bad line or config entry is reported, and nothing is written unless everything is valid (exit 2). Messages give a line number and a field name, never an output's value. Evaluator errors are not input errors: those cases are written as `status: error`, and the command says how many there were.
+
+| Code | Meaning |
+|---|---|
+| `evaluators_yaml` | The config isn't valid YAML (or has a duplicate key). |
+| `schema` | The config doesn't match the format above. |
+| `evaluators_config` | An evaluator can't be built (bad arguments, invalid or remote JSON Schema, `schema_file` problem, missing `[schema]` extra), or two share a name. |
+| `outputs_parse` | A line isn't a JSON object, has a duplicate key, or a non-finite number (`NaN`, `1e999`). |
+| `outputs_record` | A line doesn't match the table above, repeats a `case_id` (and `repeat`), names a score or metric like an evaluator, or `repeat` is on some lines only. |
+| `no_cases` | The outputs file has no lines. |
+| `import_run_id` | No run id in the manifest or `--run-id`. |
+| `import_exists` | `--out` already holds a run (pass `--overwrite`), or it or a parent is a file. |
+
+Missing or unreadable files give the usual `file_missing` / `file_unreadable`.
+
+The SDK equivalent is `evalgate.evaluate_outputs(source, config, out, *, run_id=None, overwrite=False)`.
 
 ## Built-in evaluators
 

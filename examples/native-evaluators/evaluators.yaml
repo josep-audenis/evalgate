@@ -1,0 +1,24 @@
+# For `evalgate evaluate` (no Python): the same checks as make_runs.py, except that
+# answer_shape uses a JSON Schema instead of a Pydantic model (needs evalgate-ai[schema]),
+# and application_version is left out (the SDK runs set v1/v2). Decisions are the same.
+version: 1
+
+manifest:
+  dataset_id: support-suite
+  dataset_version: v3
+  evaluator_version: native-v1
+  application: support-agent
+
+evaluators:
+  - type: json_valid
+    name: is_json
+  - type: json_schema
+    name: answer_shape
+    schema_file: answer.schema.json
+  - type: length
+    name: concise
+    max: 300
+  - type: not_contains
+    name: no_ai_disclaimer
+    text: as an AI
+    ignore_case: true
