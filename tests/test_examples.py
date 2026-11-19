@@ -93,3 +93,18 @@ def test_judge_example_matches_its_generator(tmp_path: Path) -> None:
         for name in ("run.json", "cases.jsonl"):
             assert (tmp_path / run / name).read_text() == (src / run / name).read_text()
     assert (tmp_path / "calibration.json").read_text() == (src / "calibration.json").read_text()
+
+
+def test_history_example_builds_its_store(tmp_path: Path) -> None:
+    (tmp_path / "history").mkdir()
+    shutil.copy(EXAMPLES / "history" / "make_store.py", tmp_path / "history" / "make_store.py")
+    shutil.copytree(EXAMPLES / "quickstart", tmp_path / "quickstart")
+    runpy.run_path(str(tmp_path / "history" / "make_store.py"))
+    entries = evalgate.read_history(tmp_path / "history" / "store")
+    assert [(e.id, e.kind, e.label) for e in entries] == [
+        (1, "run", "v1.4.0"),
+        (2, "run", "v1.5.0"),
+        (3, "compare", "v1.5.0 gate"),
+    ]
+    assert getattr(entries[2], "status", None) == "FAIL"
+    assert entries[0].recorded_at == "2026-11-01T09:00:00Z"

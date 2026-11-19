@@ -5,6 +5,7 @@ Exit codes: 0 = PASS, 1 = FAIL (policy violated), 2 = INVALID input or tool erro
 
 import functools
 import json
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Literal, ParamSpec
@@ -78,6 +79,12 @@ def main(
     version: Annotated[bool, typer.Option("--version", callback=_version, is_eager=True)] = False,
 ) -> None:
     """Compare evaluation runs and decide whether a candidate is releasable."""
+    # A run_id like "日本" printed to a cp1252 pipe would raise UnicodeEncodeError mid-report and
+    # turn a PASS into exit 2: replace unencodable characters. Here, not at import, so importing
+    # evalgate.cli never touches the caller's streams.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
 
 
 @app.command()
