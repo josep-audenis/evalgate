@@ -194,7 +194,7 @@ def test_failed_replace_leaves_no_temp_file(
     real = judge_module.os.replace
 
     def fail(src: Any, dst: Any) -> None:  # only the cache's rename fails, not EvalRun's
-        if "cache" in str(dst):
+        if Path(dst).parent == cache:
             raise PermissionError("locked")
         real(src, dst)
 
@@ -223,3 +223,32 @@ def test_cache_holds_values_only_and_no_temp_files(tmp_path: Path) -> None:
 def test_bad_cache_dir_type() -> None:
     with pytest.raises(TypeError):
         judge(CHECK, Counter(), name="j", model_id="m", cache_dir=42)  # type: ignore[arg-type]
+
+
+def test_surrogate_prompt_gives_the_same_result_with_the_cache(tmp_path: Path) -> None:
+    lone = chr(0xDCFF)
+    plain = results(tmp_path / "a", judge(CHECK, Counter(), name="j", model_id="m"), [lone])
+    cached = judge(CHECK, Counter(), name="j", model_id="m", cache_dir=tmp_path / "cache")
+    assert results(tmp_path / "b", cached, [lone]) == plain == [{"j": True}]
+
+
+def test_failed_write_closes_and_removes_the_temp_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sys
+
+    judge_module = sys.modules["evalgate.evaluators.judge"]
+
+    def fail(fd: int, data: bytes) -> int:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(judge_module.os, "write", fail)
+    cache = tmp_path / "cache"
+    evaluator = judge(CHECK, Counter(), name="j", model_id="m", cache_dir=cache)
+    assert results(tmp_path / "a", evaluator, ["x"]) == [{"j": True}]
+    assert list(cache.iterdir()) == []
+
+
+def test_empty_cache_dir_is_rejected() -> None:
+    with pytest.raises(ValueError):
+        judge(CHECK, Counter(), name="j", model_id="m", cache_dir="")

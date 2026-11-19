@@ -142,8 +142,10 @@ def _cache_write(path: Path, value: bool | float) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(_canonical({"value": value}))
+        try:
+            os.write(fd, _canonical({"value": value}).encode())
+        finally:
+            os.close(fd)  # before unlink/replace: Windows can't remove an open file
         os.replace(tmp, path)
         tmp = None
     except OSError:
@@ -180,6 +182,8 @@ def judge(
         raise TypeError("complete must be callable: (prompt: str) -> str")
     if not isinstance(model_id, str) or not model_id:
         raise ValueError(f"model_id must be a non-empty string, got {model_id!r}")
+    if cache_dir is not None and not str(cache_dir):  # "" would be the current directory
+        raise ValueError("cache_dir must not be empty")
     cache = None if cache_dir is None else Path(cache_dir)
     template = Template(rubric.template)
     identifiers = template.get_identifiers()
@@ -192,7 +196,10 @@ def judge(
         prompt = template.substitute(values)
         entry = None
         if cache is not None:
-            key = hashlib.sha256(_canonical([version, prompt]).encode()).hexdigest()
+            # surrogatepass: lone surrogates in a prompt must hash, not turn a result into an error
+            key = hashlib.sha256(
+                _canonical([version, prompt]).encode("utf-8", "surrogatepass")
+            ).hexdigest()
             entry = cache / f"{key}.json"
             if (hit := _cache_read(entry, rubric)) is not None:
                 return hit
