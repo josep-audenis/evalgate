@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.2",
+  "run_id": "baseline",
+  "dataset_id": "support-suite",
+  "dataset_version": "v3",
+  "evaluator_version": "native-v1",
+  "application": "support-agent",
+  "application_version": "v1",
+  "evaluators": {
+    "answer_shape": "1+0f3bd0dd27e0",
+    "concise": "1+0bdd705d70e3",
+    "is_json": "1+f0d7efc93621",
+    "no_ai_disclaimer": "1+637140447d50"
+  }
+}
