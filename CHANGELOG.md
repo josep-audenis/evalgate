@@ -28,6 +28,7 @@ Local history (SPEC Phase 7, first slice): keep a record of release decisions an
 
 - **Files EvalGate writes use LF line endings on every OS**, with no more CRLF on Windows: `--json`, `--report`, `--markdown`, `run.json`, `cases.jsonl` and `evalgate init`. The same inputs now give the same bytes everywhere.
 - **Atomic writes use a per-process temporary file,** and remove it if the write fails.
+- **The CLI no longer crashes** when printing characters that the console encoding can't show (for example a non-ASCII `run_id` piped to a file on Windows). They are replaced, and the exit code is the decision's.
 
 ### Testing
 

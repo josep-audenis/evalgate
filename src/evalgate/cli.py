@@ -5,6 +5,7 @@ Exit codes: 0 = PASS, 1 = FAIL (policy violated), 2 = INVALID input or tool erro
 
 import functools
 import json
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Literal, ParamSpec
@@ -46,6 +47,11 @@ EXIT_PASS, EXIT_FAIL, EXIT_INVALID = 0, 1, 2
 EXIT_CODES = {"PASS": EXIT_PASS, "FAIL": EXIT_FAIL, "INVALID": EXIT_INVALID}
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
+# A run_id like "日本" printed to a cp1252 pipe would raise UnicodeEncodeError mid-report and turn
+# a PASS into exit 2; replace unencodable characters instead.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(errors="replace")
 console = Console()
 
 P = ParamSpec("P")

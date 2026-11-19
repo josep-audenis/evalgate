@@ -68,20 +68,22 @@ From Python: `evalgate.record_report(report, dir, label=...)`, `evalgate.record_
 
 About `trend`:
 - **Kinds are never mixed** (`--kind` defaults to `run`). A compare's mean covers only the cases both runs completed, while a run's mean covers all of its ok cases, so the two aren't the same number.
-- **Datasets:** filter with `--dataset`. A trend that spans more than one dataset prints a warning, because means over different datasets aren't comparable.
+- **Datasets:** filter with `--dataset`, which matches the dataset id exactly, or the exact `id@version`. A trend whose points span more than one dataset prints a warning (`mixed_datasets` in JSON), because means over different datasets aren't comparable. The check uses the points left after `--last`.
 - **Filters:** `--application` matches the run's application, or the candidate's application for compares. `--last N` applies after filtering.
 - **Skips:** entries without the path are skipped and counted.
 
 **JSON output:**
 - `list --json` gives `{"history_version": 1, "entries": [...]}`.
-- `trend --json` gives `{"history_version": 1, "path", "kind", "points": [{id, label, recorded_at, application_version, dataset, value, cases}], "skipped"}`.
-- `show --json` gives `{"entry": …}`, plus `"report"` for a compare entry.
+- `trend --json` gives `{"history_version": 1, "path", "kind", "points": [{id, label, recorded_at, application_version, dataset, value, cases}], "skipped", "mixed_datasets"}`. An INVALID compare whose candidate didn't load counts as skipped when no filter is given.
+- JSON output escapes non-ASCII characters, so it survives any console encoding when piped.
+- `show --json` gives `{"entry": …}` for a run entry and `{"entry": …, "report": …}` for a compare entry.
 
 ## Exit codes and failures
 
 **History commands:**
 - They exit 0, or 2 on any problem; they never exit 1.
-- Diagnostics: `history_missing` (no store), `history_parse` (a bad line), `history_id` (an unknown id, or a stored report that is missing or doesn't match its entry), `history_record` (an INVALID or unsummarisable run, or a label that's too long) and `history_write` (an OS error).
+- In Python, a `recorded_at` without a timezone raises `ValueError`.
+- Diagnostics: `history_missing` (no store), `history_parse` (a bad line, or an index that can't be read), `history_id` (an unknown id, or a stored report that is missing or doesn't match its entry), `history_record` (an INVALID or unsummarisable run, or a label that's too long) and `history_write` (an OS error).
 - A run directory that doesn't load reports the usual codes (`run_dir_missing`, `file_missing`, …).
 
 **`compare --history`:**
