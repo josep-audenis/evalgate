@@ -4,9 +4,10 @@ Exit codes: 0 = PASS, 1 = FAIL (policy violated), 2 = INVALID input or tool erro
 """
 
 import functools
+import json
 from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated, ParamSpec
+from typing import Annotated, Literal, ParamSpec
 
 import typer
 from rich.console import Console
@@ -14,6 +15,7 @@ from rich.markup import escape
 
 from evalgate._version import __version__
 from evalgate.api import compare as run_compare
+from evalgate.comparison.history import trend as history_trend
 from evalgate.comparison.repeats import repeats_per_case
 from evalgate.io import (
     InputError,
@@ -25,10 +27,19 @@ from evalgate.io import (
 )
 from evalgate.io.deepeval import import_deepeval
 from evalgate.io.evaluate import evaluate_outputs
+from evalgate.io.history import load_entry_report, read_history, record_report, record_run
 from evalgate.io.importer import import_results
 from evalgate.io.labels import calibrate_run
 from evalgate.io.promptfoo import import_promptfoo
-from evalgate.reporting.terminal import render, render_calibration, render_diagnostics
+from evalgate.models.history import MAX_LABEL, RunEntry
+from evalgate.reporting.terminal import (
+    render,
+    render_calibration,
+    render_diagnostics,
+    render_history_list,
+    render_run_entry,
+    render_trend,
+)
 from evalgate.validation import validate_run
 
 EXIT_PASS, EXIT_FAIL, EXIT_INVALID = 0, 1, 2
@@ -105,8 +116,21 @@ def compare(
             "--markdown", help="Write a Markdown summary here (PR comment, $GITHUB_STEP_SUMMARY)."
         ),
     ] = None,
+    history: Annotated[
+        Path | None,
+        typer.Option("--history", help="Also record the result in this local history store."),
+    ] = None,
+    label: Annotated[
+        str | None, typer.Option("--label", help="Name the history entry (e.g. a release tag).")
+    ] = None,
 ) -> None:
     """Compare a candidate run against a baseline under a release policy."""
+    if label is not None and history is None:
+        console.print("[bold yellow]INVALID[/]: --label only applies with --history")
+        raise typer.Exit(EXIT_INVALID)
+    if label is not None and len(label) > MAX_LABEL:
+        console.print(f"[bold yellow]INVALID[/]: --label longer than {MAX_LABEL} characters")
+        raise typer.Exit(EXIT_INVALID)
     report = run_compare(baseline, candidate, policy)
     # Artifacts first: a terminal rendering problem must not lose the machine-readable result.
     if json_out:
@@ -115,7 +139,17 @@ def compare(
         write_html_report(report, html_out)
     if md_out:
         write_markdown_report(report, md_out)
+    history_error = None
+    if history is not None:
+        try:
+            record_report(report, history, label=label)
+        except InputError as exc:
+            history_error = exc
     render(report, console)
+    if history_error is not None:  # a tool error: the decision above stands, CI must still stop
+        render_diagnostics(history_error.diagnostics, console)
+        console.print("[bold yellow]history not recorded[/]: exit 2 (see the decision above)")
+        raise typer.Exit(EXIT_INVALID)
     raise typer.Exit(EXIT_CODES[report.status])
 
 
@@ -323,6 +357,117 @@ def calibrate(
     if json_out:
         write_json_report(report, json_out)
     render_calibration(report, console)
+
+
+history_app = typer.Typer(
+    no_args_is_help=True,
+    help="Local history of compares and runs: record, list, show, trend (docs/history.md).",
+)
+app.add_typer(history_app, name="history")
+
+HistoryDir = Annotated[Path, typer.Option("--history", help="History store directory.")]
+Last = Annotated[int | None, typer.Option("--last", min=0, help="Only the last N.")]
+AsJson = Annotated[bool, typer.Option("--json", help="Print JSON instead of a table.")]
+
+
+def _invalid(exc: InputError, what: str) -> typer.Exit:
+    render_diagnostics(exc.diagnostics, console)
+    console.print(f"[bold yellow]INVALID[/]: {what}")
+    return typer.Exit(EXIT_INVALID)
+
+
+def _echo_json(data: object) -> None:
+    typer.echo(json.dumps(data, indent=2))  # ASCII: survives any console encoding
+
+
+@history_app.command("add")
+@_fail_closed
+def history_add(
+    run_dir: Path,
+    history: HistoryDir,
+    label: Annotated[str | None, typer.Option("--label", help="Name the entry.")] = None,
+) -> None:
+    """Record a summary of a valid run (means, pass rates, failing checks; never outputs)."""
+    try:
+        entry = record_run(run_dir, history, label=label)
+    except InputError as exc:
+        raise _invalid(exc, "not recorded") from exc
+    console.print(f"[bold green]recorded[/] run entry {entry.id} in {escape(str(history))}")
+
+
+@history_app.command("list")
+@_fail_closed
+def history_list(history: HistoryDir, last: Last = None, as_json: AsJson = False) -> None:
+    """List entries in recording order."""
+    try:
+        entries = read_history(history)
+    except InputError as exc:
+        raise _invalid(exc, "history unreadable") from exc
+    if last is not None:
+        entries = entries[-last:] if last else []
+    if as_json:
+        _echo_json({"history_version": 1, "entries": [x.model_dump(mode="json") for x in entries]})
+    else:
+        render_history_list(entries, console)
+
+
+@history_app.command("show")
+@_fail_closed
+def history_show(entry_id: int, history: HistoryDir, as_json: AsJson = False) -> None:
+    """Show one entry: a compare's stored report, or a run's summary."""
+    try:
+        entry = next((x for x in read_history(history) if x.id == entry_id), None)
+        if not isinstance(entry, RunEntry):  # a compare, or unknown (history_id)
+            compare_entry, report = load_entry_report(history, entry_id)
+    except InputError as exc:
+        raise _invalid(exc, "entry not shown") from exc
+    if isinstance(entry, RunEntry):
+        if as_json:
+            _echo_json({"entry": entry.model_dump(mode="json")})
+        else:
+            render_run_entry(entry, console)
+        return
+    if as_json:
+        _echo_json(
+            {
+                "entry": compare_entry.model_dump(mode="json"),
+                "report": report.model_dump(mode="json"),
+            }
+        )
+    else:
+        render(report, console)
+
+
+@history_app.command("trend")
+@_fail_closed
+def history_trend_cmd(
+    path: str,
+    history: HistoryDir,
+    kind: Annotated[
+        Literal["run", "compare"],
+        typer.Option("--kind", help="run (default) or compare; never mixed."),
+    ] = "run",
+    dataset: Annotated[
+        str | None, typer.Option("--dataset", help="Only this dataset: ID or ID@VERSION.")
+    ] = None,
+    application: Annotated[
+        str | None, typer.Option("--application", help="Only this (candidate) application.")
+    ] = None,
+    last: Last = None,
+    as_json: AsJson = False,
+) -> None:
+    """One metric path (e.g. scores.quality) across entries, in recording order."""
+    try:
+        entries = read_history(history)
+    except InputError as exc:
+        raise _invalid(exc, "history unreadable") from exc
+    result = history_trend(
+        entries, path, kind=kind, dataset=dataset, application=application, last=last
+    )
+    if as_json:
+        _echo_json(result)
+    else:
+        render_trend(result, console)
 
 
 if __name__ == "__main__":  # python -m evalgate.cli

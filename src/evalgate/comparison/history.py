@@ -6,10 +6,11 @@ reach a history entry.
 
 import math
 from statistics import fmean
-from typing import Any
+from typing import Any, Literal
 
 from evalgate.comparison.repeats import collapse
 from evalgate.models import Report, Run, RunManifest
+from evalgate.models.history import CompareEntry, HistoryEntry, Identity, RunEntry
 
 
 def _identity(manifest: RunManifest | None) -> dict[str, Any] | None:
@@ -97,4 +98,72 @@ def summarize_run(run: Run) -> dict[str, Any]:
         "means": _stats(means),
         "checks": _stats(checks),
         "failing_checks": sorted(failing, key=lambda f: (f["case_id"], f["check"])),
+    }
+
+
+def _matches_dataset(identity: Identity, dataset: str | None) -> bool:
+    # Exact match on the id or on "id@version"; no parsing, so an id may contain "@".
+    return dataset is None or dataset in (
+        identity.dataset_id,
+        f"{identity.dataset_id}@{identity.dataset_version}",
+    )
+
+
+def trend(
+    entries: list[HistoryEntry],
+    path: str,
+    *,
+    kind: Literal["run", "compare"] = "run",
+    dataset: str | None = None,
+    application: str | None = None,
+    last: int | None = None,
+) -> dict[str, Any]:
+    """One metric path across entries of one kind, in id order. `--last` applies after
+    filtering and skipping. Kinds never mix: a compare mean covers compared cases only."""
+    points: list[dict[str, Any]] = []
+    datasets: list[tuple[str, str]] = []  # parallel to points; tuples, so ids may hold '@'
+    skipped = 0
+    for entry in entries:
+        if entry.kind != kind:
+            continue
+        identity = entry.run if isinstance(entry, RunEntry) else entry.candidate
+        if identity is None:  # an INVALID compare whose candidate didn't load: no value
+            skipped += dataset is None and application is None  # can't match a filter
+            continue
+        if not _matches_dataset(identity, dataset):
+            continue
+        if application is not None and identity.application != application:
+            continue
+        if isinstance(entry, RunEntry):
+            stat = entry.means.get(path)
+            value = None if stat is None else (stat.value, stat.cases)
+        else:
+            assert isinstance(entry, CompareEntry)
+            row = next((r for r in entry.metrics if r.path == path), None)
+            value = None if row is None else (row.candidate_mean, row.cases)
+        if value is None:
+            skipped += 1
+            continue
+        datasets.append((identity.dataset_id, identity.dataset_version))
+        points.append(
+            {
+                "id": entry.id,
+                "label": entry.label,
+                "recorded_at": entry.recorded_at,
+                "application_version": identity.application_version,
+                "dataset": f"{identity.dataset_id}@{identity.dataset_version}",
+                "value": value[0],
+                "cases": value[1],
+            }
+        )
+    if last is not None:
+        points = points[-last:] if last else []
+        datasets = datasets[-last:] if last else []
+    return {
+        "history_version": 1,
+        "path": path,
+        "kind": kind,
+        "points": points,
+        "skipped": skipped,
+        "mixed_datasets": len(set(datasets)) > 1,
     }
