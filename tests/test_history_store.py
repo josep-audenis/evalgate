@@ -242,3 +242,32 @@ def test_no_outputs_and_no_temp_files_in_the_store(tmp_path: Path) -> None:
         "index.jsonl",
     ]  # run entry 1 has no report
     assert all(SECRET not in p.read_text() for p in files)
+
+
+@pytest.mark.parametrize("sep", ["\u2028", "\u2029", "\x85"])
+def test_unicode_line_separators_round_trip(tmp_path: Path, sep: str) -> None:
+    record_report(fail_report(), tmp_path, label=f"a{sep}b", recorded_at=T0)
+    record_report(fail_report(), tmp_path, label=f"c{sep}d", recorded_at=T0)
+    assert [e.label for e in read_history(tmp_path)] == [f"a{sep}b", f"c{sep}d"]
+
+
+def test_blank_lines_are_ignored_and_missing_version_is_named(tmp_path: Path) -> None:
+    store_with(tmp_path, "\n\n")
+    assert [e.id for e in read_history(tmp_path)] == [1, 2]
+    (tmp_path / "index.jsonl").write_text('{"id": 3}\n')
+    with pytest.raises(InputError) as exc:
+        read_history(tmp_path)
+    assert "missing history_version" in str(exc.value)
+
+
+def test_failed_write_leaves_no_temp_file(tmp_path: Path) -> None:
+    (tmp_path / "reports" / "000001.json").mkdir(parents=True)  # os.replace onto a dir fails
+    with pytest.raises(InputError) as exc:
+        record_report(fail_report(), tmp_path, recorded_at=T0)
+    assert codes(exc) == ["history_write"]
+    assert not list(tmp_path.rglob("*.tmp"))
+    assert not (tmp_path / "index.jsonl").exists()
+
+
+def test_load_entry_report_is_exported() -> None:
+    assert evalgate.load_entry_report is load_entry_report
