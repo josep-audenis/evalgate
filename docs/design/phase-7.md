@@ -1,6 +1,6 @@
 # Design: Phase 7 (local history, multiple candidates, failure groups, and the long tail)
 
-Status: **0.10.0 implemented** (local history, see [docs/history.md](../history.md)); later releases planned. Each later release gets its own task breakdown in a plan PR when its turn comes, as was done for each Phase 6 slice.
+Status: **0.11.0 implemented** (local history, see [docs/history.md](../history.md); several candidates, see [docs/candidates.md](../candidates.md)); later releases planned. Each later release gets its own task breakdown in a plan PR when its turn comes, as was done for each Phase 6 slice.
 
 SPEC Phase 7 lists exploration items, not commitments. This doc puts the chosen ones in order, and each release after 0.10.0 is still gated on demand: if usage shows an item isn't needed, it is dropped.
 
@@ -239,7 +239,8 @@ Teams often have several release candidates (two prompt variants, three models) 
   {"summary_version": 1, "evalgate_version": "0.11.0", "baseline_run_id": "base",
    "exit_code": 1, "rank_by": "quality",
    "candidates": [{"n": 1, "run_id": "cand-a", "status": "FAIL"}, …],
-   "ranking": [{"rank": 1, "n": 2, "run_id": "cand-b", "status": "PASS", "value": 0.91, "cases": 40}, …]}
+   "ranking": [{"rank": 1, "n": 2, "run_id": "cand-b", "status": "PASS", "value": 0.91, "cases": 40}, …],
+   "cases_differ": false}
   ```
   - `run_id` (or `baseline_run_id`) is `null` for a run that didn't load.
   - `ranking` is `null` without `--rank-by`, and `[]` when no candidate could be ranked.

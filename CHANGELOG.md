@@ -2,6 +2,37 @@
 
 All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change behaviour; anything that does is listed under **Changed**.
 
+## 0.11.0
+
+Several candidates in one command (SPEC Phase 7, second slice). With one candidate, `compare` behaves exactly as in 0.10.0.
+
+### Added
+
+- **`evalgate compare BASELINE CANDIDATE...`** judges each candidate against the same baseline with the same engine and policy. Each report is the one a two-run compare would give. See [docs/candidates.md](docs/candidates.md).
+  - Exit 2 if any candidate is INVALID, else 1 if any FAILs, else 0.
+  - With several candidates, `--json`, `--report` and `--markdown` paths must contain `{n}` (the candidate's position), so one file is written per candidate. A missing `{n}` exits 2 before anything runs.
+  - **`--summary PATH`:** one JSON file with every candidate's status, the decision exit code and the ranking. No timestamps.
+  - **`--rank-by NAME`:** ranks candidates on one policy metric, in its declared direction. It is informational only: no aggregate score, never a decision. FAIL candidates are ranked and shown as FAIL; INVALID ones are left out; ties keep order. A warning is printed when the ranked means cover different numbers of cases.
+  - **`--history`:** records one entry per candidate, in order.
+- **SDK:** `evalgate.compare_many(baseline, candidates, policy, rank_by=None)` returns a `MultiResult` (reports, exit code, ranking, `summary()`).
+- **`examples/multi-candidate`:** three candidates; the best-quality one FAILs on safety but ranks first on quality.
+
+### Changed
+
+- **A failed artifact write in `compare`** (`--json`, `--report`, `--markdown`, `--summary`) now prints the decision(s) first and then exits 2. Before, it printed only an internal error, also with exit 2.
+- `compare --help` names the arguments `BASELINE CANDIDATE...`.
+
+### Testing
+
+- New tests cover:
+  - each report equal to a two-run compare, and the exit code for every PASS / FAIL / INVALID mix;
+  - ranking direction, ties, exclusions and case counts;
+  - the input guards, and summary determinism;
+  - `{n}` templating (repeated, other braces, directory parts), and usage errors before any I/O;
+  - write failures on any writer, and history failing partway;
+  - a single candidate's artifacts, terminal output and history being identical to a plain compare;
+  - escaping, and the example.
+
 ## 0.10.0
 
 Local history (SPEC Phase 7, first slice): keep a record of release decisions and runs, and see how metrics move across releases. It's opt-in; decisions, exit codes and the JSON report are unchanged from 0.9.0 unless `--history` is passed (and see the console encoding fix below).

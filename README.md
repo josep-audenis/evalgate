@@ -168,6 +168,10 @@ with EvalRun(
 
 Results become ordinary checks you can require in your policy. Built-ins cover JSON, Pydantic models, JSON Schema, regex, substrings, exact and numeric matches and length; `@check` / `@score` wrap your own functions. A built-in's version includes its arguments; for your own evaluators (and `matches_model`) you bump `version=`. Comparing runs scored differently is INVALID. Outputs aren't stored unless you pass `store_output=True`, and never appear in reports. LLM judges work the same way: `judge(rubric, complete, ...)` calls your own model client and records a check or score, and `evalgate calibrate` measures it against human labels (see [judges](https://github.com/josep-audenis/evalgate/blob/main/docs/judges.md)). No Python? Put one JSON line per output in a file, list the evaluators in YAML, and run `evalgate evaluate outputs.jsonl --config evaluators.yaml --out evals/candidate`. See [native evaluators](https://github.com/josep-audenis/evalgate/blob/main/docs/evaluators.md).
 
+### Several candidates
+
+`evalgate compare BASELINE CAND1 CAND2 … --rank-by quality --json reports/cand-{n}.json` judges each candidate against the same baseline, writes one report per candidate and ranks them on one metric. The exit code is 2 if any candidate is INVALID, 1 if any FAILs, 0 if all PASS. The ranking is informational: no aggregate score, and it never changes a decision. See [several candidates](https://github.com/josep-audenis/evalgate/blob/main/docs/candidates.md).
+
 ### Local history
 
 Add `--history .evalgate/history --label v1.5.0` to `compare` to keep a record of each decision, and `evalgate history add RUN_DIR` to record runs. Then `evalgate history list`, `show ID` and `trend scores.quality` (each with `--history DIR`) show how releases moved. The store is a local directory with summaries and reports, never outputs, and it never picks a baseline. See [history](https://github.com/josep-audenis/evalgate/blob/main/docs/history.md).
@@ -210,10 +214,11 @@ Exit codes make EvalGate a drop-in CI step. See [CI integration](https://github.
 - outputs scored by built-in evaluators, where one answer stops being valid JSON
 - outputs graded by an LLM judge, where a more helpful answer states the wrong refund window
 - a local history store built from the quickstart runs
+- three candidates against one baseline, where the best-quality one FAILs on safety
 
 ## Status and scope
 
-Version 0.10.0 (alpha). See the [changelog](https://github.com/josep-audenis/evalgate/blob/main/CHANGELOG.md). EvalGate compares results your pipeline already produced, and can optionally score outputs with built-in evaluators or LLM judges that call your own model client. It does **not** run your application, call a model itself, or host datasets.
+Version 0.11.0 (alpha). See the [changelog](https://github.com/josep-audenis/evalgate/blob/main/CHANGELOG.md). EvalGate compares results your pipeline already produced, and can optionally score outputs with built-in evaluators or LLM judges that call your own model client. It does **not** run your application, call a model itself, or host datasets.
 
 Not yet included:
 - dedicated adapters for tools other than promptfoo and DeepEval; the generic importer covers their CSV/JSON exports

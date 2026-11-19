@@ -108,3 +108,23 @@ def test_history_example_builds_its_store(tmp_path: Path) -> None:
     ]
     assert getattr(entries[2], "status", None) == "FAIL"
     assert entries[0].recorded_at == "2026-11-01T09:00:00Z"
+
+
+def test_multi_candidate_example(tmp_path: Path) -> None:
+    d = EXAMPLES / "multi-candidate"
+    cands = [d / "candidate-a", d / "candidate-b", d / "candidate-c"]
+    result = evalgate.compare_many(d / "baseline", cands, d / "evalgate.yaml", rank_by="quality")
+    assert [r.status for r in result.reports] == ["FAIL", "PASS", "PASS"]
+    assert result.exit_code == 1
+    assert result.ranking is not None
+    assert [(i.rank, i.n, i.status) for i in result.ranking] == [
+        (1, 1, "FAIL"),
+        (2, 2, "PASS"),
+        (3, 3, "PASS"),
+    ]
+    # The committed runs are exactly what make_runs.py writes.
+    shutil.copy(d / "make_runs.py", tmp_path / "make_runs.py")
+    runpy.run_path(str(tmp_path / "make_runs.py"))
+    for name in ("baseline", "candidate-a", "candidate-b", "candidate-c"):
+        for f in ("run.json", "cases.jsonl"):
+            assert (tmp_path / name / f).read_text() == (d / name / f).read_text()
