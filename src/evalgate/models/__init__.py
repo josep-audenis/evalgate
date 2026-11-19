@@ -25,6 +25,7 @@ from evalgate.models.report import (
 )
 from evalgate.models.run import (
     SCHEMA_VERSION,
+    SCHEMA_VERSION_EVALUATORS,
     SCHEMA_VERSION_REPEATS,
     CaseResult,
     Run,
@@ -33,6 +34,7 @@ from evalgate.models.run import (
 
 __all__ = [
     "SCHEMA_VERSION",
+    "SCHEMA_VERSION_EVALUATORS",
     "SCHEMA_VERSION_REPEATS",
     "CaseDelta",
     "CaseResult",
