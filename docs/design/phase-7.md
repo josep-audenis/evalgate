@@ -201,6 +201,7 @@ T1 models + pure summaries ──▶ T2 store (io) ──▶ T3 CLI ──▶ T4
 - deleting or editing entries through EvalGate (the store is append-only; prune by hand);
 - charts (0.13.0) and failure trends (0.12.0).
 
+
 ## 3. 0.11.0: more than two candidates
 
 ### Problem
@@ -210,47 +211,76 @@ Teams often have several release candidates (two prompt variants, three models) 
 ### Decisions (defaults; object before T1 starts)
 
 **Command**
-- `evalgate compare BASELINE CAND1 [CAND2 …]` takes one or more candidates.
-- With exactly one candidate, everything is unchanged: same output, artifacts, exit code and history entry.
-- Each candidate is judged against the baseline by the existing engine (`api.compare`), with the same policy. A multi-candidate run therefore gives each candidate exactly the report a two-run compare would.
+- `evalgate compare BASELINE CANDIDATE... [options]` takes one or more candidates (`metavar` `CANDIDATE...`). Options may appear anywhere.
+- A candidate path that starts with `-` needs `--` before it.
+- A candidate may be the baseline itself; that is allowed.
+- Each candidate is judged against the baseline by the existing engine (`api.compare`), with the same policy, so each gets exactly the report a two-run compare would.
+  - The baseline and the policy are re-read for each candidate, behind a `shortcut:` comment. That keeps the reports byte-identical, and the cost is trivial.
 - Candidates are never compared with each other, and none of them becomes a baseline.
+
+**One candidate is unchanged.** Its artifacts, exit code, terminal output and history entry are byte-identical to 0.10, except:
+- the `--help` and missing-argument texts, which now name `CANDIDATE...`;
+- a literal `{n}` in a path, which stays literal;
+- the `candidate n:` header and the final table, which appear only with `--rank-by`.
 
 **Exit code** (fail closed)
 - 2 if any candidate is INVALID, otherwise 1 if any FAILs, otherwise 0.
 - "Did every candidate pass?" is the only question a single exit code can answer safely. Choosing among candidates is what the ranking and the summary are for.
 
 **Artifacts** (one per candidate)
-- With more than one candidate, the paths for `--json`, `--report` and `--markdown` must contain `{n}`. That is the 1-based position of the candidate on the command line, for example `--json out/report-{n}.json`.
-  - A path without `{n}` exits 2 before anything runs, so N reports never overwrite one file.
+- With more than one candidate, the `--json`, `--report` and `--markdown` paths must contain `{n}`, the candidate's 1-based position on the command line.
+  - The check runs on `str(path)` before any I/O. A missing `{n}` is a usage error (exit 2).
+  - The substitution is `str(path).replace("{n}", str(n))`, applied to every occurrence and never via `str.format`. Other braces and Windows backslashes therefore stay as they are: `out/{run}-{n}.json` keeps `{run}`.
+  - Parent directories are not created, as for every artifact today.
   - Each file is byte-identical to the two-run compare of that candidate.
-- `--summary PATH` (any number of candidates) writes one JSON summary:
+- `--summary PATH` writes one JSON summary, for any number of candidates. Its path is never templated.
+  - It is a Pydantic model (`MultiSummary` in `models/multi.py`) written with `write_json_report`: atomic, LF line endings, `indent=2`, fixed field order, and no timestamps, so the same inputs always give the same bytes.
   ```json
-  {"summary_version": 1, "exit_code": 1, "rank_by": "quality",
+  {"summary_version": 1, "evalgate_version": "0.11.0", "baseline_run_id": "base",
+   "exit_code": 1, "rank_by": "quality",
    "candidates": [{"n": 1, "run_id": "cand-a", "status": "FAIL"}, …],
-   "ranking": [{"n": 2, "run_id": "cand-b", "status": "PASS", "value": 0.91}, …]}
+   "ranking": [{"rank": 1, "n": 2, "run_id": "cand-b", "status": "PASS", "value": 0.91, "cases": 40}, …]}
   ```
-  `run_id` is `null` for a candidate that didn't load. `ranking` is `null` without `--rank-by`.
+  - `run_id` (or `baseline_run_id`) is `null` for a run that didn't load.
+  - `ranking` is `null` without `--rank-by`, and `[]` when no candidate could be ranked.
+
+**Order of operations and partial failure**
+- The order:
+  1. Decide every candidate.
+  2. Write each candidate's artifacts, in order.
+  3. Write `--summary`.
+  4. Record history, in order.
+  5. Render everything.
+- **On a write failure** (an `OSError` on an artifact or the summary, or any history error):
+  - writing stops at that point, so later candidates' artifacts and entries aren't written;
+  - everything is still rendered, then the error is printed, and the command exits 2.
+  - A store may therefore hold the entries before the failure. Each append is atomic, and the docs say so.
+- `summary.exit_code` is the decision's exit code. The process can still exit 2 after a write failure, the same caveat as in 0.10.
 
 **Ranking** (informational only)
-- `--rank-by NAME` names one policy metric. An unknown name exits 2 before anything runs.
-- Candidates are sorted by the metric's candidate mean, in its declared direction (`maximize` puts the highest first).
-  - Only non-INVALID candidates are ranked. FAIL candidates are included and shown as FAIL, because the ranking answers "which is best on this metric", not "which may ship".
-  - Ties keep command-line order.
-- There is no aggregate score and no weighting, and the ranking never changes a status, the exit code or any report.
-- It is shown in the terminal and the summary only.
+- `--rank-by NAME` names one policy metric. The value ranked is each candidate's `candidate_mean` of that metric. The baseline is the same for every candidate, so this is equivalent to ranking by the change.
+- **Which candidates are ranked:** only non-INVALID candidates that have the metric. FAIL candidates are included and shown as FAIL, because the ranking answers "which is best on this metric", not "which may ship".
+- **Order:** sorted in the metric's declared direction (`maximize` puts the highest first). Ties keep command-line order. `rank` is the position, 1…k, with no shared ranks.
+- **Different case counts:** each item carries `cases`, the metric's compared-case count. When the ranked candidates' `cases` differ, a warning is printed, because means over different case sets (for example, a candidate with errors on the hard cases) aren't directly comparable.
+- **Unknown names:** if the policy loads and `NAME` isn't one of its metrics, that is a usage error (exit 2) before any comparison. If the policy fails to load, every report is INVALID anyway, the name isn't checked, and `ranking` is `[]`.
+- There is no aggregate score and no weighting. The ranking never changes a status, the exit code or any report, and it is shown only in the terminal and the summary.
 
 **History**
-- `--history DIR` records one compare entry per candidate, in command-line order, all with the same `--label`.
-- A store failure follows the 0.10 rule: everything is still rendered, then the command exits 2.
+- `--history DIR` records one compare entry per candidate, in command-line order, all with the same `--label`. The label is what links entries from one multi-candidate run, and the docs say so.
 
 **Terminal**
-- Each candidate's report is printed under a header `candidate n: <path>`.
-- A final table follows: n, run_id, status and, with `--rank-by`, the metric value and rank.
+- With more than one candidate, or with `--rank-by`, each report is printed under a header `candidate n: <path>`.
+- A final table follows: n, run_id, status and, with `--rank-by`, rank, value and cases.
 - All user strings are escaped.
 
 **SDK**
-- `evalgate.compare_many(baseline, candidates, policy="evalgate.yaml", *, rank_by=None) -> MultiResult`.
-- `MultiResult` holds `reports` (in order), `exit_code`, `ranking` and `summary()`, which returns the summary dict.
+- `evalgate.compare_many(baseline, candidates: Sequence[str | Path], policy="evalgate.yaml", *, rank_by=None) -> MultiResult`.
+- It raises `TypeError` if `candidates` is a `str` or a `Path` (iterating it would split the path into characters), and `ValueError` if it is empty or if `rank_by` is unknown to a policy that loaded.
+- `MultiResult` is a frozen dataclass with:
+  - `reports: list[Report]` (in order);
+  - `exit_code: int`;
+  - `ranking: list[RankItem] | None`;
+  - `summary() -> MultiSummary`.
 - The CLI is a thin wrapper.
 
 ### Tasks
@@ -260,36 +290,44 @@ T1 compare_many + ranking ──▶ T2 CLI ──▶ T3 docs + example + release
 ```
 
 **T1. `compare_many` and ranking** (`api.py`, `comparison/ranking.py` pure, `models/multi.py`)
-- `rank(reports, rank_by) -> list[RankItem]` is pure.
-- `compare_many` calls `api.compare` once per candidate.
-- An unknown `rank_by`, or an empty candidate list, raises `ValueError` (the CLI maps it to exit 2).
 - Tests:
   - each report equals the two-run `compare` of that candidate;
   - the exit-code aggregation, for every mix of PASS, FAIL and INVALID;
-  - ranking in both directions; ties keep order; INVALID is excluded; FAIL is included;
-  - a candidate that doesn't load gives `run_id: null`;
-  - the summary shape;
-  - the same candidate given twice.
+  - ranking in both directions, and a tie under each direction;
+  - INVALID is excluded and FAIL included;
+  - every candidate INVALID gives `[]`, and no `rank_by` gives `None`;
+  - different `cases` counts are flagged;
+  - a candidate that doesn't load gives `run_id: None`;
+  - a `str` passed as `candidates` raises `TypeError`, and an empty list raises `ValueError`;
+  - an unknown `rank_by` with a valid policy raises, but not with an invalid policy;
+  - the summary bytes are deterministic;
+  - the same candidate given twice, and a candidate equal to the baseline.
 
 **T2. CLI** (`cli.py`, `reporting/terminal.py`)
-- Variadic candidates; `{n}` templating with its usage error; `--summary`; `--rank-by`; history with N entries.
 - Tests:
-  - a single candidate is byte-identical to before (all artifacts, exit code and terminal output);
-  - N candidates write N files, one per `{n}`;
+  - a single candidate is byte-identical to before: artifacts, exit code, terminal output and history;
+  - one candidate with `{n}` in a path keeps it literal;
+  - N candidates write N files;
+  - `{n}` twice in a path, `{n}` in a directory part, other braces kept, and a Windows path;
   - a path without `{n}` exits 2 and writes nothing;
   - the exit codes;
-  - the summary file;
+  - `--summary` with 1 and with N candidates;
   - an unknown `--rank-by` exits 2;
+  - `--rank-by` with an invalid policy;
+  - a write failure on candidate 2 of 3, and a summary write failure: exit 2, everything rendered, and the earlier artifacts exist;
   - history records N entries in order;
+  - options placed between the positional arguments;
   - escaping.
 
-**T3. Docs and release** (README, `docs/` page section, `examples/multi-candidate/`, CHANGELOG, `_version.py`)
-- **Example:** one baseline and three candidates: one regresses on safety (FAIL), and two pass with different quality. `--rank-by quality` orders them.
+**T3. Docs and release** (README, `docs/` section, `examples/multi-candidate/`, CHANGELOG, `_version.py`)
+- **Example:** one baseline and three candidates.
+  - The candidate with the highest quality regresses on safety (FAIL), so `--rank-by quality` ranks it first while marking it FAIL. That shows the ranking isn't a decision.
+  - The other two pass, with different quality.
 - It is registered in `test_examples.py`.
 
 **Out of 0.11.0:**
 - comparing candidates with each other;
 - picking a winner automatically;
 - an aggregate score;
-- combined multi-candidate HTML or Markdown reports (one file per candidate for now; 0.13 may add a combined view);
+- combined multi-candidate HTML or Markdown reports (0.13 may add a combined view);
 - statistics on differences between candidates.
