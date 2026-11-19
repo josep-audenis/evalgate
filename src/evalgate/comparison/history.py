@@ -5,6 +5,7 @@ reach a history entry.
 """
 
 import math
+from collections import defaultdict
 from statistics import fmean
 from typing import Any, Literal
 
@@ -97,6 +98,7 @@ def summarize_run(run: Run) -> dict[str, Any]:
             if not passed:
                 failing.append({"case_id": case.case_id, "check": name})
     return {
+        "history_version": 2,
         "kind": "run",
         "run": _identity(run.manifest),
         "cases": len(collapsed.cases),
@@ -172,5 +174,77 @@ def trend(
         "kind": kind,
         "points": points,
         "skipped": skipped,
+        "mixed_datasets": len(set(datasets)) > 1,
+    }
+
+
+def recurring_failures(
+    entries: list[HistoryEntry],
+    *,
+    kind: Literal["run", "compare"] = "run",
+    dataset: str | None = None,
+    application: str | None = None,
+    last: int | None = None,
+    min_failing: int = 2,
+) -> dict[str, Any]:
+    """(case_id, check) pairs that keep failing across entries of one kind, in id order.
+
+    Selection is trend's, minus INVALID compares (no data; they would break streaks). `streak`
+    counts the most recent selected entries in a row where the pair fails: any other entry ends
+    it, so a broken streak isn't proof of a fix. `of` (entries containing the case) is only known
+    for run entries that store `case_ids`.
+    """
+    if min_failing < 1:
+        raise ValueError("min_failing must be at least 1")
+    selected: list[HistoryEntry] = []
+    datasets: list[tuple[str, str]] = []
+    for entry in entries:
+        if entry.kind != kind:
+            continue
+        if isinstance(entry, CompareEntry) and entry.status == "INVALID":
+            continue
+        identity = entry.run if isinstance(entry, RunEntry) else entry.candidate
+        if identity is None or not _matches_dataset(identity, dataset):
+            continue
+        if application is not None and identity.application != application:
+            continue
+        selected.append(entry)
+        datasets.append((identity.dataset_id, identity.dataset_version))
+    if last is not None:
+        selected, datasets = (selected[-last:], datasets[-last:]) if last else ([], [])
+    case_sets = [
+        set(e.case_ids) if isinstance(e, RunEntry) and e.case_ids is not None else None
+        for e in selected
+    ]
+    of_known = kind == "run" and all(s is not None for s in case_sets)
+    failing_at: dict[tuple[str, str], list[int]] = defaultdict(list)
+    for i, entry in enumerate(selected):
+        for f in entry.failing_checks:
+            failing_at[(f.case_id, f.check)].append(i)
+    pairs: list[dict[str, Any]] = []
+    for (case_id, check), indexes in failing_at.items():
+        if len(indexes) < min_failing:
+            continue
+        hit = set(indexes)
+        streak, i = 0, len(selected) - 1
+        while i >= 0 and i in hit:
+            streak, i = streak + 1, i - 1
+        pairs.append(
+            {
+                "case_id": case_id,
+                "check": check,
+                "failing": len(indexes),
+                "of": sum(case_id in s for s in case_sets if s is not None) if of_known else None,
+                "first": selected[indexes[0]].id,
+                "last": selected[indexes[-1]].id,
+                "streak": streak,
+            }
+        )
+    pairs.sort(key=lambda p: (-p["streak"], -p["failing"], p["case_id"], p["check"]))
+    return {
+        "history_version": 1,
+        "kind": kind,
+        "entries": len(selected),
+        "pairs": pairs,
         "mixed_datasets": len(set(datasets)) > 1,
     }

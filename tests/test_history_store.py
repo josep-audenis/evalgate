@@ -125,7 +125,7 @@ def entry_line(tmp_path: Path, **change: Any) -> str:
     [
         lambda p: entry_line(p, id=2),  # duplicate
         lambda p: entry_line(p, id=1),  # decreasing
-        lambda p: entry_line(p, id=3, history_version=2),
+        lambda p: entry_line(p, id=3, history_version=3),
         lambda p: entry_line(p, id=3, surprise=SECRET),
         lambda p: '{"history_version": 1, "id": 3, "kind": "run", "trunc',
         lambda p: f'{{"id": 3, "label": "{SECRET}", "label": "x"}}\n',

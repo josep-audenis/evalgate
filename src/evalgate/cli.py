@@ -16,6 +16,7 @@ from rich.markup import escape
 
 from evalgate._version import __version__
 from evalgate.api import compare_many
+from evalgate.comparison.history import recurring_failures
 from evalgate.comparison.history import trend as history_trend
 from evalgate.comparison.repeats import repeats_per_case
 from evalgate.io import (
@@ -38,6 +39,7 @@ from evalgate.reporting.terminal import (
     render_calibration,
     render_candidates,
     render_diagnostics,
+    render_failures,
     render_history_list,
     render_run_entry,
     render_trend,
@@ -551,6 +553,45 @@ def history_trend_cmd(
         _echo_json(result)
     else:
         render_trend(result, console)
+
+
+@history_app.command("failures")
+@_fail_closed
+def history_failures(
+    history: HistoryDir,
+    kind: Annotated[
+        Literal["run", "compare"],
+        typer.Option("--kind", help="run (default) or compare; never mixed."),
+    ] = "run",
+    dataset: Annotated[
+        str | None, typer.Option("--dataset", help="Only this dataset: ID or ID@VERSION.")
+    ] = None,
+    application: Annotated[
+        str | None, typer.Option("--application", help="Only this (candidate) application.")
+    ] = None,
+    last: Last = None,
+    min_failing: Annotated[
+        int, typer.Option("--min", min=1, help="Only pairs failing in at least this many entries.")
+    ] = 2,
+    as_json: AsJson = False,
+) -> None:
+    """(case, check) pairs that keep failing across recorded entries."""
+    try:
+        entries = read_history(history)
+    except InputError as exc:
+        raise _invalid(exc, "history unreadable") from exc
+    result = recurring_failures(
+        entries,
+        kind=kind,
+        dataset=dataset,
+        application=application,
+        last=last,
+        min_failing=min_failing,
+    )
+    if as_json:
+        _echo_json(result)
+    else:
+        render_failures(result, console)
 
 
 if __name__ == "__main__":  # python -m evalgate.cli
