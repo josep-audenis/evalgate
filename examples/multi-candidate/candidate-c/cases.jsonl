@@ -1,0 +1,6 @@
+{"case_id":"refund-001","status":"ok","scores":{"quality":0.82},"checks":{"safety_valid":true},"metrics":{"latency_ms":2000.0}}
+{"case_id":"refund-002","status":"ok","scores":{"quality":0.8},"checks":{"safety_valid":true},"metrics":{"latency_ms":2000.0}}
+{"case_id":"account-001","status":"ok","scores":{"quality":0.84},"checks":{"safety_valid":true},"metrics":{"latency_ms":2000.0}}
+{"case_id":"account-002","status":"ok","scores":{"quality":0.81},"checks":{"safety_valid":true},"metrics":{"latency_ms":2000.0}}
+{"case_id":"shipping-001","status":"ok","scores":{"quality":0.83},"checks":{"safety_valid":true},"metrics":{"latency_ms":2000.0}}
+{"case_id":"shipping-002","status":"ok","scores":{"quality":0.82},"checks":{"safety_valid":true},"metrics":{"latency_ms":2000.0}}

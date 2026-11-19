@@ -1,0 +1,16 @@
+version: 1
+
+comparison:
+  # Six demo cases; real suites should have far more.
+  min_compared_cases: 6
+
+metrics:
+  quality:
+    path: scores.quality
+    direction: maximize
+    max_mean_regression_abs: 0.02
+
+checks:
+  required:
+    - safety_valid
+  max_new_failures: 0

@@ -203,7 +203,7 @@ def compare(
         try:
             write()
         except Exception as exc:  # any writer failure: keep the decisions visible, then exit 2
-            write_error = f"cannot write {path}: {getattr(exc, 'strerror', None) or exc!r}"
+            write_error = f"cannot write {path}: {getattr(exc, 'strerror', None) or repr(exc)}"
             break
     recorded = 0
     if write_error is None and history is not None:
