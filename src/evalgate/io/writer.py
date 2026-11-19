@@ -1,10 +1,16 @@
+import math
 import os
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from types import TracebackType
 from typing import IO, Any, Self
 
+from pydantic import JsonValue, TypeAdapter
+
+from evalgate.evaluators.core import Evaluator, apply
 from evalgate.models import (
     SCHEMA_VERSION,
+    SCHEMA_VERSION_EVALUATORS,
     SCHEMA_VERSION_REPEATS,
     CaseResult,
     Report,
@@ -35,6 +41,32 @@ def write_markdown_report(report: Report, path: Path) -> None:
     _atomic_write(path, render_markdown(report))
 
 
+_MISSING: Any = object()  # `output=None` is a valid JSON output, so absence needs a sentinel
+_JSON = TypeAdapter(JsonValue)
+
+
+def _finite(value: Any) -> bool:
+    if isinstance(value, float):
+        return math.isfinite(value)
+    if isinstance(value, dict):
+        return all(_finite(v) for v in value.values())
+    if isinstance(value, list):
+        return all(_finite(v) for v in value)
+    return True
+
+
+def _stored_output(output: Any) -> JsonValue:
+    """A validated, independent copy of the output, taken before evaluators can touch it."""
+    try:
+        value = _JSON.validate_python(output)
+    except ValueError:
+        # `from None`: pydantic's error repeats the raw output, which shouldn't reach logs.
+        raise ValueError("output must be JSON-serializable to store it") from None
+    if not _finite(value):
+        raise ValueError("output contains NaN or infinity; it can't be stored as JSON")
+    return value
+
+
 def write_policy_template(path: Path, force: bool = False) -> None:
     if path.exists() and not force:
         raise FileExistsError(f"{path} already exists; pass --force to overwrite")
@@ -61,14 +93,35 @@ class EvalRun:
         application_version: str | None = None,
         overwrite: bool = False,
         repeats: int | None = None,
+        evaluators: Sequence[Evaluator] | None = None,
+        store_output: bool = False,
         **metadata: Any,
     ) -> None:
         clash = sorted(metadata.keys() & RunManifest.model_fields.keys())
         if clash:  # e.g. dataset_id= would silently override dataset=
             raise ValueError(f"metadata keys collide with manifest fields: {', '.join(clash)}")
+        if not isinstance(store_output, bool):  # a truthy "no" must not store raw outputs
+            raise TypeError("store_output must be a bool")
+        # Private and immutable: evaluators added later would run without being declared.
+        self._evaluators = tuple(evaluators or ())
+        if any(not isinstance(ev, Evaluator) for ev in self._evaluators):
+            raise TypeError("evaluators must be Evaluator instances (see evalgate.evaluators)")
+        names = [ev.name for ev in self._evaluators]
+        if len(set(names)) != len(names):
+            dupes = sorted({n for n in names if names.count(n) > 1})
+            raise ValueError(f"duplicate evaluator names: {', '.join(dupes)}")
+        self._store_output = store_output
+        # Lowest schema version covering the features used (1.2 is a superset of 1.1).
+        if self._evaluators:
+            schema_version = SCHEMA_VERSION_EVALUATORS
+        elif repeats is not None:
+            schema_version = SCHEMA_VERSION_REPEATS
+        else:
+            schema_version = SCHEMA_VERSION
+        declared = {ev.name: ev.version for ev in sorted(self._evaluators, key=lambda e: e.name)}
         self.manifest = RunManifest.model_validate(
             {
-                "schema_version": SCHEMA_VERSION if repeats is None else SCHEMA_VERSION_REPEATS,
+                "schema_version": schema_version,
                 "run_id": run_id,
                 "dataset_id": dataset,
                 "dataset_version": dataset_version,
@@ -76,6 +129,7 @@ class EvalRun:
                 "application": application,
                 "application_version": application_version,
                 "repeats": repeats,
+                "evaluators": declared or None,
             }
             | metadata
         )
@@ -137,24 +191,52 @@ class EvalRun:
         metrics: dict[str, float] | None = None,
         metadata: dict[str, Any] | None = None,
         repeat: int | None = None,
+        output: Any = _MISSING,
+        case: Mapping[str, Any] | None = None,
     ) -> None:
         """Record a successful case. Values are validated now, not at compare time.
 
         With EvalRun(repeats=k), call once per repeat with repeat=0..k-1.
+        With EvalRun(evaluators=...), pass the application's `output` (and optionally the
+        dataset record as `case`); their results join `scores` / `checks`. `case` is never
+        written, and `output` only with EvalRun(store_output=True); a stored `None` output is
+        omitted from the file, like any unset field.
+
+        An evaluator that raises or returns the wrong type does not raise here: the case is
+        recorded as `status: error` with the message `evaluator <name> failed`.
         """
-        self._write(
-            CaseResult.model_validate(
-                {
-                    "case_id": case_id,
-                    "status": "ok",
-                    "repeat": repeat,
-                    "scores": scores or {},
-                    "checks": checks or {},
-                    "metrics": metrics or {},
-                    "metadata": metadata or {},
-                }
-            )
+        if output is _MISSING and (self._evaluators or self._store_output):
+            raise ValueError(f"{case_id}: output= is required with evaluators or store_output")
+        # Validate the caller's own values first, so they are checked even if an evaluator fails.
+        result = CaseResult.model_validate(
+            {
+                "case_id": case_id,
+                "status": "ok",
+                "repeat": repeat,
+                "scores": scores or {},
+                "checks": checks or {},
+                "metrics": metrics or {},
+                "metadata": metadata or {},
+                "output": _stored_output(output) if self._store_output else None,
+            }
         )
+        if self._evaluators:
+            clash = sorted(
+                {e.name for e in self._evaluators if e.kind == "score"} & result.scores.keys()
+                | {e.name for e in self._evaluators if e.kind == "check"} & result.checks.keys()
+            )
+            if clash:
+                raise ValueError(f"{case_id}: evaluator names clash with values passed: {clash}")
+            applied = apply(self._evaluators, output, case or {})
+            if applied.failed is not None:
+                # Fixed text: an evaluator's exception can quote the output. Never stores output.
+                self.record_error(
+                    case_id, f"evaluator {applied.failed} failed", metadata=metadata, repeat=repeat
+                )
+                return
+            result.scores |= applied.scores
+            result.checks |= applied.checks
+        self._write(result)
 
     def record_error(
         self,
