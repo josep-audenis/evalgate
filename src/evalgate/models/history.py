@@ -4,18 +4,24 @@ See docs/design/phase-7.md §2. Every entry is strict so a corrupt or hand-edite
 error (`history_parse`), never silently misread.
 """
 
+from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from evalgate.models.policy import Direction
 from evalgate.models.report import Status
-from evalgate.models.run import Number
+from evalgate.models.run import NonEmptyStr, Number
 
 HISTORY_VERSION: Literal[1] = 1
 MAX_LABEL = 200
 
 Count = Annotated[int, Field(ge=0)]
+
+
+def _real_time(value: str) -> str:
+    datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")  # rejects 2026-13-45T99:99:99Z
+    return value
 
 
 class _Strict(BaseModel):
@@ -25,11 +31,11 @@ class _Strict(BaseModel):
 class Identity(_Strict):
     """Who was evaluated: the identity fields of a run.json (extra manifest fields excluded)."""
 
-    run_id: str
+    run_id: NonEmptyStr
     application: str | None = None
     application_version: str | None = None
-    dataset_id: str
-    dataset_version: str
+    dataset_id: NonEmptyStr
+    dataset_version: NonEmptyStr
 
 
 class FailingCheck(_Strict):
@@ -59,7 +65,11 @@ class _Entry(_Strict):
     history_version: Literal[1]
     id: Annotated[int, Field(ge=1)]
     # Metadata only: listings are in id order, nothing sorts or decides on time.
-    recorded_at: Annotated[str, Field(pattern=r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")]
+    recorded_at: Annotated[
+        str,
+        Field(pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"),
+        AfterValidator(_real_time),
+    ]
     label: Annotated[str, Field(max_length=MAX_LABEL)] | None = None
 
 

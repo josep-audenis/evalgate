@@ -1,6 +1,7 @@
 """Pure history summaries and entry models (phase-7 §2, 0.10.0 T1)."""
 
 import ast
+import json
 from pathlib import Path
 from typing import Any
 
@@ -116,6 +117,15 @@ def test_compare_summary_of_a_fail() -> None:
         s["failing_checks"], key=lambda f: (f["case_id"], f["check"])
     )
     assert s["failing_checks"]
+    assert report.comparison is not None
+    m = report.comparison.metrics[0]
+    row = next(r for r in s["metrics"] if r["path"] == m.path)
+    assert (row["baseline_mean"], row["candidate_mean"], row["delta_abs"], row["cases"]) == (
+        m.baseline_mean,
+        m.candidate_mean,
+        m.delta_abs,
+        m.cases,
+    )
     ENTRY.validate_python(META | s | {"report_sha256": "0" * 64})
 
 
@@ -155,6 +165,8 @@ def test_two_policy_metrics_on_one_path_give_one_row(tmp_path: Path) -> None:
         {"history_version": 2},
         {"id": 0},
         {"recorded_at": "2026-11-19 12:00"},
+        {"recorded_at": "2026-13-45T99:99:99Z"},
+        {"run": {"run_id": "", "dataset_id": "d", "dataset_version": "v"}},
         {"label": "x" * 201},
         {"kind": "other"},
         {"surprise": 1},
@@ -198,3 +210,54 @@ ENGINE = [
 @pytest.mark.parametrize("path", ENGINE, ids=lambda p: p.name)
 def test_engine_never_references_history(path: Path) -> None:
     assert not any("history" in m for m in imported(path))
+
+
+def write_run(path: Path, cases: list[dict[str, Any]]) -> Path:
+    path.mkdir(parents=True)
+    manifest = MANIFEST | {"run_id": path.name}
+    (path / "run.json").write_text(json.dumps(manifest))
+    (path / "cases.jsonl").write_text("".join(json.dumps(c) + "\n" for c in cases))
+    return path
+
+
+def test_failing_pairs_cover_compared_cases_only(tmp_path: Path) -> None:
+    base = write_run(
+        tmp_path / "b",
+        [
+            {"case_id": "a", "status": "ok", "scores": {"q": 1}, "checks": {"c": True}},
+            {"case_id": "b", "status": "error", "error": "x"},
+        ],
+    )
+    cand = write_run(
+        tmp_path / "c",
+        [
+            {"case_id": "a", "status": "ok", "scores": {"q": 1}, "checks": {"c": False}},
+            {"case_id": "b", "status": "ok", "scores": {"q": 1}, "checks": {"c": False}},
+        ],
+    )
+    policy = tmp_path / "p.yaml"
+    policy.write_text(
+        "version: 1\ncomparison: {min_compared_cases: 1}\n"
+        "max_execution_errors: 5\n"
+        "metrics: {q: {path: scores.q, direction: maximize, max_mean_regression_abs: 1}}\n"
+    )
+    report = evalgate.compare(base, cand, policy)
+    assert report.status != "INVALID", report.diagnostics
+    assert summarize_report(report)["failing_checks"] == [{"case_id": "a", "check": "c"}]
+
+
+def test_invalid_with_comparison_has_no_rows(tmp_path: Path) -> None:
+    base = write_run(tmp_path / "b", [{"case_id": "a", "status": "ok", "scores": {"q": 0}}])
+    cand = write_run(
+        tmp_path / "c",
+        [{"case_id": "a", "status": "ok", "scores": {"q": 0}, "checks": {"x": False}}],
+    )
+    policy = tmp_path / "p.yaml"
+    policy.write_text(
+        "version: 1\ncomparison: {min_compared_cases: 1}\n"
+        "metrics: {q: {path: scores.q, direction: maximize, max_mean_regression_pct: 5}}\n"
+    )
+    report = evalgate.compare(base, cand, policy)
+    assert report.status == "INVALID" and report.comparison is not None
+    s = summarize_report(report)
+    assert (s["metrics"], s["failing_checks"]) == ([], [])

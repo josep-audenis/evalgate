@@ -24,8 +24,10 @@ def summarize_report(report: Report) -> dict[str, Any]:
     """The `compare` entry fields of a report (without id, time, label and report hash)."""
     rows: dict[str, dict[str, Any]] = {}
     failing: list[dict[str, str]] = []
-    if report.comparison is not None:
-        for m in report.comparison.metrics:  # two policy metrics on one path: same numbers
+    # An INVALID report (e.g. a policy diagnostic) can still carry a comparison: never summarise it.
+    if report.comparison is not None and report.status != "INVALID":
+        # Two policy metrics on one path have the same means; the first one's direction is kept.
+        for m in report.comparison.metrics:
             rows.setdefault(
                 m.path,
                 {
@@ -37,11 +39,13 @@ def summarize_report(report: Report) -> dict[str, Any]:
                     "cases": m.cases,
                 },
             )
+        skip = set(report.comparison.baseline_errors)  # compared cases only
         failing = [
             {"case_id": c.case_id, "check": c.check}
             for c in sorted(
                 report.comparison.candidate_failing_checks, key=lambda c: (c.case_id, c.check)
             )
+            if c.case_id not in skip
         ]
     return {
         "kind": "compare",
@@ -59,7 +63,7 @@ def _stats(values: dict[str, list[float]]) -> dict[str, dict[str, Any]]:
         try:
             value = fmean(values[key])
         except OverflowError:  # fsum over finite values can only overflow
-            value = math.inf
+            raise ValueError(f"{key}: mean is not finite") from None
         if not math.isfinite(value):
             raise ValueError(f"{key}: mean is not finite")
         out[key] = {"value": value, "cases": len(values[key])}
