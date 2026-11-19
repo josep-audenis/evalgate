@@ -1,0 +1,5 @@
+{"case_id":"refund-001","status":"ok","scores":{"quality":0.86},"checks":{"is_json":true,"answer_shape":true,"concise":true,"no_ai_disclaimer":true},"metadata":{"category":"billing"}}
+{"case_id":"refund-002","status":"ok","scores":{"quality":0.86},"checks":{"is_json":true,"answer_shape":true,"concise":true,"no_ai_disclaimer":true},"metadata":{"category":"billing"}}
+{"case_id":"account-001","status":"ok","scores":{"quality":0.86},"checks":{"is_json":true,"answer_shape":true,"concise":true,"no_ai_disclaimer":true},"metadata":{"category":"account"}}
+{"case_id":"account-002","status":"ok","scores":{"quality":0.97},"checks":{"is_json":false,"answer_shape":false,"concise":true,"no_ai_disclaimer":true},"metadata":{"category":"account"}}
+{"case_id":"shipping-001","status":"ok","scores":{"quality":0.86},"checks":{"is_json":true,"answer_shape":true,"concise":true,"no_ai_disclaimer":true},"metadata":{"category":"shipping"}}

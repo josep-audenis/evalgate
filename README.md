@@ -144,6 +144,30 @@ report.to_html("report.html")
 - **Overwrites:** `EvalRun` won't replace an existing run unless you pass `overwrite=True`. Even then, the old run is replaced only when the new one finishes cleanly.
 - **Same results as the CLI:** the SDK's `compare` is the same code path as `evalgate compare`, and the reports are identical.
 
+### Native evaluators (optional)
+
+No eval framework? Let EvalGate score outputs while you record:
+
+```python
+from evalgate.evaluators import json_valid, length, not_contains
+
+with EvalRun(
+    "candidate",
+    dataset="support-suite",
+    dataset_version="v3",
+    evaluator_version="native-v1",
+    evaluators=[
+        json_valid(name="is_json"),
+        length(name="concise", max=300),
+        not_contains("as an AI", name="no_disclaimer"),
+    ],
+) as run:
+    for case in dataset:
+        run.record(case["id"], output=agent(case), case=case)
+```
+
+Results become ordinary checks you can require in your policy. Built-ins cover JSON, Pydantic models, JSON Schema, regex, substrings, exact and numeric matches and length; `@check` / `@score` wrap your own functions. Changing an evaluator or its arguments changes its version, so comparing runs scored differently is INVALID. Outputs aren't stored unless you pass `store_output=True`, and never appear in reports. See [native evaluators](https://github.com/josep-audenis/evalgate/blob/main/docs/evaluators.md).
+
 ## How decisions are made
 
 - **INVALID (exit 2):** a trustworthy decision is impossible. Causes:
@@ -179,10 +203,11 @@ Exit codes make EvalGate a drop-in CI step. See [CI integration](https://github.
 - a safety regression hidden by better averages
 - a quality gain that blows the cost and latency budget
 - an SDK eval loop with a timed-out case
+- outputs scored by built-in evaluators, where one answer stops being valid JSON
 
 ## Status and scope
 
-Version 0.6.0 (alpha). See the [changelog](https://github.com/josep-audenis/evalgate/blob/main/CHANGELOG.md). EvalGate compares results your pipeline already produced. It does **not** run your application, call LLM judges, or host datasets.
+Version 0.7.0 (alpha). See the [changelog](https://github.com/josep-audenis/evalgate/blob/main/CHANGELOG.md). EvalGate compares results your pipeline already produced, and can optionally score outputs with deterministic built-in evaluators. It does **not** run your application, call LLM judges, or host datasets.
 
 Not yet included:
 - dedicated adapters for tools other than promptfoo and DeepEval; the generic importer covers their CSV/JSON exports

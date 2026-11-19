@@ -2,6 +2,38 @@
 
 All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change behaviour; anything that does is listed under **Changed**.
 
+## 0.7.0
+
+Native evaluators (SPEC Phase 6, first slice): EvalGate can now score outputs itself while you record a run. It's optional; runs without native evaluators get the same decisions as in 0.6.0, and are written byte for byte the same.
+
+### Added
+
+- **Native evaluators.** `EvalRun(..., evaluators=[...])` with `record(case_id, output=..., case=...)` runs evaluators on each output and writes their results as checks and scores. See [docs/evaluators.md](docs/evaluators.md).
+  - **Built-ins** (`evalgate.evaluators`): `json_valid`, `matches_model` (Pydantic), `json_schema` (Draft 2020-12, offline, with the new optional `evalgate-ai[schema]` extra), `regex`, `contains`, `not_contains`, `exact_match`, `length`, `numeric_close`. Each needs a `name=`. Bad arguments raise when the evaluator is created.
+  - **Custom evaluators:** `@check(name=, version=)` and `@score(name=, version=)` decorators.
+  - **Fail closed:** an evaluator that raises or returns the wrong type records the case as `status: error` (`evaluator <name> failed`, with no exception text), never as a pass. A bad output just fails the check.
+  - **Versions:** `run.json` declares each evaluator's name and version. A built-in's version includes a hash of its arguments, so changing `length(max=...)` changes it.
+  - `case` (the dataset record) is passed to evaluators and never written.
+- **Stored outputs.** `EvalRun(..., store_output=True)` writes each `ok` case's output to `cases.jsonl` as an `output` field, for debugging. Outputs must be JSON and finite. They never appear in reports or affect decisions.
+- **New diagnostics:** `evaluator_set_mismatch` and `evaluator_set_partial` (follow `comparison.require_same_evaluator`: INVALID by default), and `evaluators_schema` (INVALID).
+- **`examples/native-evaluators`:** a candidate whose average quality improves while one answer stops being valid JSON.
+
+### Changed
+
+- **Schema 1.2.** Runs with native evaluators use `"schema_version": "1.2"`, which includes everything in 1.1 (repeats are accepted with 1.2). EvalGate 0.6 rejects 1.2 files rather than ignoring the evaluator list.
+- **`evaluators` in `run.json` is now a reserved name.** A 1.0 or 1.1 run that used it as custom metadata is INVALID (`evaluators_schema`), or rejected when loaded if it isn't a name-to-version map.
+- **`output` on a case is now a typed field** (any JSON value). Run files that already used it load and decide unchanged, but in the SDK, `CaseResult(output=...)` with a value that isn't JSON now raises.
+- **`repeat_schema`** now says "1.1 or later".
+
+### Testing
+
+- New tests cover:
+  - schema 1.2;
+  - the evaluator core and every built-in, including that no network access happens;
+  - the evaluator set checks;
+  - `EvalRun` integration, including a check that a stored test string reaches none of the four report formats;
+  - the new example, including a check that its committed runs match its generator.
+
 ## 0.6.0
 
 Markdown summaries for pull requests and CI job pages, and a Langfuse recipe. Decisions, exit codes and the JSON report are unchanged from 0.5.0.
