@@ -7,7 +7,7 @@ import functools
 import json
 from collections.abc import Callable
 from pathlib import Path
-from typing import Annotated, ParamSpec
+from typing import Annotated, Literal, ParamSpec
 
 import typer
 from rich.console import Console
@@ -31,7 +31,7 @@ from evalgate.io.history import load_entry_report, read_history, record_report, 
 from evalgate.io.importer import import_results
 from evalgate.io.labels import calibrate_run
 from evalgate.io.promptfoo import import_promptfoo
-from evalgate.models.history import RunEntry
+from evalgate.models.history import MAX_LABEL, RunEntry
 from evalgate.reporting.terminal import (
     render,
     render_calibration,
@@ -127,6 +127,9 @@ def compare(
     """Compare a candidate run against a baseline under a release policy."""
     if label is not None and history is None:
         console.print("[bold yellow]INVALID[/]: --label only applies with --history")
+        raise typer.Exit(EXIT_INVALID)
+    if label is not None and len(label) > MAX_LABEL:
+        console.print(f"[bold yellow]INVALID[/]: --label longer than {MAX_LABEL} characters")
         raise typer.Exit(EXIT_INVALID)
     report = run_compare(baseline, candidate, policy)
     # Artifacts first: a terminal rendering problem must not lose the machine-readable result.
@@ -374,7 +377,7 @@ def _invalid(exc: InputError, what: str) -> typer.Exit:
 
 
 def _echo_json(data: object) -> None:
-    typer.echo(json.dumps(data, indent=2, ensure_ascii=False))
+    typer.echo(json.dumps(data, indent=2))  # ASCII: survives any console encoding
 
 
 @history_app.command("add")
@@ -417,7 +420,7 @@ def history_show(entry_id: int, history: HistoryDir, as_json: AsJson = False) ->
         if not isinstance(entry, RunEntry):  # a compare, or unknown (history_id)
             compare_entry, report = load_entry_report(history, entry_id)
     except InputError as exc:
-        raise _invalid(exc, "history unreadable") from exc
+        raise _invalid(exc, "entry not shown") from exc
     if isinstance(entry, RunEntry):
         if as_json:
             _echo_json({"entry": entry.model_dump(mode="json")})
@@ -441,7 +444,8 @@ def history_trend_cmd(
     path: str,
     history: HistoryDir,
     kind: Annotated[
-        str, typer.Option("--kind", help="run (default) or compare; never mixed.")
+        Literal["run", "compare"],
+        typer.Option("--kind", help="run (default) or compare; never mixed."),
     ] = "run",
     dataset: Annotated[
         str | None, typer.Option("--dataset", help="Only this dataset: ID or ID@VERSION.")
@@ -453,9 +457,6 @@ def history_trend_cmd(
     as_json: AsJson = False,
 ) -> None:
     """One metric path (e.g. scores.quality) across entries, in recording order."""
-    if kind not in ("run", "compare"):
-        console.print(f"[bold yellow]INVALID[/]: --kind must be run or compare, not {escape(kind)}")
-        raise typer.Exit(EXIT_INVALID)
     try:
         entries = read_history(history)
     except InputError as exc:
