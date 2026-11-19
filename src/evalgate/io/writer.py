@@ -138,6 +138,7 @@ class EvalRun:
         self._partial = self.path / ".cases.jsonl.partial"
         self._file: IO[str] | None = None
         self._ids: set[tuple[str, int | None]] = set()
+        self.evaluator_errors = 0
 
     def __enter__(self) -> Self:
         exists = (self.path / "run.json").exists() or (self.path / "cases.jsonl").exists()
@@ -145,6 +146,7 @@ class EvalRun:
             raise FileExistsError(f"{self.path} already holds a run; pass overwrite=True")
         self.path.mkdir(parents=True, exist_ok=True)
         self._ids = set()
+        self.evaluator_errors = 0  # rows (case x repeat) recorded as errors by a failing evaluator
         self._file = self._partial.open("w", encoding="utf-8")
         return self
 
@@ -230,6 +232,7 @@ class EvalRun:
             applied = apply(self._evaluators, output, case or {})
             if applied.failed is not None:
                 # Fixed text: an evaluator's exception can quote the output. Never stores output.
+                self.evaluator_errors += 1
                 self.record_error(
                     case_id, f"evaluator {applied.failed} failed", metadata=metadata, repeat=repeat
                 )

@@ -33,7 +33,7 @@ class ImportSummary(NamedTuple):
     cases: int
     repeats: int
     ignored_fields: list[str]
-    # Cases recorded as `status: error` because an evaluator failed (evaluate_outputs only).
+    # Rows (case x repeat) recorded as `status: error` because an evaluator failed.
     evaluator_errors: int = 0
 
 
@@ -363,4 +363,4 @@ def write_rows(
     except FileExistsError as exc:
         raise InputError([_error("import_exists", str(exc))]) from exc
 
-    return summary
+    return summary._replace(evaluator_errors=run.evaluator_errors)

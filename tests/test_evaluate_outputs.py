@@ -128,6 +128,8 @@ def test_bad_lines_fail_closed(tmp_path: Path, line: Any, code: str) -> None:
         "{not json\n",
         '{"case_id": "a", "case_id": "b", "status": "ok", "output": 1}\n',
         '{"case_id": "a", "status": "ok", "output": NaN}\n',
+        '{"case_id": "a", "status": "ok", "output": 1e999}\n',
+        '{"case_id": "a", "status": "ok", "output": "x", "metadata": {"k": -1e999}}\n',
     ],
 )
 def test_unparseable_lines(tmp_path: Path, raw: str) -> None:
@@ -206,3 +208,73 @@ def test_config_errors_surface_before_reading_outputs(tmp_path: Path) -> None:
 
 def test_exported_from_package() -> None:
     assert evalgate.evaluate_outputs is evaluate_outputs
+
+
+def test_nested_duplicate_keys_are_not_echoed(tmp_path: Path) -> None:
+    dup = f'{{"{SECRET}": 1, "{SECRET}": 2}}'
+    raw = (
+        f'{{"case_id": "a", "status": "ok", "output": {dup}}}\n'
+        f'{{"case_id": "b", "status": "ok", "output": 1, "metadata": {dup}}}\n'
+    )
+    with pytest.raises(InputError) as exc:
+        evaluate_outputs(outputs(tmp_path, [], raw), config(tmp_path), tmp_path / "out")
+    assert [d.code for d in exc.value.diagnostics] == ["outputs_parse", "outputs_parse"]
+    assert not any(SECRET in d.message for d in exc.value.diagnostics)
+
+
+def test_duplicate_case_ids_reported_by_line_number(tmp_path: Path) -> None:
+    line = {"case_id": "a", "status": "ok", "output": "x", "expected": "x"}
+    path = outputs(tmp_path, [line, line])
+    path.write_text("\n" + path.read_text())  # a blank first line: numbers are file lines
+    with pytest.raises(InputError) as exc:
+        evaluate_outputs(path, config(tmp_path), tmp_path / "out")
+    assert [d.code for d in exc.value.diagnostics] == ["outputs_record", "outputs_record"]
+    assert "line 2: duplicate case_id: a" in exc.value.diagnostics[0].message
+    assert "line 3: duplicate case_id: a" in exc.value.diagnostics[1].message
+
+
+def test_error_line_without_message(tmp_path: Path) -> None:
+    lines = [
+        {"case_id": "a", "status": "error", "error": None},
+        {"case_id": "b", "status": "error"},
+    ]
+    evaluate_outputs(outputs(tmp_path, lines), config(tmp_path), tmp_path / "out")
+    assert [c.error for c in load_run(tmp_path / "out").cases] == ["error", "error"]
+
+
+def test_evaluator_errors_count_rows_with_repeats(tmp_path: Path) -> None:
+    lines = [
+        {"case_id": "a", "status": "ok", "output": "x", "repeat": 0},  # no expected: error
+        {"case_id": "a", "status": "ok", "output": "x", "repeat": 1},  # no expected: error
+        {"case_id": "b", "status": "error", "repeat": 0},
+        {"case_id": "b", "status": "ok", "output": "x", "expected": "x", "repeat": 1},
+    ]
+    summary = evaluate_outputs(outputs(tmp_path, lines), config(tmp_path), tmp_path / "out")
+    assert summary.evaluator_errors == 2
+
+
+def test_byte_identical_with_repeats_and_store_output(tmp_path: Path) -> None:
+    lines = [
+        {"case_id": "a", "status": "ok", "output": {"k": [1, 2]}, "expected": 1, "repeat": r}
+        for r in (0, 1)
+    ]
+    cfg = config(tmp_path, store_output=True, evaluators=[{"type": "json_valid", "name": "j"}])
+    evaluate_outputs(outputs(tmp_path, lines), cfg, tmp_path / "cli")
+    with EvalRun(
+        "cand",
+        dataset="d",
+        dataset_version="v",
+        evaluator_version="e",
+        path=tmp_path / "sdk",
+        evaluators=[json_valid(name="j")],
+        store_output=True,
+        repeats=2,
+    ) as run:
+        for r in (0, 1):
+            run.record(
+                "a",
+                repeat=r,
+                output={"k": [1, 2]},
+                case={"case_id": "a", "metadata": {}, "expected": 1},
+            )
+    assert files(tmp_path / "cli") == files(tmp_path / "sdk")

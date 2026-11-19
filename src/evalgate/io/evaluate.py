@@ -6,19 +6,35 @@ Diagnostics name a line and a field, never the output's text.
 """
 
 import json
+from collections import Counter
+from math import isfinite
 from pathlib import Path
 from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError, model_validator
 
 from evalgate.io.evaluators_config import load_evaluators_config
-from evalgate.io.importer import ImportSummary, _unique_keys, write_rows
-from evalgate.io.reader import InputError, _error, _read_text, load_run
+from evalgate.io.importer import ImportSummary, write_rows
+from evalgate.io.reader import InputError, _error, _read_text
 from evalgate.models.run import NonEmptyStr, Number
 
 
 def _reject_constant(value: str) -> None:
     raise ValueError(f"non-standard JSON constant {value}")
+
+
+def _finite_float(text: str) -> float:
+    value = float(text)
+    if not isfinite(value):  # e.g. 1e999: json would turn it into inf, then null on write
+        raise ValueError("number out of range")
+    return value
+
+
+def _unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    # Fixed text: keys nested inside `output` or `metadata` are content, never echo them.
+    if len({k for k, _ in pairs}) != len(pairs):
+        raise ValueError("duplicate key")
+    return dict(pairs)
 
 
 class OutputLine(BaseModel):
@@ -68,12 +84,18 @@ def read_outputs(path: Path) -> list[dict[str, Any]]:
     """Parse OUTPUTS.jsonl into write_rows rows. Every bad line is reported; values never are."""
     text = _read_text(path).removeprefix("﻿")
     rows: list[dict[str, Any]] = []
+    lines: list[int] = []
     diagnostics = []
     for n, raw in enumerate(text.splitlines(), 1):
         if not raw.strip():
             continue
         try:
-            data = json.loads(raw, object_pairs_hook=_unique_keys, parse_constant=_reject_constant)
+            data = json.loads(
+                raw,
+                object_pairs_hook=_unique,
+                parse_constant=_reject_constant,
+                parse_float=_finite_float,
+            )
         except (ValueError, RecursionError) as exc:
             # json's message gives a position, not content; ours names the duplicate key.
             msg = exc.msg if isinstance(exc, json.JSONDecodeError) else str(exc)
@@ -84,10 +106,20 @@ def read_outputs(path: Path) -> list[dict[str, Any]]:
             continue
         try:
             rows.append(_row(OutputLine.model_validate(data)))
+            lines.append(n)
         except ValidationError as exc:
             for e in exc.errors():  # location and message only: no input values
                 loc = ".".join(map(str, e["loc"])) or "<line>"
                 diagnostics.append(_error("outputs_record", f"{path}: line {n}: {loc}: {e['msg']}"))
+    # Duplicates are caught here, by line number, rather than one at a time by EvalRun.
+    keys = [(r["case_id"], r.get("repeat")) for r in rows]
+    counts = Counter(keys)
+    for key, n in zip(keys, lines, strict=True):
+        if counts[key] > 1:
+            what = "case_id" if key[1] is None else f"case_id/repeat {key[1]}"
+            diagnostics.append(
+                _error("outputs_record", f"{path}: line {n}: duplicate {what}: {key[0]}")
+            )
     if not rows and not diagnostics:
         diagnostics.append(_error("no_cases", f"{path}: contains no records"))
     if diagnostics:
@@ -113,7 +145,7 @@ def evaluate_outputs(
             [_error("import_run_id", f"{config}: set manifest.run_id or pass --run-id")]
         )
     rows = read_outputs(source)
-    summary = write_rows(
+    return write_rows(
         source,
         rows,
         out,
@@ -124,6 +156,3 @@ def evaluate_outputs(
         evaluators=setup.evaluators,
         store_output=setup.store_output,
     )
-    written_errors = sum(c.status == "error" for c in load_run(out).cases)
-    input_errors = sum(r["status"] == "error" for r in rows)
-    return summary._replace(evaluator_errors=written_errors - input_errors)
