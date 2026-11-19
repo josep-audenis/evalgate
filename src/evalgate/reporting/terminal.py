@@ -257,7 +257,7 @@ def render_candidates(result: "MultiResultLike", paths: Sequence[Path], console:
             justify="right" if column in ("n", "rank", "value", "cases") else "left",
         )
     for c, path in zip(summary.candidates, paths, strict=True):
-        row = [str(c.n), _text(str(path)), _text(c.run_id or "-"), c.status]
+        row = [str(c.n), e(str(path)), _text(c.run_id or "-"), c.status]
         if summary.ranking is not None:
             item = ranks.get(c.n)
             row += (
