@@ -210,3 +210,88 @@ T3 core ────▶ T4 built-ins ────┘
 - Release review before tagging, as for 0.5.0 and 0.6.0.
 
 **Out of 0.7.0:** the `evalgate evaluate` CLI (0.8.0), LLM judges (0.9.0), and pairwise judging (deferred).
+
+## 10. 0.8.0 task breakdown
+
+The goal is `evalgate evaluate`: score an outputs file with built-in evaluators from a YAML config, for teams that don't use Python. There are four tasks, each landing with its own tests, and the pre-push checks must stay green. They run in order: T1 → T2 → T3 → T4.
+
+### Decisions this plan makes (defaults; object before T1 starts)
+
+- **The manifest lives in the config,** as an `ImportManifest` block (the same shape as `mapping.yaml`). `--run-id` overrides `manifest.run_id`. The one config file fully describes how the run was scored.
+- **Only built-ins can be used from YAML.** `matches_model` is left out, since it needs a Python class. Custom `@check` / `@score` evaluators also stay SDK-only (section 3: no code loading from YAML).
+- **`case` for an evaluator** is the outputs line without its `output`, `status`, `error`, `metrics` and `repeat`. That means `{case_id, expected, metadata}`, so `exact_match()` and `numeric_close()` read `expected` by default.
+- **Strict input everywhere.** Unknown keys in the config or an outputs line are rejected, so a typo can't silently drop a check. Every bad line is reported, and nothing is written unless every line is valid.
+- **No output text in errors.** Diagnostics name the line number and field, never the value (they use the existing `_schema_errors` helper, which reports only the location and the message).
+- **One engine.** `evalgate.evaluate_outputs(...)` is the SDK function, and the CLI is a thin wrapper around it. Both write through `write_rows`, and so through `EvalRun`, so CLI and SDK output are byte-identical.
+
+### Config shape (`evaluators.yaml`)
+
+```yaml
+version: 1
+manifest:
+  dataset_id: support-suite
+  dataset_version: v3
+  evaluator_version: native-v1
+  # run_id, application, application_version optional
+store_output: false            # optional
+evaluators:
+  - type: json_valid
+    name: is_json
+  - type: length
+    name: concise
+    max: 300
+  - type: json_schema
+    name: answer_schema
+    schema_file: answer.schema.json   # relative to this config; or inline `schema:`
+  - type: not_contains
+    name: no_ai_disclaimer
+    text: as an AI
+    ignore_case: true
+```
+
+**T1. Config model and loader** (`models/evaluators_config.py`, `io/evaluators_config.py`)
+- A strict Pydantic config model with `extra="forbid"`. Each `type` is one of the YAML-capable built-ins, plus that factory's arguments.
+- `schema` and `schema_file` are mutually exclusive. `schema_file` is resolved relative to the config file, must stay inside the config's directory (no `..` escape), and must be JSON.
+- `load_evaluators_config(path)` returns the manifest, the built `Evaluator`s and `store_output`. Building happens by calling the factories, so argument errors and duplicate names surface when the config loads.
+- YAML is read with the existing duplicate-key-rejecting loader.
+- **Diagnostic codes (exit 2):**
+  - `evaluators_yaml`: the YAML can't be parsed. A missing or unreadable file gives the existing `file_missing` / `file_unreadable`.
+  - `schema`: the config doesn't match the model (an unknown key or type, a wrong value type). This is the same code policies and mappings use.
+  - `evaluators_config` (new): building an evaluator fails (bad arguments, an invalid or remote JSON Schema, a `schema_file` problem, a missing `jsonschema` extra), or two evaluators share a name.
+- **Tests:**
+  - every built-in round-trips from YAML;
+  - the same config gives the same versions as the equivalent Python factories;
+  - unknown keys, an unknown type, `matches_model`, bad arguments, duplicate names, `schema` together with `schema_file`, a `schema_file` that escapes the directory or is missing, duplicate YAML keys, and a missing extra each give `evaluators_config` or `evaluators_yaml`.
+
+**T2. Outputs reader and engine** (`io/evaluate.py`, `io/importer.py`)
+- A strict model for an outputs line: `case_id`, `status` (`ok`/`error`), `output` (required if ok, forbidden if error), `error` (only if error), and optional `expected`, `metadata`, `metrics` and `repeat`.
+- **New diagnostic codes:** `outputs_parse` for a line that isn't JSON (by line number only), and `outputs_record` for a schema error on a line.
+- `write_rows` gains `evaluators=` and `store_output=`, and passes each row's `output` and `case` to `record()`. Existing importers are unchanged: their default is no evaluators.
+- **`evaluate_outputs(source, config, out, *, run_id=None, overwrite=False) -> ImportSummary`,** exported from `evalgate`.
+  - An evaluator error still becomes `status: error`, as in the SDK.
+  - The summary adds a count of evaluator errors.
+- **Tests:**
+  - the SDK and `evaluate_outputs` write byte-identical `run.json` and `cases.jsonl` for the same inputs;
+  - every bad line is reported, and nothing is written;
+  - no output text appears in any diagnostic (checked with a test string);
+  - `status: error` lines are recorded as errors;
+  - repeats work;
+  - `store_output` from the config works;
+  - an existing run without `--overwrite` gives `import_exists`, the code shared with the importers;
+  - `expected` reaches `exact_match`.
+
+**T3. CLI** (`cli.py`)
+- `evalgate evaluate OUTPUTS.jsonl --config evaluators.yaml --out DIR [--run-id ID] [--overwrite]`, wrapped in `_fail_closed` like the other commands. On success it prints a summary (cases, repeats, evaluator errors) and exits 0. Any diagnostic exits 2.
+- Add an `if __name__ == "__main__"` entry point so `python -m evalgate.cli` works. That was a pre-existing gap noticed in the 0.7.0 review.
+- **Tests:**
+  - the exit codes (0 and 2);
+  - the CLI writes the same files as `evaluate_outputs`;
+  - `--run-id` overrides the config;
+  - the help text lists the command.
+
+**T4. Docs and release** (`docs/evaluators.md`, `README.md`, `examples/`, `CHANGELOG.md`, `_version.py`)
+- Add a CLI section to `docs/evaluators.md` covering the config reference, the outputs line format and the diagnostics. Add the new codes to `report-format.md`. Update the README snippet and the "Not yet included" list.
+- Add `outputs.jsonl` and `evaluators.yaml` to `examples/native-evaluators`, describing the same scenario. A test checks that the CLI path gives the same decision as the committed runs.
+- Add a CHANGELOG 0.8.0 entry and bump the version to 0.8.0. Mark the design doc's status as 0.8.0 implemented.
+
+**Out of 0.8.0:** CSV outputs files (JSONL only), `matches_model` and custom code from YAML, LLM judges (0.9.0), and pairwise judging (deferred).
