@@ -4,7 +4,14 @@ from collections import Counter, defaultdict
 from collections.abc import Iterable
 from typing import Any
 
-from evalgate.models import SCHEMA_VERSION_REPEATS, CaseResult, Diagnostic, Policy, Run
+from evalgate.models import (
+    SCHEMA_VERSION_EVALUATORS,
+    SCHEMA_VERSION_REPEATS,
+    CaseResult,
+    Diagnostic,
+    Policy,
+    Run,
+)
 
 _MAX_IDS_SHOWN = 5
 # Advisory only: interval-based gating is `statistics.require_conclusive`; this nudges users
@@ -30,12 +37,25 @@ def validate_run(run: Run, label: str = "run") -> list[Diagnostic]:
     if with_repeat and with_repeat != len(run.cases):
         out.append(_diag(True, "repeat_mixed", f"{label}: some cases have `repeat`, others don't"))
     uses_repeats = with_repeat > 0 or manifest.repeats is not None
-    if uses_repeats and manifest.schema_version != SCHEMA_VERSION_REPEATS:
+    # 1.2 is a superset of 1.1.
+    if uses_repeats and manifest.schema_version not in (
+        SCHEMA_VERSION_REPEATS,
+        SCHEMA_VERSION_EVALUATORS,
+    ):
         out.append(
             _diag(
                 True,
                 "repeat_schema",
-                f"{label}: repeats require schema_version {SCHEMA_VERSION_REPEATS!r}",
+                f"{label}: repeats require schema_version {SCHEMA_VERSION_REPEATS!r} or later",
+            )
+        )
+    if manifest.evaluators is not None and manifest.schema_version != SCHEMA_VERSION_EVALUATORS:
+        # Before 1.2, `evaluators` was free metadata; never read it as a declaration.
+        out.append(
+            _diag(
+                True,
+                "evaluators_schema",
+                f"{label}: `evaluators` requires schema_version {SCHEMA_VERSION_EVALUATORS!r}",
             )
         )
     if out:
