@@ -39,6 +39,7 @@ Codes:
 
 `evalgate import` / `evaluate` and `evalgate calibrate` report their own input problems with the same diagnostic shape (exit 2, no report):
 - **Import and evaluate:** `import_*`, `evaluators_yaml`, `evaluators_config`, `outputs_parse`, `outputs_record`
+- **History:** `history_missing`, `history_parse`, `history_id`, `history_record`, `history_write`. See [history.md](history.md#exit-codes-and-failures)
 - **Calibrate:** `labels_parse`, `labels_record`, `labels_unknown` (a labelled check or score the run doesn't have), `labels_empty` (an empty labels file, or no labelled case with a value to compare). See [judges.md](judges.md#calibrating-a-judge)
 
 ## `comparison`

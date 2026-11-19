@@ -94,3 +94,32 @@ def test_internal_error_exits_invalid(monkeypatch: object, tmp_path: Path) -> No
     base = str(EXAMPLE / "baseline")
     result = runner.invoke(app, ["compare", base, base, "--policy", str(EXAMPLE / "evalgate.yaml")])
     assert result.exit_code == EXIT_INVALID
+
+
+def test_unencodable_output_does_not_turn_a_decision_into_exit_2(tmp_path: Path) -> None:
+    # A non-ASCII run_id printed to a cp1252 pipe used to raise UnicodeEncodeError (exit 2).
+    import os
+    import shutil
+    import subprocess
+    import sys
+
+    examples = Path(__file__).parent.parent / "examples" / "quickstart"
+    cand = tmp_path / "cand"
+    shutil.copytree(examples / "candidate", cand)
+    manifest = json.loads((cand / "run.json").read_text(encoding="utf-8"))
+    manifest["run_id"] = "日本✓"
+    (cand / "run.json").write_text(json.dumps(manifest), encoding="utf-8")
+    env = os.environ | {"PYTHONIOENCODING": "cp1252", "PYTHONPATH": str(Path(evalgate_src()))}
+    result = subprocess.run(
+        [sys.executable, "-m", "evalgate.cli", "compare", str(examples / "baseline"), str(cand),
+         "--policy", str(examples / "evalgate.yaml")],
+        env=env, capture_output=True,
+    )  # fmt: skip
+    assert result.returncode == 1, result.stderr
+    assert b"internal error" not in result.stdout + result.stderr
+
+
+def evalgate_src() -> Path:
+    import evalgate
+
+    return Path(evalgate.__file__).parent.parent

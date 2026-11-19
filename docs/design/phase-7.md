@@ -1,6 +1,6 @@
 # Design: Phase 7 (local history, multiple candidates, failure groups, and the long tail)
 
-Status: **planned.** Section 2 has the 0.10.0 task breakdown. Each later release gets its own task breakdown in a plan PR when its turn comes, as was done for each Phase 6 slice.
+Status: **0.10.0 implemented** (local history, see [docs/history.md](../history.md)); later releases planned. Each later release gets its own task breakdown in a plan PR when its turn comes, as was done for each Phase 6 slice.
 
 SPEC Phase 7 lists exploration items, not commitments. This doc puts the chosen ones in order, and each release after 0.10.0 is still gated on demand: if usage shows an item isn't needed, it is dropped.
 
@@ -114,7 +114,7 @@ Each release is published only when the user says so.
   - **datasets:** each point shows its dataset. Without `--dataset`, a trend that spans more than one `(dataset_id, dataset_version)` prints a warning, because means over different datasets aren't comparable;
   - entries without the path are skipped, and the skips are counted;
   - `--last N` applies after filtering and skipping;
-  - `--json`: `{"history_version": 1, "path": …, "kind": …, "points": [...], "skipped": n}`.
+  - `--json`: `{"history_version": 1, "path": …, "kind": …, "points": [...], "skipped": n, "mixed_datasets": bool}`.
 - **Exit codes:** 0, or 2 for any diagnostic. History commands never exit 1.
 - **Codes,** one meaning each:
   - `history_parse`: any bad index line, on read or before an append;
