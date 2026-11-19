@@ -97,7 +97,7 @@ def read_outputs(path: Path) -> list[dict[str, Any]]:
                 parse_float=_finite_float,
             )
         except (ValueError, RecursionError) as exc:
-            # json's message gives a position, not content; ours names the duplicate key.
+            # json's message gives a position, not content; ours are fixed text.
             msg = exc.msg if isinstance(exc, json.JSONDecodeError) else str(exc)
             diagnostics.append(_error("outputs_parse", f"{path}: line {n}: not valid JSON: {msg}"))
             continue
