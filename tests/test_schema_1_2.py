@@ -1,6 +1,7 @@
 """Schema 1.2 (native-evaluators design §4): `evaluators` manifest field, opaque `output`."""
 
 import json
+import math
 from pathlib import Path
 
 import pytest
@@ -19,13 +20,23 @@ def errors(report: Report) -> set[str]:
     return {d.code for d in report.diagnostics if d.level == "error"}
 
 
-def test_run_without_evaluators_writes_no_new_fields(tmp_path: Path) -> None:
+def test_run_without_evaluators_writes_same_bytes_as_0_6(tmp_path: Path) -> None:
     with EvalRun("r", dataset="d", dataset_version="v", evaluator_version="e", path=tmp_path) as r:
         r.record("a", scores={"quality": 1.0})
-    manifest = json.loads((tmp_path / "run.json").read_text())
-    assert manifest["schema_version"] == "1.0"
-    assert "evaluators" not in manifest
-    assert "output" not in (tmp_path / "cases.jsonl").read_text()
+    # Golden 0.6.0 output: no `evaluators`, no `output`.
+    expected_manifest = {
+        "schema_version": "1.0",
+        "run_id": "r",
+        "dataset_id": "d",
+        "dataset_version": "v",
+        "evaluator_version": "e",
+        "application": None,
+        "application_version": None,
+    }
+    run_json = json.dumps(expected_manifest, indent=2)
+    assert (tmp_path / "run.json").read_text().splitlines() == run_json.splitlines()
+    expected_case = '{"case_id":"a","status":"ok","scores":{"quality":1.0}}'
+    assert (tmp_path / "cases.jsonl").read_text().splitlines() == [expected_case]
 
 
 def test_manifest_dump_omits_unset_evaluators() -> None:
@@ -43,8 +54,9 @@ def test_1_2_with_evaluators_compares() -> None:
     assert report.status == "PASS", report.diagnostics
 
 
-def test_1_1_run_declaring_evaluators_is_invalid() -> None:
-    run = make_run([case("a")], schema_version="1.1", **EVALS)
+@pytest.mark.parametrize("version", ["1.0", "1.1"])
+def test_pre_1_2_run_declaring_evaluators_is_invalid(version: str) -> None:
+    run = make_run([case("a")], schema_version=version, **EVALS)
     assert errors(evaluate(run, run, make_policy())) == {"evaluators_schema"}
 
 
@@ -88,6 +100,7 @@ def test_output_is_opaque_on_any_schema(tmp_path: Path) -> None:
     base = load_run(plain)
     cand = load_run(with_output)
     assert cand.cases[0].output == {"text": "hi"}
+    assert isinstance(cand.cases[1].output, float) and math.isnan(cand.cases[1].output)
     policy = make_policy()
     expected = evaluate(base, load_run(plain), policy)
     got = evaluate(base, cand, policy)
