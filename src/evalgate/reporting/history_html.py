@@ -47,7 +47,8 @@ def svg_chart(path: str, points: Sequence[tuple[int, str, float | None]]) -> str
     def y(v: float) -> float:
         if high == low:
             return HEIGHT / 2
-        return HEIGHT - PAD - (v - low) / (high - low) * (HEIGHT - 2 * PAD)
+        # Halves keep high - low finite even for values near the float limit.
+        return HEIGHT - PAD - (v / 2 - low / 2) / (high / 2 - low / 2) * (HEIGHT - 2 * PAD)
 
     parts = [head]
     run: list[str] = []
@@ -98,7 +99,9 @@ def render_history_html(
     body = [
         "<h1>EvalGate history</h1>",
         f'<p class="muted">{escape(", ".join(filters))}: {len(selected)} entr'
-        f"{'y' if len(selected) == 1 else 'ies'}. INVALID compares are left out.</p>",
+        f"{'y' if len(selected) == 1 else 'ies'}"
+        + (". INVALID compares are left out." if kind == "compare" else ".")
+        + "</p>",
     ]
     if not selected:
         body.append("<p>No entries match this selection.</p>")
@@ -115,7 +118,7 @@ def render_history_html(
             "aren't comparable. Filter with --dataset.</p>"
         )
     charts = []
-    for path in paths or entry_paths(selected):
+    for path in dict.fromkeys(paths) or entry_paths(selected):  # dedupe, keep order
         points = [(e.id, e.label or "", entry_value(e, path)) for e in selected]
         charts.append(
             f"<figure><figcaption>{escape(path)}</figcaption>{svg_chart(path, points)}</figure>"

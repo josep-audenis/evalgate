@@ -187,3 +187,70 @@ def test_cli_failures_exit_2(tmp_path: Path, case: str) -> None:
             app, ["history", "report", str(tmp_path / "dir.html"), "--history", str(s)]
         )
         assert result.exit_code == EXIT_INVALID and "cannot write" in result.output
+
+
+def test_two_runs_around_a_gap_are_two_polylines() -> None:
+    svg = svg_chart("p", [(1, "", 1.0), (2, "", 2.0), (3, "", None), (4, "", 3.0), (5, "", 4.0)])
+    assert svg.count("<polyline") == 2 and len(circles(svg)) == 4
+
+
+def test_extreme_values_stay_finite() -> None:
+    svg = svg_chart("p", [(1, "", -1.7e308), (2, "", 1.7e308)])
+    assert "nan" not in svg and "inf" not in svg
+    assert circles(svg) == [("80.00", "160.00"), ("600.00", "40.00")]
+
+
+def test_failures_table_rows_equal_recurring_failures(tmp_path: Path) -> None:
+    s = store(tmp_path, (0.5, True), (0.6, True), (0.7, True))
+    entries = read_history(s)
+    html = render_history_html(entries)
+    body = html.split("<h2>Recurring failures</h2>")[1].split("<tbody>")[1].split("</tbody>")[0]
+    rows = [re.findall(r"<td[^>]*>(.*?)</td>", r) for r in re.findall(r"<tr>(.*?)</tr>", body)]
+    expected = [
+        [
+            p["case_id"],
+            p["check"],
+            str(p["failing"]),
+            str(p["of"]),
+            str(p["first"]),
+            str(p["last"]),
+            str(p["streak"]),
+        ]
+        for p in recurring_failures(entries)["pairs"]
+    ]
+    assert rows == expected == [["c1", "safe", "3", "3", "1", "3", "3"]]
+
+
+def test_hostile_path_case_and_check_on_the_page(tmp_path: Path) -> None:
+    hostile = "<img src=x onerror=alert(1)>"
+    s = tmp_path / "h"
+    for i in range(2):
+        path = tmp_path / f"r{i}"
+        with EvalRun(
+            path.name, dataset="d", dataset_version="v", evaluator_version="e", path=path
+        ) as r:
+            r.record(hostile, scores={hostile: 1.0}, checks={hostile: False})
+        record_run(path, s, recorded_at=T0)
+    html = render_history_html(read_history(s))
+    assert hostile not in html and "&lt;img src=x onerror=alert(1)&gt;" in html
+    m = parse(html)
+    for tag, attrs in m.tags:
+        assert not any(name.startswith("on") for name in attrs), (tag, attrs)
+        for name in ("src", "href", "action", "srcset"):
+            if name in attrs:
+                assert (attrs[name] or "").startswith("data:")
+        style = attrs.get("style") or ""
+        assert "url(" not in style and "@import" not in style
+
+
+def test_no_mixed_dataset_warning_for_one_dataset(tmp_path: Path) -> None:
+    assert "more than one dataset" not in render_history_html(
+        read_history(store(tmp_path, (0.5, False), (0.6, False)))
+    )
+
+
+def test_duplicate_paths_chart_once(tmp_path: Path) -> None:
+    html = render_history_html(
+        read_history(store(tmp_path, (0.5, False))), paths=["scores.quality"] * 2
+    )
+    assert html.count("<figure>") == 1
