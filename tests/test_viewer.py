@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import sys
+from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -148,12 +149,16 @@ def test_no_handlers_and_no_external_references(report: Any) -> None:
         for name in ("src", "href", "action", "srcset"):
             if name in attrs:
                 assert (attrs[name] or "").startswith("data:"), (tag, attrs)
+        style = attrs.get("style") or ""
+        assert "url(" not in style and "@import" not in style, (tag, attrs)
     outside_style = re.sub(r"<style>.*?</style>", "", render_html(report()), flags=re.S)
     assert "url(" not in "".join(m.scripts) and "@import" not in outside_style
 
 
 def test_script_source_uses_no_dangerous_api() -> None:
     js = VIEWER.read_text(encoding="utf-8")
+    # The browser hashes the bytes between the tags: these would end or comment the block early.
+    assert "</script" not in js.lower() and "<!--" not in js
     for token in (
         "fetch", "XMLHttpRequest", "import(", "eval", "Function(", "innerHTML",
         "outerHTML", "insertAdjacentHTML", "document.write",
@@ -164,23 +169,48 @@ def test_script_source_uses_no_dangerous_api() -> None:
 # --- complete without JavaScript --------------------------------------------------------------
 
 
-def test_every_row_and_new_section_is_in_the_raw_html() -> None:
+def sections(html: str) -> dict[str, list[list[list[str]]]]:
+    """Section title -> its tables -> body rows -> cell text (unescaped)."""
+    out: dict[str, list[list[list[str]]]] = {}
+    for chunk in html.split("<details open><summary><h2>")[1:]:
+        title, rest = chunk.split("</h2></summary>", 1)
+        body = rest.split("</details>", 1)[0]
+        tables = re.findall(r"<tbody>(.*?)</tbody>", body, flags=re.S)
+        out[unescape(title)] = [
+            [
+                [
+                    unescape(re.sub(r"<[^>]+>", "", c))
+                    for c in re.findall(r"<td[^>]*>(.*?)</td>", row)
+                ]
+                for row in re.findall(r"<tr>(.*?)</tr>", tbody)
+            ]
+            for tbody in tables
+        ]
+    return out
+
+
+def test_new_sections_match_the_json() -> None:
     report = hostile_report()
-    html = render_html(report)
-    assert report.comparison is not None and report.comparison.failure_groups is not None
-    for title in (
-        "Baseline execution errors",
-        "Candidate execution errors",
-        "Candidate failing checks",
-        "Failure groups",
-    ):
-        assert f"<summary><h2>{title}</h2></summary>" in html
-    assert html.count("<details open>") == html.count("<summary>")
-    m = parse(html)
     cmp = report.comparison
-    expected = len(cmp.candidate_failing_checks)
-    assert expected in m.rows.values()  # the candidate failing checks table has every row
-    assert len(cmp.failure_groups.by_check) in m.rows.values()
+    assert cmp is not None and cmp.failure_groups is not None
+    s = sections(render_html(report))
+    assert s["Baseline execution errors"] == [[[i] for i in cmp.baseline_errors]] == [[["e"]]]
+    assert s["Candidate execution errors"] == [[[i] for i in cmp.candidate_errors]] == [[["f"]]]
+    assert s["Candidate failing checks"] == [
+        [[c.case_id, c.check] for c in cmp.candidate_failing_checks]
+    ]
+    g = cmp.failure_groups
+
+    def counts(x: Any) -> list[str]:
+        return [str(x.failing), str(x.new), str(x.persistent), str(x.no_baseline)]
+
+    assert s["Failure groups"] == [
+        [[x.check, x.category, *counts(x), ", ".join(x.cases)] for x in g.by_check_category],
+        [[x.check, *counts(x), ", ".join(x.cases)] for x in g.by_check],
+        [[x.category, *counts(x), ", ".join(x.checks), ", ".join(x.cases)] for x in g.by_category],
+    ]
+    html = render_html(report)
+    assert html.count("<details open>") == html.count("<summary>")
 
 
 def test_failure_groups_absent_for_invalid_or_nothing_failing() -> None:
@@ -224,7 +254,9 @@ def test_hostile_names_are_escaped() -> None:
 
 def test_matches_the_golden_file() -> None:
     expected = GOLDEN.read_text(encoding="utf-8")
-    actual = render_html(quickstart()).replace(evalgate.__version__, "VERSION")
+    actual = render_html(quickstart()).replace(
+        f"evalgate {evalgate.__version__}", "evalgate VERSION"
+    )
     assert actual == expected, "regenerate tests/fixtures/quickstart_report.html if intended"
 
 
