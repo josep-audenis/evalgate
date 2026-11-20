@@ -82,7 +82,7 @@ evalgate compare evals/baseline evals/candidate --policy evalgate.yaml \
 
 - `--report` writes one standalone HTML file with sortable, filterable tables and no external assets: one script, pinned by a Content Security Policy. See [the HTML report](https://github.com/josep-audenis/evalgate/blob/main/docs/report.md).
 - `--json` writes a stable, documented report: see [report format](https://github.com/josep-audenis/evalgate/blob/main/docs/report-format.md).
-- `--format NAME=PATH` writes the report with an installed reporter plugin (JUnit, CSV, your own template): see [report plugins](https://github.com/josep-audenis/evalgate/blob/main/docs/reporters.md).
+- `--format NAME=PATH` writes the report with an installed reporter plugin (for example JUnit or CSV): see [report plugins](https://github.com/josep-audenis/evalgate/blob/main/docs/reporters.md).
 - `--markdown report.md` writes a short summary for a pull request comment or a CI job summary: see [CI integration](https://github.com/josep-audenis/evalgate/blob/main/docs/ci.md).
 - No report contains raw prompts or outputs.
 

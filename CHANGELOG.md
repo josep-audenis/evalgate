@@ -13,7 +13,7 @@ Report plugins (SPEC Phase 7, fifth slice). Decisions and the JSON report are un
   - **Using one:** `evalgate compare … --format NAME=PATH` (repeatable; `{n}` with several candidates) writes the report with it. See [docs/reporters.md](docs/reporters.md).
   - **When plugin code runs:** only when `--format` names it, after every decision and every built-in write (artifacts, `--summary`, `--history`); if any of those writes fails, no reporter runs. An unknown or ambiguous name stops the command before comparing.
   - **Isolation:** each reporter gets a deep copy of the report. Reporters run for INVALID candidates too.
-  - **Failures:** a reporter that fails to import, raises (including `SystemExit`) or returns something unwritable makes the command exit 2. The decision is still printed, and the exception text is never shown.
+  - **Failures:** a reporter that fails to import, raises (including `SystemExit`) or returns something unwritable makes the command exit 2. The decision is still printed, and the exception text is never shown (unless the reporter raises `ReporterError` itself).
 - **`evalgate reporters`** lists the installed reporters (name, distribution, version, target) from package metadata, without importing them.
 - **Python:** `evalgate.reporters.available()`, `render(name, report)`, `ReporterError` and `ReporterInfo`.
 - **`examples/reporter-plugin`:** a minimal installable reporter that writes the failing checks as CSV.

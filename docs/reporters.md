@@ -53,10 +53,10 @@ evalgate compare BASE CAND1 CAND2 --policy evalgate.yaml --format junit=junit-{n
 ```
 
 - **The argument:** `--format NAME=PATH` is repeatable. It is split at the first `=`, so the path may contain `=`. With several candidates, `PATH` must contain `{n}`, as `--json` does ([several candidates](candidates.md)).
-- **Bad names:** an unknown or ambiguous name stops the command before anything is compared (exit 2). The message lists the installed reporters.
+- **Bad names:** an unknown or ambiguous name stops the command before anything is compared (exit 2). The message lists the installed reporters (or, for an ambiguous name, the packages that register it).
 - **Order:**
   1. decide every candidate;
-  2. write `--json`, `--report` and `--markdown`;
+  2. write `--json`, `--report` and `--markdown` (candidate by candidate);
   3. write `--summary`;
   4. record `--history`;
   5. load and run the reporters, each loaded once, in `--format` order;
@@ -69,6 +69,7 @@ evalgate compare BASE CAND1 CAND2 --policy evalgate.yaml --format junit=junit-{n
   - the command exits 2.
 
   The message gives the reporter's name and the exception type, but never the exception text, which could quote report data.
+  Exception: a reporter that raises `evalgate.reporters.ReporterError` itself has its message shown as if it were EvalGate's, so don't put report data in it.
   If EvalGate can't write a reporter's output file, the message names the path and the OS error instead.
 - **Debugging:** use the Python API, where your exception propagates unchanged:
   ```python
