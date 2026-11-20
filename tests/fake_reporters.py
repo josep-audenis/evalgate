@@ -31,3 +31,19 @@ def bad_text(report: Report) -> str:
 
 
 not_callable = "just a string"
+
+
+def raise_value(report: Report) -> str:
+    raise ValueError(f"SECRET-{report.status}")
+
+
+def raise_exit(report: Report) -> str:
+    raise SystemExit(0)
+
+
+def raise_interrupt(report: Report) -> str:
+    raise KeyboardInterrupt
+
+
+def status_line(report: Report) -> str:
+    return f"{report.status} comparison={report.comparison is not None}\n"

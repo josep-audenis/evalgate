@@ -7,6 +7,7 @@ import functools
 import json
 import sys
 from collections.abc import Callable
+from importlib.metadata import EntryPoint
 from pathlib import Path
 from typing import Annotated, Literal, ParamSpec
 
@@ -34,7 +35,8 @@ from evalgate.io.history import load_entry_report, read_history, record_report, 
 from evalgate.io.importer import import_results
 from evalgate.io.labels import calibrate_run
 from evalgate.io.promptfoo import import_promptfoo
-from evalgate.io.writer import _atomic_write
+from evalgate.io.writer import _atomic_write, _atomic_write_bytes
+from evalgate.models import Report
 from evalgate.models.history import MAX_LABEL, RunEntry
 from evalgate.reporting.history_html import render_history_html
 from evalgate.reporting.terminal import (
@@ -66,8 +68,12 @@ def _fail_closed(command: Callable[P, None]) -> Callable[P, None]:
     def wrapper(*args: P.args, **kwargs: P.kwargs) -> None:
         try:
             command(*args, **kwargs)
-        except (typer.Exit, typer.Abort):
+        except typer.Exit:
             raise
+        except (KeyboardInterrupt, typer.Abort) as exc:
+            # Typer would exit 1, the policy-FAIL code; an interrupted run made no decision.
+            typer.echo("interrupted: no decision", err=True)
+            raise typer.Exit(EXIT_INVALID) from exc
         except Exception as exc:
             typer.echo(f"internal error: {exc!r}", err=True)
             raise typer.Exit(EXIT_INVALID) from exc
@@ -112,6 +118,31 @@ def validate(run_dir: Path) -> None:
     console.print(f"[bold green]valid[/]: {escape(run.manifest.run_id)}, {shape}")
 
 
+def _run_reporters(
+    plugins: list[tuple[str, Path, EntryPoint]], reports: list[Report], many: bool
+) -> str | None:
+    """Load each reporter once and write its output for every candidate. Returns the first
+    failure: any BaseException except KeyboardInterrupt (so SystemExit too) or a bad result.
+    The exception's message is not shown: it could quote report data."""
+    for name, template, entry_point in plugins:
+        try:
+            fn = reporter_registry.load(entry_point)
+            for n, report in enumerate(reports, 1):
+                path = _artifact_path(template, n, many)
+                assert path is not None
+                output = reporter_registry.call(name, fn, report)
+                _atomic_write_bytes(path, reporter_registry.as_bytes(output))
+        except KeyboardInterrupt:
+            raise  # Ctrl-C stops at once; _fail_closed exits 2
+        except reporter_registry.ReporterError as exc:
+            return str(exc)
+        except OSError as exc:
+            return f"reporter {name!r}: cannot write: {exc.strerror or type(exc).__name__}"
+        except BaseException as exc:  # SystemExit included: a reporter can't pick the exit code
+            return f"reporter {name!r} failed: {type(exc).__name__}"
+    return None
+
+
 def _artifact_path(path: Path | None, n: int, many: bool) -> Path | None:
     # str.replace, never str.format: other braces and Windows backslashes stay as they are.
     if path is None or not many:
@@ -154,6 +185,14 @@ def compare(
         str | None,
         typer.Option("--rank-by", help="Rank candidates on this policy metric (informational)."),
     ] = None,
+    formats: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--format",
+            help="NAME=PATH: also write the report with an installed reporter plugin "
+            "(see `evalgate reporters`). Repeatable.",
+        ),
+    ] = None,
 ) -> None:
     """Compare one or more candidate runs against a baseline under a release policy.
 
@@ -178,6 +217,20 @@ def compare(
         ]
     ):
         usage = f"with several candidates, {', '.join(missing)} must contain {{n}}"
+    plugins: list[tuple[str, Path, EntryPoint]] = []
+    for value in formats or []:
+        if usage is not None:
+            break
+        name, sep, raw = value.partition("=")
+        if not (sep and name and raw):
+            usage = f"--format takes NAME=PATH, got {value!r}"
+        elif many and "{n}" not in raw:
+            usage = "with several candidates, --format paths must contain {n}"
+        else:
+            try:  # metadata only: no plugin code runs before the decisions
+                plugins.append((name, Path(raw), reporter_registry.resolve(name)))
+            except reporter_registry.ReporterError as exc:
+                usage = str(exc)
     if usage is None:
         try:
             result = compare_many(baseline, candidates, policy, rank_by=rank_by)
@@ -220,6 +273,10 @@ def compare(
                 history_error = exc
                 break
             recorded += 1
+    # Untrusted code last: the decisions, built-in artifacts, summary and history are written.
+    plugin_error = None
+    if write_error is None and history_error is None and plugins:
+        plugin_error = _run_reporters(plugins, result.reports, many)
 
     if many or rank_by is not None:
         for n, (path, report) in enumerate(zip(candidates, result.reports, strict=True), 1):
@@ -231,6 +288,12 @@ def compare(
     if write_error is not None:
         console.print(
             f"[bold yellow]{escape(write_error)}[/]: exit 2 (see the decision above)",
+            highlight=False,
+        )
+        raise typer.Exit(EXIT_INVALID)
+    if plugin_error is not None:
+        console.print(
+            f"[bold yellow]{escape(plugin_error)}[/]: exit 2 (see the decision above)",
             highlight=False,
         )
         raise typer.Exit(EXIT_INVALID)
