@@ -10,12 +10,12 @@ An interactive HTML report and a history page (SPEC Phase 7, fourth slice). Deci
 
 - **Sortable and filterable HTML report.** The report stays one offline file. See [docs/report.md](docs/report.md).
   - Click a column header to sort: numbers by their full value, empty and `n/a` cells last, text in the same order in every browser.
-  - Long tables get a filter box.
+  - Case-level tables (case lists, errors, failure groups, categories) get a filter box.
   - Every section folds.
   - Without JavaScript the page is still complete.
 - **A Content Security Policy in the HTML report.** Only the embedded viewer script runs, pinned by its hash, and nothing can be fetched, framed or submitted.
 - **New HTML sections,** so the page shows everything the JSON does:
-  - the baseline's and candidate's errored case ids;
+  - the baseline's errored case ids (and the candidate's, now as a filterable table rather than a list);
   - the candidate's failing checks;
   - failure groups (by check × category, by check, by category).
 - **`evalgate history report OUT.html`:** a standalone page for one selection of a history store. It holds a server-drawn SVG trend chart per metric (gaps for missing values), the entries table and the recurring failures. It takes `--kind`, `--dataset`, `--application`, `--last` and a repeatable `--path`. See [docs/history.md](docs/history.md#the-history-page).

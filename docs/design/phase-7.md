@@ -523,7 +523,7 @@ The HTML report is a static page: long case lists can't be sorted or searched, a
 
 **`evalgate history report OUT.html`**
 - `evalgate history report OUT.html --history DIR [--kind run|compare] [--dataset …] [--application …] [--last N] [--path PATH …]`. It writes through the existing atomic LF writer; a write failure exits 2.
-- **Selection:** one pure helper, `select_entries(entries, kind, dataset, application, last)` in `comparison/history.py`, now shared by `trend`, `recurring_failures` and the page.
+- **Selection:** one pure helper, `select_entries(entries, kind, dataset, application, last)` in `comparison/history.py`, shared by `recurring_failures` and the page.
   - It excludes INVALID compares, as `recurring_failures` already does.
   - `trend` keeps its own selection code (the helper always drops INVALID compares, which `trend` counts as skipped), so its output doesn't change. `docs/history.md` notes that the page leaves out INVALID compares that `history trend` lists.
   - `--last` applies to the selected entries, not to points. Every chart and table on the page covers the same entries.
@@ -589,7 +589,7 @@ T0 land the restyle ──▶ T1 viewer (CSP, script, sections) ──▶ T2 his
 **T3. Docs and release**
 - `docs/report.md` (new): what the HTML report shows, and the viewer.
 - A section in `docs/history.md`, and the README.
-- `examples/history` also writes `report.html`.
+- `examples/history` also writes `history.html`.
 - CHANGELOG, and the version bump to 0.13.0.
 - Before the tag, a manual check in Chromium and Firefox (Safari if available): open both pages from `file://`, sort, filter and fold, and see no console errors. Then one more pass with JavaScript disabled.
 

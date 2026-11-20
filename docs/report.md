@@ -24,7 +24,7 @@
   - Numbers sort by their full value, not the 6 digits shown.
   - Empty and `n/a` cells always go last.
   - Text sorts by character code, so the order is the same in every browser and locale.
-- **Filter:** long tables get a filter box that hides the rows not containing what you type, and shows "n of m rows".
+- **Filter:** case-level tables (case lists, errors, failure groups, categories) get a filter box that hides the rows not containing what you type, and shows "n of m rows".
 - **Fold:** every section is a collapsible block, open by default so find-in-page and printing see everything.
 
 Without JavaScript (a strict email client, a viewer that strips scripts) the report is complete and correct: every row is in the page. Only sorting and filtering need the script.
