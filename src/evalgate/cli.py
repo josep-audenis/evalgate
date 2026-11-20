@@ -148,7 +148,10 @@ def _run_reporters(
             path = _artifact_path(template, n, many)
             assert path is not None
             try:  # plugin code: the reporter, and str/bytes subclasses it may return
-                data = reporter_registry.as_bytes(name, reporter_registry.call(name, fn, report))
+                result = reporter_registry.call(name, fn, report)
+                data = bytes(
+                    reporter_registry.as_bytes(name, result)
+                )  # plain bytes: no plugin code in the write
             except KeyboardInterrupt:
                 raise
             except BaseException as exc:

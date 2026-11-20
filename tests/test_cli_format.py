@@ -30,6 +30,7 @@ REPORTERS = {
     "probe": "fake_import_probe:render",
     "oserr": "fake_reporters:raise_oserror",
     "sneaky": "fake_reporters:raise_sneaky",
+    "sbytes": "fake_reporters:sneaky_bytes",
 }
 
 
@@ -230,3 +231,9 @@ def test_plain_compare_reads_no_entry_point_metadata(monkeypatch: pytest.MonkeyP
 
     monkeypatch.setattr(metadata, "distributions", boom)
     assert compare().exit_code == EXIT_FAIL
+
+
+def test_a_bytes_subclass_runs_no_plugin_code_in_the_write(tmp_path: Path) -> None:
+    result = compare("--format", f"sbytes={tmp_path}/p.bin")
+    assert result.exit_code == EXIT_FAIL
+    assert (tmp_path / "p.bin").read_bytes() == b"x"

@@ -61,3 +61,12 @@ class _Sneaky(Exception):
 
 def raise_sneaky(report: Report) -> str:
     raise _Sneaky()
+
+
+class _SneakyBytes(bytes):
+    def __buffer__(self, flags: int) -> memoryview:
+        raise SystemExit(0)
+
+
+def sneaky_bytes(report: Report) -> bytes:
+    return _SneakyBytes(b"x")
