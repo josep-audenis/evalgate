@@ -646,7 +646,7 @@ Teams want report formats EvalGate doesn't ship: JUnit XML for a CI test tab, a 
 - The lookup is `entry_points(group="evalgate.reporters").select(name=NAME)`, never `EntryPoints[name]`, which silently returns the first match.
   - `entry_points()` already deduplicates distributions by normalised name (the first on `sys.path` wins), so an editable install shadowing a site-packages copy isn't ambiguous.
   - More than one match after that is an error that names every distribution involved.
-- An unknown name is a usage error (exit 2) before any comparison, and the message lists the installed names.
+- An unknown name is a usage error (exit 2) before any comparison, and the message lists the installed names. An ambiguous name is checked at the same point, so a bad `--format` never leaves artifacts half-written.
 - A plain `compare` without `--format` doesn't even read entry-point metadata.
 
 **When plugin code runs**
@@ -664,7 +664,7 @@ Teams want report formats EvalGate doesn't ship: JUnit XML for a CI test tab, a 
 **What EvalGate guarantees, and what it can't**
 - **Guaranteed:**
   - EvalGate never imports plugin code unless `--format` names it, and never loads code from a path, from YAML or from the policy.
-  - An exception, a `SystemExit` or a wrong return value from a reporter, raised while it is imported or called, can't change the exit code. Any of them gives exit 2, with the reporter's name and the exception type. The exception message isn't printed, because it could quote report data.
+  - Any `BaseException` except `KeyboardInterrupt` (so including `SystemExit`), or a wrong return value, raised while a reporter is imported or called, can't change the exit code. Any of them gives exit 2, with the reporter's name and the exception type. The exception message isn't printed, because it could quote report data.
   - Each reporter gets `report.model_copy(deep=True)`, so an accidental mutation can't affect the next reporter or the terminal output.
   - A `KeyboardInterrupt` inside a reporter is re-raised, so Ctrl-C stops at once. `_fail_closed` then exits 2 (below).
 - **Not preventable:** code running in the same process can deliberately interfere: `os._exit`, monkeypatching EvalGate, threads, `atexit` handlers, its own file writes. Any installed package can also run code at interpreter startup (a `.pth` file) without EvalGate's involvement. Trust stops at the packages you install; the docs say so plainly.
@@ -702,7 +702,7 @@ T1 registry + SDK + `evalgate reporters` ──▶ T2 compare --format + Ctrl-C 
 ```
 
 **T1. Registry and SDK** (`io/reporters.py`, `io/writer.py` bytes writer, `cli.py` `reporters` command)
-- **Test approach:** tests patch the module's distribution lookup with a small `importlib.metadata.Distribution` subclass. Its `read_text("METADATA")` returns a name and version, and its `read_text("entry_points.txt")` returns the entry-point INI pointing at functions in a test module. `EntryPoint.dist` is then set through the public API, on 3.11 too, and nothing is installed. T1 confirms the 3.11 and 3.13 `importlib.metadata` behaviour this relies on.
+- **Test approach:** tests monkeypatch `importlib.metadata.distributions` itself, which `entry_points()` calls internally, so its own dedupe is exercised, with a small `importlib.metadata.Distribution` subclass. Its `read_text("METADATA")` returns a name and version, and its `read_text("entry_points.txt")` returns the entry-point INI pointing at functions in a test module. `EntryPoint.dist` is then set through the public API, on 3.11 too, and nothing is installed. T1 confirms the 3.11 and 3.13 `importlib.metadata` behaviour this relies on.
 - **Tests:**
   - `available()` lists reporters sorted, without importing them (a module that raises on import still lists);
   - a duplicate name is listed twice;
