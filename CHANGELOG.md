@@ -11,8 +11,8 @@ Failure groups and recurring failures (SPEC Phase 7, third slice). Reporting onl
 - **`comparison.failure_groups` in the JSON report:** the candidate's failing checks on compared cases, grouped by check, by category (the baseline's) and by both, plus an `uncategorized` count. See [docs/report-format.md](docs/report-format.md#comparisonfailure_groups).
   - Each failing `(case, check)` pair is `new` (passing in the baseline), `persistent` (failing there too) or `no_baseline` (the baseline case has no such check). Every group satisfies `failing == new + persistent + no_baseline`.
   - Nothing is truncated. Reports written before 0.12 (no field) still load.
-- **Terminal and Markdown reports** show the top 5 groups, falling back to by-check groups when no case has a category. They note how many failing pairs had no category. Nothing is shown for an INVALID report. The HTML report gets the groups with the 0.13 viewer.
-- **`evalgate history failures`** lists `(case, check)` pairs that keep failing across recorded entries: `failing`, `of`, `first`, `last` and the current `streak`. It takes `trend`'s filters plus `--min` (default 2) and `--json`. See [docs/history.md](docs/history.md).
+- **Terminal and Markdown reports** show the top 5 groups, falling back to by-check groups when no failing case has a category. They note how many failing pairs had no category. Nothing is shown for an INVALID report. The HTML report gets the groups with the 0.13 viewer.
+- **`evalgate history failures`** lists `(case, check)` pairs that keep failing across recorded entries: `failing`, `of`, `first`, `last` and the current `streak`. It takes `trend`'s filters plus `--min` (default 2; below 1 exits 2) and `--json`. See [docs/history.md](docs/history.md).
 - **`examples/history`** records a fourth entry (a patch release that still fails), so `history failures` has something to show.
 
 ### Changed

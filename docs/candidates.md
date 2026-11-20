@@ -30,7 +30,7 @@ One exit code can only safely answer "did every candidate pass?". To choose amon
   - Each file is the same report a two-run compare would write.
 - `--summary PATH` writes one JSON file for any number of candidates:
   ```json
-  {"summary_version": 1, "evalgate_version": "0.11.0", "baseline_run_id": "baseline",
+  {"summary_version": 1, "evalgate_version": "0.12.0", "baseline_run_id": "baseline",
    "exit_code": 1, "rank_by": "quality",
    "candidates": [{"n": 1, "run_id": "candidate-a", "status": "FAIL"}, …],
    "ranking": [{"rank": 1, "n": 1, "run_id": "candidate-a", "status": "FAIL", "value": 0.88, "cases": 6}, …],

@@ -85,7 +85,7 @@ About `trend`:
 
 About `failures`:
 - **Selection:** entries are chosen as for `trend`, except that INVALID compares are left out, since they carry no data.
-- **For each `(case_id, check)` pair that fails in at least `--min` entries** (default 2), it reports:
+- **For each `(case_id, check)` pair that fails in at least `--min` entries** (default 2; below 1 exits 2), it reports:
   - `failing`: how many selected entries it fails in;
   - `of`: how many selected entries contain the case. It is shown for run entries only, and `n/a` when any selected run entry is version 1 (no `case_ids`) or for `--kind compare`;
   - `first` and `last`: the ids of the first and last entries it fails in;
