@@ -456,3 +456,108 @@ T3 history v2, case_ids, failures (needs T1) ───────────�
 - policy rules on groups;
 - a recurring-failure gate;
 - `compared_case_ids` in the report.
+
+## 5. 0.13.0: interactive report viewer
+
+### Problem
+
+The HTML report is a static page: long case lists can't be sorted or searched, the failure groups from 0.12 aren't in it at all, and history has no visual view. Teams open the JSON instead, which defeats the point of a readable report.
+
+### Decisions (defaults; object before T1 starts)
+
+**Still one offline file.** The report stays a single standalone `.html`:
+- no CDN, no web font download, no network request of any kind, and no `serve` command;
+- it opens from `file://` and works in an email attachment or a CI artifact viewer.
+"Interactive" means sorting, filtering and folding inside that file, never a dashboard. That keeps the out-of-scope line ("dashboards, hosted anything").
+
+**Built on the current restyle.** The EvalGate look (the monospace terminal style with dark and light themes, and the `decision: FAIL` header with its exit code) is landed first, as T0, unchanged. 0.13 adds behaviour to that design and doesn't restyle it again.
+
+**Progressive enhancement.** The server-rendered HTML is complete without JavaScript: every table, row and section is in the markup, as today. Script only adds behaviour on top:
+- click a column header to sort, by number or by text, toggling ascending and descending;
+- a filter box above each long table hides the rows that don't contain the typed text;
+- long sections are `<details>` elements, so they fold even without script.
+
+With scripting disabled, or in a viewer that strips scripts, the report is still correct and complete.
+
+**Locked down with a Content Security Policy.** The page carries:
+```html
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-…'; img-src data:">
+```
+- The script is one inline block whose SHA-256 is computed when the report is rendered. Only that exact script can run, so injected markup could never execute script, even if escaping had a bug.
+- `default-src 'none'` blocks every fetch, frame, font and connection.
+
+**No embedded JSON copy of the report.**
+- The script works only on the DOM it is given: it reads cell text and sorts and filters rows. That avoids a second copy of the data and the `</script>` escaping problem altogether.
+- The JSON report remains the machine-readable artifact.
+- This narrows the section 1 acceptance criterion ("JSON embedded inline escapes `<`…"): there is no embedded JSON, so the requirement is that there is none.
+
+**New and changed sections**
+- **Failure groups:** all of `by_check_category`, `by_check` and `by_category`, each a sortable and filterable table, plus the `uncategorized` count. Nothing is shown for an INVALID report or when nothing fails, as in the terminal.
+- **Case tables** (regressed, improved, newly failing and passing, candidate failing checks) become sortable and filterable. Their size caps don't change.
+
+**Determinism.** The same report gives the same bytes: the script is a constant, its hash is computed from it, and there are no timestamps or random ids.
+
+**`evalgate history report OUT.html`**
+- `evalgate history report OUT.html --history DIR [--kind run|compare] [--dataset …] [--application …] [--last N] [--path PATH …]` writes a static trend page: one inline SVG line chart per metric path (default: every path found in the selected entries), the entries table, and the recurring failures table.
+- It uses the same selection functions as `trend` and `failures`, the same CSS and script, and the same CSP.
+- **The SVG** is generated server-side as plain `<polyline>` and `<circle>` elements with `<title>` tooltips, with no chart library. The y axis is labelled with the minimum and maximum, the x axis with entry ids or labels, and a point that is missing for an entry is a gap.
+- With `mixed_datasets`, a warning line appears above the charts.
+- Exit 0, or 2 on bad input (the same codes as the other history commands).
+
+**Escaping.** Every user string goes through `html.escape`, as today, including labels, case ids, check and category names, run ids and metric paths. That covers SVG `<title>` text, attributes and table cells. Tests check hostile names everywhere they appear.
+
+### Tasks
+
+```
+T0 land the restyle ──▶ T1 viewer (CSP, script, sortable/filterable, failure groups) ──┐
+                                   T2 history report page (SVG trend) ─────────────────┴──▶ T3 docs + release
+```
+
+T2 needs T1's script and CSP helper.
+
+**T0. Land the HTML restyle** (`reporting/html.py`, as it stands in the working tree)
+- The restyle is the author's in-flight work. It is committed as its own PR, with the CHANGELOG line it already has, moved under 0.13.0.
+- Tests: the existing HTML tests still pass, and `test_cli_multi` still finds an identical single-candidate HTML (both sides use the same renderer).
+
+**T1. Viewer** (`reporting/html.py`, `reporting/_viewer.js` packaged as a string constant or package data)
+- **Renderer changes:**
+  - the CSP meta and the script hash;
+  - sortable and filterable table markup, using `data-sort` attributes for numeric cells;
+  - `<details>` sections;
+  - the failure groups section.
+- **The script:**
+  - vanilla JS, about 100 lines, no dependencies;
+  - it binds only to elements carrying `data-*` hooks;
+  - it uses no `innerHTML` with data, only `textContent` and node moves.
+- **Tests:**
+  - the CSP is present, and its hash equals the SHA-256 of the script block;
+  - there is no `http://`, `https://` or `//` reference anywhere in the output;
+  - there is no `<script>` other than the one hashed block;
+  - every table is present with all its rows in the raw HTML (the page works without script);
+  - hostile names (`</script>`, `<img onerror>`, quotes, `&`) appear escaped in cells and attributes;
+  - the failure groups section matches the JSON (counts and order), and nothing shows for INVALID or with no failures;
+  - the output is byte-identical across two renders.
+- **Node check:** when `node` is available (skipped otherwise), a small test loads the script and runs its pure sort comparator on numbers, text, and empty and `n/a` cells.
+
+**T2. History report page** (`reporting/history_html.py`, `cli.py`)
+- **Tests:**
+  - the SVG point count and coordinates for a hand-built store (values scaled into the viewBox);
+  - a gap where an entry lacks the path;
+  - the mixed-datasets warning;
+  - the failures table matches `recurring_failures`;
+  - escaping in labels, paths and SVG titles;
+  - the CSP and no-network checks, as for T1;
+  - deterministic bytes when `recorded_at` is fixed;
+  - exit codes (missing store gives 2, and a selection with no entries still writes a page that says so, exit 0).
+
+**T3. Docs and release** (`docs/report.md` new: what the HTML report shows and how to use the viewer; `docs/history.md` section; README; `examples/history` writes `report.html`; CHANGELOG; version 0.13.0)
+- Before the tag, a manual check in a real browser: open both pages from `file://`, sort, filter, fold, and confirm the CSP blocks nothing it needs (no console errors).
+
+**Out of 0.13.0:**
+- a combined multi-candidate HTML (still one file per candidate);
+- a served or live-updating dashboard;
+- charts in the comparison report itself (only the history page has charts);
+- embedding the JSON in the HTML;
+- web fonts;
+- theming options beyond the OS light and dark preference.
