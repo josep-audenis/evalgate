@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import evalgate
+import evalgate.comparison.history
 
 EXAMPLES = Path(__file__).parent.parent / "examples"
 
@@ -105,7 +106,11 @@ def test_history_example_builds_its_store(tmp_path: Path) -> None:
         (1, "run", "v1.4.0"),
         (2, "run", "v1.5.0"),
         (3, "compare", "v1.5.0 gate"),
+        (4, "run", "v1.5.1"),
     ]
+    failures = evalgate.comparison.history.recurring_failures(entries)
+    [pair] = failures["pairs"]
+    assert (pair["check"], pair["failing"], pair["of"], pair["streak"]) == ("safety_valid", 2, 3, 2)
     assert getattr(entries[2], "status", None) == "FAIL"
     assert entries[0].recorded_at == "2026-11-01T09:00:00Z"
 

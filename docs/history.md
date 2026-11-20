@@ -30,19 +30,21 @@ From Python: `evalgate.record_report(report, dir, label=...)`, `evalgate.record_
   - the status (PASS / FAIL / INVALID);
   - the baseline and candidate identities: `run_id`, `application`, `application_version` and dataset;
   - for each policy metric path, the baseline mean, candidate mean, change and case count;
-  - the candidate's failing `(case_id, check)` pairs among compared cases;
+  - the candidate's failing `(case_id, check)` pairs among compared cases (cases `ok` in both runs);
   - the SHA-256 of the stored report.
 
   An INVALID compare is recorded too, since "this pair couldn't be compared" is worth keeping. Its identities are empty when a run didn't load, and it has no metrics.
 - **`run`** (from `history add`):
   - the run identity, and the number of cases and errored cases (repeats collapsed);
   - every score and metric mean, and every check pass rate, each over the ok cases that have it, with that count;
-  - the failing `(case_id, check)` pairs.
+  - the failing `(case_id, check)` pairs;
+  - the ids of its ok cases (`case_ids`), so `history failures` can tell "failed in 2 of 3 runs that had this case" from "failed twice".
 
   An INVALID run isn't recorded: it has no data point to give.
 
 **What a store holds and doesn't hold.**
 - **Never** model outputs, prompts or `case` data. Reports never carry them, and run summaries read only scores, metrics and checks.
+- **It holds case ids:** every run entry lists the ids of all its ok cases. If your case ids embed user data, so does the store. A larger index also makes each append, which rewrites the index, a little slower.
 - **It can hold** whatever `--json` holds:
   - for an INVALID report, file paths and parser messages in its diagnostics;
   - in stored reports, any extra fields you put in `run.json`.
@@ -53,6 +55,14 @@ From Python: `evalgate.record_report(report, dir, label=...)`, `evalgate.record_
 - Each entry has an `id`: 1, 2, 3… in recording order. Every listing and trend uses that order, never wall-clock time.
 - `recorded_at` (UTC) is only shown.
 - An optional `--label` (up to 200 characters) names an entry. Markup in it is never interpreted, and control characters are shown escaped.
+
+**Versions.**
+- Since 0.12.0, entries are written as `history_version: 2`; earlier entries are version 1, and EvalGate reads both, so a store may mix them.
+- What version 2 adds:
+  - run entries carry `case_ids`;
+  - compare entries take their failing pairs strictly from compared cases. A version 1 compare entry recorded with `require_same_cases: false` may also list cases only the candidate had.
+- EvalGate 0.10 and 0.11 report a version 2 line as an unsupported `history_version`: upgrade every tool that writes to a shared store together.
+- In `list --json` and `show --json`, version 1 run entries show `"case_ids": null`.
 
 **Editing.** The store is append-only: EvalGate never edits or deletes entries.
 - **To prune,** delete lines from `index.jsonl` yourself. Ids may have gaps, and the next entry gets the last id + 1. Pruning the last line therefore reuses its id, and the next compare overwrites its old `reports/<id>.json`.
@@ -65,6 +75,7 @@ From Python: `evalgate.record_report(report, dir, label=...)`, `evalgate.record_
 | `history list [--last N] [--json]` | One row per entry: id, kind, label, status (`valid` for run entries), candidate or run, dataset, time |
 | `history show ID [--json]` | A compare entry: its stored report, rendered like `compare` (after checking its hash). A run entry: its means and pass rates |
 | `history trend PATH [--kind run\|compare] [--dataset ID[@VERSION]] [--application APP] [--last N] [--json]` | One metric path per entry, in id order |
+| `history failures [--kind run\|compare] [--dataset …] [--application …] [--last N] [--min K] [--json]` | `(case, check)` pairs that keep failing across entries (below) |
 
 About `trend`:
 - **Kinds are never mixed** (`--kind` defaults to `run`). A compare's mean covers only the cases both runs completed, while a run's mean covers all of its ok cases, so the two aren't the same number.
@@ -72,9 +83,21 @@ About `trend`:
 - **Filters:** `--application` matches the run's application, or the candidate's application for compares. `--last N` applies after filtering.
 - **Skips:** entries without the path are skipped and counted.
 
+About `failures`:
+- **Selection:** entries are chosen as for `trend`, except that INVALID compares are left out, since they carry no data.
+- **For each `(case_id, check)` pair that fails in at least `--min` entries** (default 2; below 1 exits 2), it reports:
+  - `failing`: how many selected entries it fails in;
+  - `of`: how many selected entries contain the case. It is shown for run entries only, and `n/a` when any selected run entry is version 1 (no `case_ids`) or for `--kind compare`;
+  - `first` and `last`: the ids of the first and last entries it fails in;
+  - `streak`: how many of the most recent selected entries it fails in, without a gap.
+- **What ends a streak:** any entry where the pair doesn't fail, including one where the case errored or is missing. So a broken streak isn't proof the failure is fixed.
+- **Order:** the longest current streak first, then by `failing`.
+- **Multi-candidate stores:** entries from one `compare` run with several candidates count separately. Narrow with `--application` when the candidates differ.
+
 **JSON output:**
 - `list --json` gives `{"history_version": 1, "entries": [...]}`.
 - `trend --json` gives `{"history_version": 1, "path", "kind", "points": [{id, label, recorded_at, application_version, dataset, value, cases}], "skipped", "mixed_datasets"}`. An INVALID compare whose candidate didn't load counts as skipped when no filter is given.
+- `failures --json` gives `{"history_version": 1, "kind", "entries", "pairs": [{case_id, check, failing, of, first, last, streak}], "mixed_datasets"}`.
 - JSON output escapes non-ASCII characters, so it survives any console encoding when piped.
 - `show --json` gives `{"entry": …}` for a run entry and `{"entry": …, "report": …}` for a compare entry.
 
