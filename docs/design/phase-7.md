@@ -524,9 +524,10 @@ The HTML report is a static page: long case lists can't be sorted or searched, a
 **`evalgate history report OUT.html`**
 - `evalgate history report OUT.html --history DIR [--kind run|compare] [--dataset …] [--application …] [--last N] [--path PATH …]`. It writes through the existing atomic LF writer; a write failure exits 2.
 - **Selection:** one pure helper, `select_entries(entries, kind, dataset, application, last)` in `comparison/history.py`, now shared by `trend`, `recurring_failures` and the page.
-  - It excludes INVALID compares, as `recurring_failures` already does. `trend` keeps its existing output (its skip count still treats an INVALID compare without a candidate as skipped), so its behaviour doesn't change.
+  - It excludes INVALID compares, as `recurring_failures` already does.
+  - `trend` keeps its own handling: it calls the helper with `last=None` and INVALID compares kept, and still applies `--last` to points after skipping, so its output doesn't change. `docs/history.md` notes that the page leaves out INVALID compares that `history trend` lists.
   - `--last` applies to the selected entries, not to points. Every chart and table on the page covers the same entries.
-- **Paths charted:** with no `--path`, the sorted union of `means` keys (run entries) or `metrics[].path` (compare entries).
+- **Paths charted:** with no `--path`, the sorted union of `means` keys (run entries) or `metrics[].path` (compare entries). A `--path` with no values in the selected entries gets a chart box saying "no values for this path".
 - **Page content:**
   - an entries table: id, label, status, version, dataset, recorded_at;
   - one SVG chart per path;
@@ -557,8 +558,13 @@ T0 land the restyle ──▶ T1 viewer (CSP, script, sections) ──▶ T2 his
 **T1. Viewer** (`reporting/html.py`, `reporting/viewer.js`)
 - **Tests:**
   - **CSP:** the meta is present right after `<meta charset>`. The test extracts the script text from the output and hashes it itself, then checks that the hash matches the CSP.
-  - **Exactly one `<script>`,** with no `on\w+=` attribute anywhere.
-  - **No external reference:** no `src=`, `href=`, `action=`, `srcset=`, `url(` or `@import` other than `data:` values. URL-looking user text, such as a run_id containing `https://x`, is allowed in escaped cells.
+  - **Markup checks parse the output** with `html.parser.HTMLParser`, never substring scans, because escaped hostile text such as `&lt;img onerror=…&gt;` still contains `onerror=`. They check:
+    - exactly one `<script>` element;
+    - no attribute name starting with `on`;
+    - every `src`, `href`, `action` and `srcset` value starts with `data:`;
+    - `url(` and `@import` appear only inside `<style>`.
+
+    URL-looking user text, such as a run_id containing `https://x`, is allowed in escaped cells.
   - **The script source** contains none of the forbidden tokens.
   - **No-JS completeness:** every row is present in the raw HTML, and the new sections (errored ids, `candidate_failing_checks`, failure groups) match the JSON. Failure groups are absent for INVALID or when nothing fails.
   - **`data-sort`** holds the full-precision numbers.
@@ -571,6 +577,7 @@ T0 land the restyle ──▶ T1 viewer (CSP, script, sections) ──▶ T2 his
 - **Tests:**
   - `select_entries` gives the same selections as before for `trend` and `recurring_failures`, which stay unchanged;
   - exact SVG coordinates for a hand-built store: two points, three points with a gap, one point, and equal values;
+  - a `--path` with no values;
   - x labels only at the ends;
   - the failures table equals `recurring_failures` over the same entries;
   - the mixed-datasets warning;
