@@ -131,7 +131,7 @@ def _run_reporters(
                 path = _artifact_path(template, n, many)
                 assert path is not None
                 output = reporter_registry.call(name, fn, report)
-                _atomic_write_bytes(path, reporter_registry.as_bytes(output))
+                _atomic_write_bytes(path, reporter_registry.as_bytes(name, output))
         except KeyboardInterrupt:
             raise  # Ctrl-C stops at once; _fail_closed exits 2
         except reporter_registry.ReporterError as exc:
