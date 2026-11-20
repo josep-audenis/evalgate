@@ -50,8 +50,8 @@ def available() -> list[ReporterInfo]:
 
 def resolve(name: str) -> metadata.EntryPoint:
     """The one entry point named exactly `name`. Metadata only: nothing is imported."""
-    eps = _entry_points()
-    matches = [ep for ep in eps if ep.name == name]
+    eps = metadata.EntryPoints(_entry_points())
+    matches = list(eps.select(name=name))  # every exact match: never first-match
     if not matches:
         names = ", ".join(sorted({ep.name for ep in eps})) or "none installed"
         raise ReporterError(f"no reporter named {name!r} (installed: {names})")
@@ -73,19 +73,21 @@ def call(name: str, fn: Reporter, report: Report) -> str | bytes:
     """Run a reporter on a deep copy and check its result."""
     result = fn(report.model_copy(deep=True))
     if isinstance(result, str):
-        try:
-            result.encode("utf-8")
-        except UnicodeEncodeError:
-            raise ReporterError(f"reporter {name!r} returned text that isn't valid UTF-8") from None
+        as_bytes(name, result)  # fails here, as a reporter error, if it can't be encoded
         return result
     if isinstance(result, bytes):
         return result
     raise ReporterError(f"reporter {name!r} returned {type(result).__name__}, not str or bytes")
 
 
-def as_bytes(result: str | bytes) -> bytes:
+def as_bytes(name: str, result: str | bytes) -> bytes:
     """What gets written: UTF-8 with no newline translation, or the bytes unchanged."""
-    return result.encode("utf-8") if isinstance(result, str) else result
+    if isinstance(result, bytes):
+        return result
+    try:
+        return result.encode("utf-8")
+    except UnicodeEncodeError:
+        raise ReporterError(f"reporter {name!r} returned text that isn't valid UTF-8") from None
 
 
 def render(name: str, report: Report) -> str | bytes:

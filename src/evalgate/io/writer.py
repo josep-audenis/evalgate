@@ -20,14 +20,8 @@ from evalgate.models.policy import POLICY_TEMPLATE
 
 
 def _atomic_write(path: Path, text: str) -> None:
-    # Unique temp name per process, so concurrent writers never share (and garble) a temp file.
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    try:
-        tmp.write_text(text, encoding="utf-8", newline="\n")  # LF on every OS: same bytes
-        os.replace(tmp, path)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
+    # LF on every OS (no translation), UTF-8: the same bytes everywhere.
+    _atomic_write_bytes(path, text.encode("utf-8"))
 
 
 def _atomic_write_bytes(path: Path, data: bytes) -> None:

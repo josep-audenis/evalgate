@@ -103,6 +103,7 @@ def test_render_text_bytes_and_a_deep_copy(installed) -> None:  # type: ignore[n
     assert render("text", r) == "status=FAIL\r\nline 2\n"
     assert render("raw", r) == b"\x00\xffFAIL"
     assert render("mut", r) == "mutated" and r.status == "FAIL"  # the caller's report is untouched
+    assert r.comparison is not None and r.comparison.metrics and r.comparison.newly_failing_checks
 
 
 @pytest.mark.parametrize(
@@ -123,8 +124,9 @@ def test_reporter_exceptions_propagate_in_the_sdk(installed) -> None:  # type: i
 
 def test_bytes_writer(tmp_path: Path) -> None:
     out = tmp_path / "x.bin"
+    _atomic_write_bytes(out, b"old")
     _atomic_write_bytes(out, b"a\r\nb\x00")
-    assert out.read_bytes() == b"a\r\nb\x00"
+    assert out.read_bytes() == b"a\r\nb\x00"  # an existing target is replaced
     (tmp_path / "d").mkdir()
     with pytest.raises(OSError):
         _atomic_write_bytes(tmp_path / "d", b"x")
@@ -136,6 +138,14 @@ def test_cli_lists_reporters_escaped(installed) -> None:  # type: ignore[no-unty
     result = runner.invoke(app, ["reporters"])
     assert result.exit_code == 0
     assert "[bold]csv" in result.output and "pkg-[red]a" in result.output
+
+
+def test_cli_listing_shows_control_characters_escaped(installed) -> None:  # type: ignore[no-untyped-def]
+    installed(
+        FakeDist("pkg\x1b[31mred", {"ev\x1b]0;title\x07il": "fake_reporters:text"}, "1\x1b[2J")
+    )
+    result = runner.invoke(app, ["reporters"])
+    assert result.exit_code == 0 and "\x1b" not in result.output and "\x07" not in result.output
 
 
 def test_cli_with_nothing_installed(installed) -> None:  # type: ignore[no-untyped-def]

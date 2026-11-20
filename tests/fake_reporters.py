@@ -16,6 +16,9 @@ def raw(report: Report) -> bytes:
 
 def mutating(report: Report) -> str:
     report.status = "PASS"
+    if report.comparison is not None:  # nested: only a deep copy protects the caller
+        report.comparison.metrics.clear()
+        report.comparison.newly_failing_checks.clear()
     return "mutated"
 
 

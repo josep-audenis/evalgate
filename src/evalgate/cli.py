@@ -13,7 +13,6 @@ from typing import Annotated, Literal, ParamSpec
 import typer
 from rich.console import Console
 from rich.markup import escape
-from rich.table import Table
 
 from evalgate._version import __version__
 from evalgate.api import compare_many
@@ -45,6 +44,7 @@ from evalgate.reporting.terminal import (
     render_diagnostics,
     render_failures,
     render_history_list,
+    render_reporters,
     render_run_entry,
     render_trend,
 )
@@ -477,21 +477,7 @@ def reporters() -> None:
     Reads package metadata only; no plugin code is imported. Use one with
     `evalgate compare ... --format NAME=PATH`.
     """
-    infos = reporter_registry.available()
-    if not infos:
-        console.print("no reporters installed (entry point group evalgate.reporters)")
-        return
-    table = Table()
-    for column in ("name", "package", "version", "target"):
-        table.add_column(column, overflow="fold")
-    for i in infos:
-        table.add_row(
-            escape(i.name),
-            escape(i.distribution or "-"),
-            escape(i.version or "-"),
-            escape(i.target),
-        )
-    console.print(table)
+    render_reporters(reporter_registry.available(), console)
 
 
 @history_app.command("add")
