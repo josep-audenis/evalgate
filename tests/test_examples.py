@@ -136,3 +136,23 @@ def test_multi_candidate_example(tmp_path: Path) -> None:
     for name in ("baseline", "candidate-a", "candidate-b", "candidate-c"):
         for f in ("run.json", "cases.jsonl"):
             assert (tmp_path / name / f).read_text() == (d / name / f).read_text()
+
+
+def test_reporter_plugin_example() -> None:
+    import importlib.util
+
+    path = EXAMPLES / "reporter-plugin" / "evalgate_csv_reporter" / "__init__.py"
+    spec = importlib.util.spec_from_file_location("evalgate_csv_reporter", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    d = EXAMPLES / "quickstart"
+    report = evalgate.compare(d / "baseline", d / "candidate", d / "evalgate.yaml")
+    assert report.comparison is not None
+    lines = module.render(report).splitlines()
+    assert lines[0] == "status,case_id,check"
+    assert lines[1:] == [
+        f"FAIL,{c.case_id},{c.check}" for c in report.comparison.candidate_failing_checks
+    ]
+    invalid = evalgate.compare(d / "baseline", d / "missing", d / "evalgate.yaml")
+    assert module.render(invalid).splitlines()[1:] == ["INVALID,,"]
