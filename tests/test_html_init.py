@@ -59,3 +59,15 @@ def test_init_writes_valid_policy_and_refuses_overwrite(tmp_path: Path) -> None:
     path.write_text("edited")
     assert runner.invoke(app, ["init", str(path), "--force"]).exit_code == EXIT_PASS
     assert load_policy(path) == policy
+
+
+def test_html_decision_header_shows_status_and_exit_code() -> None:
+    fail = render_html(evaluate(make_run([case("a")]), make_run([case("a", 0.5)]), make_policy()))
+    assert '<span class="k">decision: </span><span class="status FAIL">FAIL</span>' in fail
+    assert "exit 1 · evalgate" in fail
+    ok = render_html(evaluate(make_run([case("a")]), make_run([case("a")]), make_policy()))
+    assert '<span class="status PASS">PASS</span>' in ok and "exit 0 · evalgate" in ok
+    invalid = render_html(invalid_report([]))
+    assert (
+        '<span class="status INVALID">INVALID</span>' in invalid and "exit 2 · evalgate" in invalid
+    )
