@@ -53,8 +53,8 @@ details > summary { cursor:pointer; list-style-position:outside; }
 details > summary h2 { display:inline; }
 th button { font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer;
   text-align:inherit; }
-th[aria-sort="ascending"] button::after { content:" \\2191"; }
-th[aria-sort="descending"] button::after { content:" \\2193"; }
+th[aria-sort="ascending"] button::after { content:" \\2191" / ""; }
+th[aria-sort="descending"] button::after { content:" \\2193" / ""; }
 figure { margin:0 0 24px; } figcaption { color:var(--dim); margin:0 0 6px; }
 svg.chart { width:100%; max-width:640px; height:auto; display:block; background:var(--bg-2);
   border:1px solid var(--faint); }
@@ -121,7 +121,7 @@ def _table(
     def td(i: int, cell: Cell) -> str:
         if isinstance(cell, tuple):
             html, key = cell
-            sort = "" if key is None else f' data-sort="{key!r}"'
+            sort = "" if key is None else f' data-sort="{escape(repr(key))}"'
             return f"<td{cls(i)}{sort}>{html}</td>"
         return f"<td{cls(i)}>{cell}</td>"
 

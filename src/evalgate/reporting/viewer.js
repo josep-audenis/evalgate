@@ -67,6 +67,7 @@ function makeFilterable(doc, table) {
   input.setAttribute("aria-label", "filter rows");
   var note = doc.createElement("span");
   note.className = "muted";
+  note.setAttribute("role", "status");
   var wrapper = table.parentNode;
   wrapper.parentNode.insertBefore(input, wrapper);
   wrapper.parentNode.insertBefore(note, wrapper);

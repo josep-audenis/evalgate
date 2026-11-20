@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-rYjTzKhdHrTXhDPXd5LZ1Fm6mPT4lCUOaC/5efNSgDs='; img-src data:; base-uri 'none'; form-action 'none'"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width, initial-scale=1"><title>EvalGate FAIL: baseline-v1 → candidate-v2</title><style>
+<html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-GuqkVxVGwyNEU+nZ1FlHyNZeiUMx6P1Ex56YzYBJHpA='; img-src data:; base-uri 'none'; form-action 'none'"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width, initial-scale=1"><title>EvalGate FAIL: baseline-v1 → candidate-v2</title><style>
 :root { --bg:#0c0d0c; --bg-2:#121412; --fg:#d9d6cd; --dim:#96938a; --faint:#2c2d2a;
   --sel:#23251f; --red:#ff6b57; --green:#8fd694; --yellow:#e8c547;
   --mono:"Martian Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; }
@@ -35,8 +35,8 @@ details > summary { cursor:pointer; list-style-position:outside; }
 details > summary h2 { display:inline; }
 th button { font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer;
   text-align:inherit; }
-th[aria-sort="ascending"] button::after { content:" \2191"; }
-th[aria-sort="descending"] button::after { content:" \2193"; }
+th[aria-sort="ascending"] button::after { content:" \2191" / ""; }
+th[aria-sort="descending"] button::after { content:" \2193" / ""; }
 figure { margin:0 0 24px; } figcaption { color:var(--dim); margin:0 0 6px; }
 svg.chart { width:100%; max-width:640px; height:auto; display:block; background:var(--bg-2);
   border:1px solid var(--faint); }
@@ -161,6 +161,7 @@ function makeFilterable(doc, table) {
   input.setAttribute("aria-label", "filter rows");
   var note = doc.createElement("span");
   note.className = "muted";
+  note.setAttribute("role", "status");
   var wrapper = table.parentNode;
   wrapper.parentNode.insertBefore(input, wrapper);
   wrapper.parentNode.insertBefore(note, wrapper);
