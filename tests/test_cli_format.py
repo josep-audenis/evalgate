@@ -28,6 +28,8 @@ REPORTERS = {
     "surrogate": "fake_reporters:bad_text",
     "broken": "fake_broken_import:render",
     "probe": "fake_import_probe:render",
+    "oserr": "fake_reporters:raise_oserror",
+    "sneaky": "fake_reporters:raise_sneaky",
 }
 
 
@@ -136,7 +138,7 @@ def test_system_exit_zero_cannot_turn_a_fail_into_a_pass(tmp_path: Path) -> None
 
 def test_ctrl_c_in_a_reporter_exits_2(tmp_path: Path) -> None:
     result = compare("--format", f"ctrlc={tmp_path}/p.txt")
-    assert result.exit_code == EXIT_INVALID
+    assert result.exit_code == EXIT_INVALID and "interrupted: no decision" in result.output
 
 
 def test_ctrl_c_in_the_command_body_exits_2(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -147,35 +149,84 @@ def test_ctrl_c_in_the_command_body_exits_2(monkeypatch: pytest.MonkeyPatch) -> 
 
     monkeypatch.setattr(cli, "compare_many", interrupted)
     result = compare()
+    assert "interrupted: no decision" in result.output
     assert result.exit_code == EXIT_INVALID  # Typer alone would exit 1, the FAIL code
 
 
 def test_mutation_does_not_reach_the_next_reporter_or_the_terminal(tmp_path: Path) -> None:
     result = compare("--format", f"mut={tmp_path}/m.txt", "--format", f"status={tmp_path}/s.txt")
     assert result.exit_code == EXIT_FAIL
-    assert (tmp_path / "s.txt").read_text().startswith("FAIL")
+    assert (tmp_path / "s.txt").read_text() == "FAIL comparison=True metrics=3\n"  # nested intact
     assert "decision: FAIL" in result.output
 
 
 def test_reporter_runs_for_an_invalid_candidate(tmp_path: Path) -> None:
     result = compare("--format", f"status={tmp_path}/s.txt", candidate=str(tmp_path / "missing"))
     assert result.exit_code == EXIT_INVALID
-    assert (tmp_path / "s.txt").read_text() == "INVALID comparison=False\n"
+    assert (tmp_path / "s.txt").read_text() == "INVALID comparison=False metrics=-1\n"
 
 
-def test_each_reporter_loads_once(tmp_path: Path) -> None:
+def test_each_reporter_loads_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from evalgate.io import reporters as registry
+
+    loads: list[str] = []
+    real = registry.load
+
+    def spy(ep: metadata.EntryPoint) -> Any:
+        loads.append(ep.name)
+        return real(ep)
+
+    monkeypatch.setattr(registry, "load", spy)
     fake_reporters.CALLS.clear()
-    runner.invoke(
-        app,
-        [
-            "compare",
-            BASE,
-            CAND,
-            BASE,
-            "--policy",
-            POLICY,
-            "--format",
-            f"text={tmp_path}/t-{{n}}.txt",
-        ],
+    args = [
+        "compare",
+        BASE,
+        CAND,
+        BASE,
+        "--policy",
+        POLICY,
+        "--format",
+        f"text={tmp_path}/t-{{n}}.txt",
+    ]
+    assert runner.invoke(app, args).exit_code == EXIT_FAIL
+    assert loads == ["text"] and fake_reporters.CALLS == ["text", "text"]
+
+
+def test_a_reporters_oserror_is_a_reporter_failure(tmp_path: Path) -> None:
+    result = compare("--format", f"oserr={tmp_path}/p.txt")
+    assert result.exit_code == EXIT_INVALID
+    assert (
+        "reporter 'oserr' failed: FileNotFoundError" in result.output
+        and "SECRET" not in result.output
     )
-    assert fake_reporters.CALLS == ["text", "text"]
+
+
+def test_write_failure_names_the_path(tmp_path: Path) -> None:
+    result = compare("--format", f"text={tmp_path}/missing-dir/p.txt")
+    assert result.exit_code == EXIT_INVALID
+    assert "cannot write" in result.output and "missing-dir" in result.output.replace("\n", "")
+
+
+def test_formatting_the_exception_cannot_pick_the_exit_code(tmp_path: Path) -> None:
+    result = compare("--format", f"sneaky={tmp_path}/p.txt")
+    assert result.exit_code == EXIT_INVALID and "reporter 'sneaky' failed" in result.output
+
+
+@pytest.mark.parametrize("failing", ["json", "history"])
+def test_reporters_skipped_after_a_trusted_write_fails(tmp_path: Path, failing: str) -> None:
+    if failing == "json":
+        extra = ["--json", str(tmp_path / "missing-dir" / "r.json")]
+    else:
+        (tmp_path / "h").write_text("not a directory")
+        extra = ["--history", str(tmp_path / "h")]
+    result = compare(*extra, "--format", f"text={tmp_path}/p.txt")
+    assert result.exit_code == EXIT_INVALID
+    assert not (tmp_path / "p.txt").exists()
+
+
+def test_plain_compare_reads_no_entry_point_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    def boom(**kwargs: object) -> Any:
+        raise AssertionError("entry point metadata was read")
+
+    monkeypatch.setattr(metadata, "distributions", boom)
+    assert compare().exit_code == EXIT_FAIL

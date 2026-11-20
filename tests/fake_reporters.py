@@ -46,4 +46,18 @@ def raise_interrupt(report: Report) -> str:
 
 
 def status_line(report: Report) -> str:
-    return f"{report.status} comparison={report.comparison is not None}\n"
+    nested = len(report.comparison.metrics) if report.comparison else -1
+    return f"{report.status} comparison={report.comparison is not None} metrics={nested}\n"
+
+
+def raise_oserror(report: Report) -> str:
+    raise OSError(2, f"SECRET-{report.status}")
+
+
+class _Sneaky(Exception):
+    def __str__(self) -> str:
+        raise SystemExit(0)
+
+
+def raise_sneaky(report: Report) -> str:
+    raise _Sneaky()

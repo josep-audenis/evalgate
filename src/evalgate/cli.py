@@ -118,28 +118,47 @@ def validate(run_dir: Path) -> None:
     console.print(f"[bold green]valid[/]: {escape(run.manifest.run_id)}, {shape}")
 
 
+def _reporter_failure(name: str, exc: BaseException) -> str:
+    """The message for a reporter failure: never the exception's text, which could quote report
+    data. Built defensively, since formatting an exception can run plugin code too."""
+    try:
+        if type(exc) is reporter_registry.ReporterError:  # EvalGate's own messages
+            return str(exc)
+        return f"reporter {name!r} failed: {type(exc).__name__}"
+    except KeyboardInterrupt:
+        raise
+    except BaseException:
+        return f"reporter {name!r} failed"
+
+
 def _run_reporters(
     plugins: list[tuple[str, Path, EntryPoint]], reports: list[Report], many: bool
 ) -> str | None:
     """Load each reporter once and write its output for every candidate. Returns the first
-    failure: any BaseException except KeyboardInterrupt (so SystemExit too) or a bad result.
-    The exception's message is not shown: it could quote report data."""
+    failure: any BaseException from the reporter except KeyboardInterrupt (so SystemExit too),
+    a bad result, or EvalGate's own write failing."""
     for name, template, entry_point in plugins:
         try:
             fn = reporter_registry.load(entry_point)
-            for n, report in enumerate(reports, 1):
-                path = _artifact_path(template, n, many)
-                assert path is not None
-                output = reporter_registry.call(name, fn, report)
-                _atomic_write_bytes(path, reporter_registry.as_bytes(name, output))
         except KeyboardInterrupt:
             raise  # Ctrl-C stops at once; _fail_closed exits 2
-        except reporter_registry.ReporterError as exc:
-            return str(exc)
-        except OSError as exc:
-            return f"reporter {name!r}: cannot write: {exc.strerror or type(exc).__name__}"
         except BaseException as exc:  # SystemExit included: a reporter can't pick the exit code
-            return f"reporter {name!r} failed: {type(exc).__name__}"
+            return _reporter_failure(name, exc)
+        for n, report in enumerate(reports, 1):
+            path = _artifact_path(template, n, many)
+            assert path is not None
+            try:  # plugin code: the reporter, and str/bytes subclasses it may return
+                data = reporter_registry.as_bytes(name, reporter_registry.call(name, fn, report))
+            except KeyboardInterrupt:
+                raise
+            except BaseException as exc:
+                return _reporter_failure(name, exc)
+            try:  # EvalGate's own write: an OS error here is ours, with the OS's message
+                _atomic_write_bytes(path, data)
+            except OSError as exc:
+                return (
+                    f"reporter {name!r}: cannot write {path}: {exc.strerror or type(exc).__name__}"
+                )
     return None
 
 
