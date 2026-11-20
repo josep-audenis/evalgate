@@ -31,3 +31,42 @@ def bad_text(report: Report) -> str:
 
 
 not_callable = "just a string"
+
+
+def raise_value(report: Report) -> str:
+    raise ValueError(f"SECRET-{report.status}")
+
+
+def raise_exit(report: Report) -> str:
+    raise SystemExit(0)
+
+
+def raise_interrupt(report: Report) -> str:
+    raise KeyboardInterrupt
+
+
+def status_line(report: Report) -> str:
+    nested = len(report.comparison.metrics) if report.comparison else -1
+    return f"{report.status} comparison={report.comparison is not None} metrics={nested}\n"
+
+
+def raise_oserror(report: Report) -> str:
+    raise OSError(2, f"SECRET-{report.status}")
+
+
+class _Sneaky(Exception):
+    def __str__(self) -> str:
+        raise SystemExit(0)
+
+
+def raise_sneaky(report: Report) -> str:
+    raise _Sneaky()
+
+
+class _SneakyBytes(bytes):
+    def __buffer__(self, flags: int) -> memoryview:
+        raise SystemExit(0)
+
+
+def sneaky_bytes(report: Report) -> bytes:
+    return _SneakyBytes(b"x")
