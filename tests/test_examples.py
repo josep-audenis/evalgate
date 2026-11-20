@@ -111,6 +111,8 @@ def test_history_example_builds_its_store(tmp_path: Path) -> None:
     failures = evalgate.comparison.history.recurring_failures(entries)
     [pair] = failures["pairs"]
     assert (pair["check"], pair["failing"], pair["of"], pair["streak"]) == ("safety_valid", 2, 3, 2)
+    page = (tmp_path / "history" / "history.html").read_text(encoding="utf-8")
+    assert page.count("<figure>") == 3 and "safety_valid" in page
     assert getattr(entries[2], "status", None) == "FAIL"
     assert entries[0].recorded_at == "2026-11-01T09:00:00Z"
 

@@ -2,11 +2,41 @@
 
 All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change behaviour; anything that does is listed under **Changed**.
 
-## 0.13.0 (unreleased)
+## 0.13.0
+
+An interactive HTML report and a history page (SPEC Phase 7, fourth slice). Decisions, exit codes and the JSON report are unchanged from 0.12.0.
+
+### Added
+
+- **Sortable and filterable HTML report.** The report stays one offline file. See [docs/report.md](docs/report.md).
+  - Click a column header to sort: numbers by their full value, empty and `n/a` cells last, text in the same order in every browser.
+  - Long tables get a filter box.
+  - Every section folds.
+  - Without JavaScript the page is still complete.
+- **A Content Security Policy in the HTML report.** Only the embedded viewer script runs, pinned by its hash, and nothing can be fetched, framed or submitted.
+- **New HTML sections,** so the page shows everything the JSON does:
+  - the baseline's and candidate's errored case ids;
+  - the candidate's failing checks;
+  - failure groups (by check × category, by check, by category).
+- **`evalgate history report OUT.html`:** a standalone page for one selection of a history store. It holds a server-drawn SVG trend chart per metric (gaps for missing values), the entries table and the recurring failures. It takes `--kind`, `--dataset`, `--application`, `--last` and a repeatable `--path`. See [docs/history.md](docs/history.md#the-history-page).
+- **`examples/history`** also writes `history.html`.
 
 ### Changed
 
 - **The HTML report (`--report`) uses the EvalGate look:** a monospace terminal style with a dark theme by default and a light one when the OS is light. The decision is a large `decision: FAIL` line with its exit code, and warnings are yellow. It is still one offline file: Martian Mono is used only where it is installed, otherwise the system monospace font.
+- **The HTML report now contains one script.** It used to have none. If your environment strips scripts, the report still works: only sorting and filtering are lost.
+
+### Testing
+
+- New tests cover:
+  - the CSP hash, computed independently from the output;
+  - parsed-markup checks: one script, no inline handlers, only `data:` references, no `url(` in style attributes;
+  - forbidden APIs in the script;
+  - every new section matching the JSON row by row;
+  - full-precision sort keys and hostile names;
+  - a golden file, and identical bytes across processes;
+  - the sort comparator, run in Node when it's installed;
+  - exact SVG coordinates (gaps, one point, equal values), one shared selection, and the history page's CLI exit codes.
 
 ## 0.12.0
 

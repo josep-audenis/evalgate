@@ -9,6 +9,7 @@ Then try:                evalgate history list --history examples/history/store
                          evalgate history trend scores.quality --history examples/history/store
                          evalgate history show 3 --history examples/history/store
                          evalgate history failures --history examples/history/store
+It also writes history.html (open it in a browser), like `evalgate history report`.
 
 The store isn't committed (`store/` is regenerated): it embeds the EvalGate version in its
 stored report, so a committed copy would change with every release.
@@ -19,6 +20,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import evalgate
+from evalgate.reporting.history_html import render_history_html
 
 HERE = Path(__file__).parent
 QUICKSTART = HERE.parent / "quickstart"
@@ -37,6 +39,11 @@ evalgate.record_report(report, STORE, label="v1.5.0 gate", recorded_at=T0 + time
 # A patch release that didn't fix it: the same safety failure, two run entries in a row.
 evalgate.record_run(
     QUICKSTART / "candidate", STORE, label="v1.5.1", recorded_at=T0 + timedelta(days=14)
+)
+
+# The same store as one page: a trend chart per metric, the entries and the recurring failures.
+(HERE / "history.html").write_text(
+    render_history_html(evalgate.read_history(STORE)), encoding="utf-8"
 )
 
 for entry in evalgate.read_history(STORE):
