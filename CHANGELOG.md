@@ -2,6 +2,12 @@
 
 All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change behaviour; anything that does is listed under **Changed**.
 
+## 0.13.0 (unreleased)
+
+### Changed
+
+- **The HTML report (`--report`) uses the EvalGate look:** a monospace terminal style with a dark theme by default and a light one when the OS is light. The decision is a large `decision: FAIL` line with its exit code, and warnings are yellow. It is still one offline file: Martian Mono is used only where it is installed, otherwise the system monospace font.
+
 ## 0.12.0
 
 Failure groups and recurring failures (SPEC Phase 7, third slice). Reporting only: decisions and exit codes are unchanged from 0.11.0, and the report gains one additive field.
