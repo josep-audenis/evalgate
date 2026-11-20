@@ -1,4 +1,3 @@
-import re
 from pathlib import Path
 
 from conftest import case, make_policy, make_run
@@ -20,7 +19,7 @@ def test_html_is_standalone_escaped_and_explains_failure() -> None:
     cand = [case("a"), case("<b>&x", 0.5, checks={"safety_valid": False, "schema_valid": True})]
     html = render_html(evaluate(make_run(base), make_run(cand), make_policy()))
     assert html.startswith("<!doctype html>")
-    assert not re.search(r"(src|href)=|<script|https?://", html)  # no external resources
+    # External references and scripts: tests/test_viewer.py parses the markup.
     assert "<b>&x" not in html and "&lt;b&gt;&amp;x" in html
     for section in ("Failed policies", "Metrics", "Policy rules", "Regressed cases"):
         assert f"<h2>{section}</h2>" in html
