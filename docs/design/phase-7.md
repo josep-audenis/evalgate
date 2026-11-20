@@ -21,7 +21,7 @@ Every release keeps the project's rules:
 | **0.11.0** | **More than two candidates:** `evalgate compare BASELINE CAND1 CAND2 …` judges each candidate against the baseline with the same engine, plus an optional ranking on one declared metric | Each candidate's report is byte-identical to a two-run compare, with one artifact file per candidate. Exit 2 if any candidate is INVALID, else 1 if any FAILs, else 0. The ranking covers only non-INVALID candidates, sorts on one policy metric with its declared direction, breaks ties by argument order, is informational only (never a decision, never a baseline), and uses no aggregate score. |
 | **0.12.0** | **Failure groups:** a `failure_groups` report section (by check, category, and check × category; new vs persistent), and `evalgate history failures` for case/check pairs that keep failing across recorded entries of one kind and dataset | Reporting only: decisions are unchanged and the section is additive (`report_version` stays `"1"`); groups are sorted deterministically. |
 | **0.13.0** | **Interactive report viewer:** the HTML report gains sorting, filtering and search with inline JS (still standalone, no CDN); `evalgate history report OUT.html` makes a static trend page with inline SVG | Works offline from `file://`, with no network requests, no `serve` command and no auto-refresh. No outputs are shown. It is a view of the JSON and never shows data that isn't in it. There is no embedded JSON: one hash-pinned inline script runs under a Content Security Policy (`default-src 'none'`). |
-| **0.14.0** | **Report plugins:** `evalgate compare --format NAME=PATH` renders through a reporter registered by an installed package (entry point `evalgate.reporters`) | Plugins run only after the exit code is computed, and get a deep copy of the report. Any `BaseException` a plugin raises (including `SystemExit`) is caught and exits 2. Entry points are resolved lazily, only when `--format` names one, so an installed package never runs code during a plain `compare`. There is no code loading from paths or YAML. `os._exit` can't be prevented: trust stops at installed packages, and the docs say so. |
+| **0.14.0** | **Report plugins:** `evalgate compare --format NAME=PATH` renders through a reporter registered by an installed package (entry point `evalgate.reporters`) | Plugin code is imported only when `--format` names it, after the decisions, the built-in artifacts, the summary and history. Each reporter gets a deep copy of the report. A reporter's exception, `SystemExit` or bad return value exits 2. There is no code loading from paths or YAML. Deliberate in-process interference (`os._exit`, monkeypatching) can't be prevented: trust stops at installed packages, and the docs say so. |
 | **0.15.0** | **Experiment tracker integration:** opt-in SDK functions (`evalgate.integrations.mlflow` / `wandb`) that log a report to the user's own tracker library, each with its own extra | `import evalgate` and the engine never import them (tested). Network access goes only through the user's tracker library, as with judges. No outputs are logged. Extra manifest fields are logged as tags, and the docs say so. |
 | **0.16.0** | **TypeScript SDK:** a package in `sdk/typescript/` that writes run directories (`run.json` + `cases.jsonl`, schema 1.0/1.1) and types the report JSON; comparison runs through the `evalgate` CLI | Conformance: `load_run` on the TS output gives a `Run` equal to the Python `EvalRun` output for the same inputs. Bytes may differ, because JS and Python write numbers differently. A pytest test runs the TS writer through `node` and skips when Node is missing; the TS package has its own `node --test` suite. Report types are generated from the Pydantic JSON Schema. There is no TS copy of the engine. |
 
@@ -600,3 +600,143 @@ T0 land the restyle ──▶ T1 viewer (CSP, script, sections) ──▶ T2 his
 - embedding the JSON in the HTML;
 - web fonts;
 - theming options beyond the OS light and dark preference.
+
+## 6. 0.14.0: report plugins
+
+### Problem
+
+Teams want report formats EvalGate doesn't ship: JUnit XML for a CI test tab, a CSV of failing checks for a spreadsheet, a Slack-ready message body, an internal template. Today they post-process the JSON report with their own scripts. That works, but each team re-parses the same model and the extra step isn't part of `compare`.
+
+### Decisions (defaults; object before T1 starts)
+
+**What a reporter is**
+- A reporter is a function `render(report: Report) -> str | bytes`, exposed by an installed Python package under the entry point group `evalgate.reporters`:
+  ```toml
+  [project.entry-points."evalgate.reporters"]
+  junit = "my_package.evalgate_junit:render"
+  ```
+- It sees exactly what `--json` holds:
+  - manifests, including any extra fields from `run.json`;
+  - the policy, and diagnostics, which can quote input values;
+  - case ids, check names, categories, numbers and failure groups.
+
+  It never gets case outputs. The docs say so. A reporter can still read anything the user can, so "no outputs" holds only for EvalGate's own artifacts.
+- **Return value:** EvalGate writes what `render` returns, atomically.
+  - A `str` is encoded as UTF-8 with no newline translation: whatever line endings it has are kept.
+  - `bytes` are written unchanged.
+  - The function does no file I/O of its own.
+- **Reporter errors:**
+  - a return value that is neither `str` nor `bytes`;
+  - a `str` that can't be encoded (for example one with lone surrogates).
+
+**Using one**
+- `evalgate compare BASELINE CANDIDATE... --format NAME=PATH`, repeatable.
+- `NAME=PATH` is split at the first `=`, so the path may contain `=`, and a reporter whose name contains `=` can't be selected. An empty name or path, or no `=`, is a usage error.
+- With several candidates, `PATH` must contain `{n}`, with the same rules and substitution as `--json` (section 3).
+- Paths that collide with each other or with `--json` are overwritten in order, as built-in artifacts already are.
+- Reporters run for every candidate, including INVALID ones. There, `comparison`, `policy` or the manifests may be `None`, which a JUnit-style reporter needs in order to show INVALID.
+- `evalgate reporters` lists the installed reporters: name, distribution, version and the `module:function` target.
+  - It reads metadata only and imports nothing.
+  - Names registered twice are listed twice, with exit 0.
+  - With nothing installed it says so, also with exit 0.
+  - Every value is escaped.
+
+**Names and lookup**
+- Names match exactly (case-sensitive).
+- The lookup is `entry_points(group="evalgate.reporters").select(name=NAME)`, never `EntryPoints[name]`, which silently returns the first match.
+  - `entry_points()` already deduplicates distributions by normalised name (the first on `sys.path` wins), so an editable install shadowing a site-packages copy isn't ambiguous.
+  - More than one match after that is an error that names every distribution involved.
+- An unknown name is a usage error (exit 2) before any comparison, and the message lists the installed names. An ambiguous name is checked at the same point, so a bad `--format` never leaves artifacts half-written.
+- A plain `compare` without `--format` doesn't even read entry-point metadata.
+
+**When plugin code runs**
+- **Before comparing:** the name check reads metadata only; no plugin code is imported yet.
+- **Loading:** `EntryPoint.load()` happens only once writing reaches the plugins. Each reporter is loaded once and reused for every candidate.
+- **Order of operations** (extends section 3): trusted writes first, then untrusted code, then rendering.
+  1. Decide every candidate.
+  2. Write the built-in artifacts.
+  3. Write `--summary`.
+  4. Record history.
+  5. Load and run the reporters, for each candidate in `--format` order.
+  6. Render.
+- **Departure from 0.11:** a reporter failure therefore can't stop the summary or the history entry from being written. Any failure still stops the writes that follow, everything is still rendered, and the command exits 2.
+
+**What EvalGate guarantees, and what it can't**
+- **Guaranteed:**
+  - EvalGate never imports plugin code unless `--format` names it, and never loads code from a path, from YAML or from the policy.
+  - Any `BaseException` except `KeyboardInterrupt` (so including `SystemExit`), or a wrong return value, raised while a reporter is imported or called, can't change the exit code. Any of them gives exit 2, with the reporter's name and the exception type. The exception message isn't printed, because it could quote report data.
+  - Each reporter gets `report.model_copy(deep=True)`, so an accidental mutation can't affect the next reporter or the terminal output.
+  - A `KeyboardInterrupt` inside a reporter is re-raised, so Ctrl-C stops at once. `_fail_closed` then exits 2 (below).
+- **Not preventable:** code running in the same process can deliberately interfere: `os._exit`, monkeypatching EvalGate, threads, `atexit` handlers, its own file writes. Any installed package can also run code at interpreter startup (a `.pth` file) without EvalGate's involvement. Trust stops at the packages you install; the docs say so plainly.
+- A reporter may raise `ReporterError` itself and look like an EvalGate error. That is accepted and documented.
+
+**Ctrl-C** (an existing gap the plugin work touches)
+- **The problem:** Typer, like Click's standalone mode, turns a `KeyboardInterrupt` inside a command into `Abort`, which prints "Aborted!" and exits 1, the code for a policy FAIL.
+- **The fix:** `_fail_closed` gains a clause, after the `typer.Exit` re-raise, that maps `KeyboardInterrupt` and `typer.Abort` to exit 2. No command prompts, so this hides nothing.
+- **Why 2, not 130:** exit 2 is chosen deliberately over the 130 convention, because 2 is EvalGate's code for "no decision".
+- **Remaining windows:** this covers the command body only. Ctrl-C during argument parsing or the app callback still exits 1 through Typer. During interpreter start or imports, Python's default applies (130 on POSIX, 0xC000013A on Windows). The docs name these windows.
+- It is listed under Changed.
+
+**SDK** (`evalgate.reporters`, module `io/reporters.py`)
+- `available() -> list[ReporterInfo]`.
+- `render(name, report) -> str | bytes`:
+  - it loads the reporter and calls it with a deep copy, checking the return type;
+  - it raises `ReporterError` (a `ValueError`) for an unknown or ambiguous name or a bad return;
+  - the reporter's own exceptions propagate unchanged, which is how authors debug, since the CLI hides the message.
+- There is no SDK `write()`: callers write `render()`'s result themselves.
+- `io/writer.py` gains `_atomic_write_bytes`; the CLI uses it for both `str` (encoded) and `bytes`.
+- An isolation test checks that `api`, `engine`, `comparison` and `policies` never import `io.reporters`.
+
+**Out of 0.14.0:**
+- reporters for the history page or `history report`;
+- reporters receiving anything other than one `Report`;
+- options passed to reporters (a reporter reads its own environment variables or config file);
+- built-in formats such as JUnit, which can ship later as an ordinary reporter inside EvalGate if asked;
+- sandboxing or running reporters in a subprocess;
+- a scripts wrapper that would also cover Ctrl-C during argument parsing.
+
+### Tasks
+
+```
+T1 registry + SDK + `evalgate reporters` ──▶ T2 compare --format + Ctrl-C ──▶ T3 docs + example + release
+```
+
+**T1. Registry and SDK** (`io/reporters.py`, `io/writer.py` bytes writer, `cli.py` `reporters` command)
+- **Test approach:** tests monkeypatch `importlib.metadata.distributions` itself, which `entry_points()` calls internally, so its own dedupe is exercised, with a small `importlib.metadata.Distribution` subclass. Its `read_text("METADATA")` returns a name and version, and its `read_text("entry_points.txt")` returns the entry-point INI pointing at functions in a test module. `EntryPoint.dist` is then set through the public API, on 3.11 too, and nothing is installed. T1 confirms the 3.11 and 3.13 `importlib.metadata` behaviour this relies on.
+- **Tests:**
+  - `available()` lists reporters sorted, without importing them (a module that raises on import still lists);
+  - a duplicate name is listed twice;
+  - `render` passes a deep copy (a mutating reporter leaves the caller's report unchanged), and accepts `str` and `bytes`;
+  - any other return type raises `ReporterError`;
+  - an unknown name raises `ReporterError` with the installed names, and an ambiguous one with both distributions;
+  - the same distribution appearing twice (editable plus installed) isn't ambiguous;
+  - the bytes writer is atomic and writes bytes unchanged;
+  - `evalgate reporters` with reporters, with none (exit 0), and with escaping;
+  - the isolation test.
+
+**T2. `compare --format`** (`cli.py`, `_fail_closed`)
+- **Tests:**
+  - **Basic use:** a single candidate writes the file and keeps the decision's exit code (0 and 1); several candidates with `{n}`, and without it (a usage error).
+  - **Bad arguments:** malformed values (`junit`, `=x`, `junit=`), and a path containing `=`; an unknown name exits 2 before comparing and writes nothing.
+  - **Loading:**
+    - `--format a=…` doesn't import reporter `b`;
+    - a plain `compare` doesn't import a fake reporter module whose import would fail;
+    - a reporter's import-time code runs only after the built-in artifacts, the summary and the history entry exist.
+  - **Failures:**
+    - a reporter raising `ValueError`, or returning `None`, or a `str` with a lone surrogate: exit 2, everything rendered, the earlier artifacts present, the later reporter outputs absent, and the exception message not printed;
+    - `SystemExit(0)` on a FAIL decision exits 2;
+    - a `KeyboardInterrupt` from a reporter, and one from the command body, both exit 2, not 1.
+  - **Mutation:** reporter 1 mutates its report; reporter 2 and the terminal see the original.
+  - **INVALID:** a reporter is called for an INVALID candidate with `comparison=None`.
+
+**T3. Docs and release**
+- **Docs:** `docs/reporters.md` (new) covers:
+  - writing a reporter and packaging it with its entry point;
+  - what a reporter sees (the same as `--json`), and the trust model, including what can't be prevented;
+  - the failure behaviour, and debugging through SDK `render()`.
+
+  Also the README, and a CLI section.
+- **Example:** `examples/reporter-plugin/`, a minimal installable package (`pyproject.toml` plus one module) whose `csv` reporter writes the candidate's failing checks as CSV.
+  - A test calls its function directly and checks the CSV against `candidate_failing_checks`.
+  - The README shows `pip install -e examples/reporter-plugin` and `evalgate compare … --format csv=fail.csv`.
+- CHANGELOG 0.14.0, including the Ctrl-C change under Changed, and the version bump to 0.14.0.
