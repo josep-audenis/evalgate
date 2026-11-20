@@ -13,6 +13,7 @@ from typing import Annotated, Literal, ParamSpec
 import typer
 from rich.console import Console
 from rich.markup import escape
+from rich.table import Table
 
 from evalgate._version import __version__
 from evalgate.api import compare_many
@@ -27,6 +28,7 @@ from evalgate.io import (
     write_markdown_report,
     write_policy_template,
 )
+from evalgate.io import reporters as reporter_registry
 from evalgate.io.deepeval import import_deepeval
 from evalgate.io.evaluate import evaluate_outputs
 from evalgate.io.history import load_entry_report, read_history, record_report, record_run
@@ -465,6 +467,31 @@ def _invalid(exc: InputError, what: str) -> typer.Exit:
 
 def _echo_json(data: object) -> None:
     typer.echo(json.dumps(data, indent=2))  # ASCII: survives any console encoding
+
+
+@app.command()
+@_fail_closed
+def reporters() -> None:
+    """List installed report plugins (entry point group evalgate.reporters).
+
+    Reads package metadata only; no plugin code is imported. Use one with
+    `evalgate compare ... --format NAME=PATH`.
+    """
+    infos = reporter_registry.available()
+    if not infos:
+        console.print("no reporters installed (entry point group evalgate.reporters)")
+        return
+    table = Table()
+    for column in ("name", "package", "version", "target"):
+        table.add_column(column, overflow="fold")
+    for i in infos:
+        table.add_row(
+            escape(i.name),
+            escape(i.distribution or "-"),
+            escape(i.version or "-"),
+            escape(i.target),
+        )
+    console.print(table)
 
 
 @history_app.command("add")

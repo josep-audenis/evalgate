@@ -30,6 +30,17 @@ def _atomic_write(path: Path, text: str) -> None:
         raise
 
 
+def _atomic_write_bytes(path: Path, data: bytes) -> None:
+    """Like _atomic_write, for bytes written exactly as given (report plugins)."""
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        tmp.write_bytes(data)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 def write_json_report(report: BaseModel, path: Path) -> None:
     """Any report model (Report, CalibrationReport) as stable, indented JSON."""
     _atomic_write(path, report.model_dump_json(indent=2) + "\n")
