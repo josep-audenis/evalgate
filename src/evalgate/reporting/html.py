@@ -55,6 +55,12 @@ th button { font:inherit; color:inherit; background:none; border:0; padding:0; c
   text-align:inherit; }
 th[aria-sort="ascending"] button::after { content:" \\2191" / ""; }
 th[aria-sort="descending"] button::after { content:" \\2193" / ""; }
+figure { margin:0 0 24px; } figcaption { color:var(--dim); margin:0 0 6px; }
+svg.chart { width:100%; max-width:640px; height:auto; display:block; background:var(--bg-2);
+  border:1px solid var(--faint); }
+svg.chart polyline { fill:none; stroke:var(--green); stroke-width:1.5; }
+svg.chart circle { fill:var(--fg); }
+svg.chart text { fill:var(--dim); font:11px var(--mono); }
 input.filter { font:inherit; color:var(--fg); background:var(--bg-2);
   border:1px solid var(--faint); padding:4px 8px; margin:0 0 8px; }
 """

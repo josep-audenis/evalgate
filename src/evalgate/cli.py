@@ -33,7 +33,9 @@ from evalgate.io.history import load_entry_report, read_history, record_report, 
 from evalgate.io.importer import import_results
 from evalgate.io.labels import calibrate_run
 from evalgate.io.promptfoo import import_promptfoo
+from evalgate.io.writer import _atomic_write
 from evalgate.models.history import MAX_LABEL, RunEntry
+from evalgate.reporting.history_html import render_history_html
 from evalgate.reporting.terminal import (
     render,
     render_calibration,
@@ -553,6 +555,52 @@ def history_trend_cmd(
         _echo_json(result)
     else:
         render_trend(result, console)
+
+
+@history_app.command("report")
+@_fail_closed
+def history_report(
+    out: Path,
+    history: HistoryDir,
+    kind: Annotated[
+        Literal["run", "compare"],
+        typer.Option("--kind", help="run (default) or compare; never mixed."),
+    ] = "run",
+    dataset: Annotated[
+        str | None, typer.Option("--dataset", help="Only this dataset: ID or ID@VERSION.")
+    ] = None,
+    application: Annotated[
+        str | None, typer.Option("--application", help="Only this (candidate) application.")
+    ] = None,
+    last: Last = None,
+    path: Annotated[
+        list[str] | None,
+        typer.Option("--path", help="Chart only this metric path (repeatable). Default: all."),
+    ] = None,
+) -> None:
+    """Write a static HTML page: one trend chart per metric, the entries and recurring failures."""
+    try:
+        entries = read_history(history)
+    except InputError as exc:
+        raise _invalid(exc, "history unreadable") from exc
+    html = render_history_html(
+        entries,
+        kind=kind,
+        dataset=dataset,
+        application=application,
+        last=last,
+        paths=path or (),
+    )
+    try:
+        _atomic_write(out, html)
+    except OSError as exc:
+        console.print(
+            f"[bold yellow]INVALID[/]: cannot write {escape(str(out))}: "
+            f"{escape(exc.strerror or repr(exc))}",
+            highlight=False,
+        )
+        raise typer.Exit(EXIT_INVALID) from exc
+    console.print(f"[bold green]wrote[/] {escape(str(out))}", highlight=False)
 
 
 @history_app.command("failures")
