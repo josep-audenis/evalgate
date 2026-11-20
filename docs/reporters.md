@@ -62,13 +62,14 @@ evalgate compare BASE CAND1 CAND2 --policy evalgate.yaml --format junit=junit-{n
   5. load and run the reporters, each loaded once, in `--format` order;
   6. print.
 
-  Reporters run last, so a misbehaving one can't stop the built-in artifacts, the summary or history from being written.
+  Reporters run last, so a misbehaving one can't stop the built-in artifacts, the summary or history from being written. If a built-in write or history fails, no reporter runs (exit 2).
 - **Failure:** if a reporter fails to import, raises (including `SystemExit`) or returns something EvalGate can't write:
   - the decision is still printed;
   - later reporter files aren't written;
   - the command exits 2.
 
   The message gives the reporter's name and the exception type, but never the exception text, which could quote report data.
+  If EvalGate can't write a reporter's output file, the message names the path and the OS error instead.
 - **Debugging:** use the Python API, where your exception propagates unchanged:
   ```python
   import evalgate
