@@ -1,9 +1,19 @@
-"""Standalone HTML report: one file, inline CSS, no scripts, no network."""
+"""Standalone HTML report: one file, inline CSS, one CSP-pinned script, no network.
 
+The page is complete without JavaScript; the script (viewer.js) only sorts, filters and moves
+rows that are already there. A Content Security Policy allows exactly that script and nothing
+else to load or run (docs/design/phase-7.md section 5).
+"""
+
+import base64
+import hashlib
 from collections.abc import Iterable, Sequence
+from functools import cache
 from html import escape
+from importlib.resources import files
 
 from evalgate.models import CaseDelta, CheckChange, Report
+from evalgate.models.report import CategoryGroup, CheckCategoryGroup, CheckGroup, FailureGroups
 
 # EvalGate design system tokens (night default, paper when the OS is light). No web font:
 # the report stays offline, so Martian Mono renders only where it is installed.
@@ -39,7 +49,43 @@ td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; white-spac
 .scroll + .scroll { margin-top:18px; }
 pre { font:inherit; line-height:1.75; background:var(--bg-2); border:1px solid var(--faint);
   padding:12px 16px; overflow-x:auto; }
+details > summary { cursor:pointer; list-style-position:outside; }
+details > summary h2 { display:inline; }
+th button { font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer;
+  text-align:inherit; }
+th[aria-sort="ascending"] button::after { content:" \\2191" / ""; }
+th[aria-sort="descending"] button::after { content:" \\2193" / ""; }
+input.filter { font:inherit; color:var(--fg); background:var(--bg-2);
+  border:1px solid var(--faint); padding:4px 8px; margin:0 0 8px; }
 """
+
+
+@cache
+def _script() -> tuple[str, str]:
+    """The viewer script and its CSP source: 'sha256-' + base64 of the SHA-256 of its text."""
+    js = files("evalgate.reporting").joinpath("viewer.js").read_text(encoding="utf-8")
+    digest = base64.b64encode(hashlib.sha256(js.encode("utf-8")).digest()).decode("ascii")
+    return js, f"'sha256-{digest}'"
+
+
+def page(title: str, body: str) -> str:
+    """A complete document: CSP first, then style, body and the one pinned script."""
+    js, source = _script()
+    csp = (
+        f"default-src 'none'; style-src 'unsafe-inline'; script-src {source}; img-src data:; "
+        "base-uri 'none'; form-action 'none'"
+    )
+    return (
+        '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
+        f'<meta http-equiv="Content-Security-Policy" content="{csp}">'
+        '<link rel="icon" href="data:,">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"<title>{title}</title><style>{_CSS}</style></head>"
+        f"<body>{body}<script>{js}</script></body></html>\n"
+    )
+
+
+Cell = str | tuple[str, float | None]  # pre-escaped HTML, optionally with a numeric sort key
 
 _EXIT = {"PASS": 0, "FAIL": 1, "INVALID": 2}
 
@@ -48,22 +94,43 @@ def _num(x: float, sign: bool = False) -> str:
     return f"{x:+.6g}" if sign else f"{x:.6g}"
 
 
-def _table(headers: Sequence[str], rows: Iterable[Sequence[str]], numeric: set[int]) -> str:
-    """Cells are pre-escaped HTML; `numeric` holds right-aligned column indexes."""
+def _n(x: float, sign: bool = False, html: str | None = None) -> Cell:
+    """A number shown with 6 significant digits but sorted by its full value."""
+    return (_num(x, sign) if html is None else html, x)
+
+
+def _table(
+    headers: Sequence[str],
+    rows: Iterable[Sequence[Cell]],
+    numeric: set[int],
+    *,
+    filter: bool = False,
+) -> str:
+    """Cells are pre-escaped HTML; `numeric` holds right-aligned column indexes. Every table is
+    sortable; `filter` adds a filter box (created by the script, so no-JS readers never see it)."""
 
     def cls(i: int) -> str:
         return ' class="num"' if i in numeric else ""
 
-    head = "".join(f"<th{cls(i)}>{escape(h)}</th>" for i, h in enumerate(headers))
-    body = "".join(
-        "<tr>" + "".join(f"<td{cls(i)}>{c}</td>" for i, c in enumerate(row)) + "</tr>"
-        for row in rows
+    def td(i: int, cell: Cell) -> str:
+        if isinstance(cell, tuple):
+            html, key = cell
+            sort = "" if key is None else f' data-sort="{escape(repr(key))}"'
+            return f"<td{cls(i)}{sort}>{html}</td>"
+        return f"<td{cls(i)}>{cell}</td>"
+
+    head = "".join(f'<th{cls(i)} scope="col">{escape(h)}</th>' for i, h in enumerate(headers))
+    body = "".join("<tr>" + "".join(td(i, c) for i, c in enumerate(row)) + "</tr>" for row in rows)
+    attrs = " data-sortable" + (" data-filter" if filter else "")
+    return (
+        f'<div class="scroll"><table{attrs}><thead><tr>{head}</tr></thead>'
+        f"<tbody>{body}</tbody></table></div>"
     )
-    return f'<div class="scroll"><table><tr>{head}</tr>{body}</table></div>'
 
 
 def _section(title: str, content: str) -> str:
-    return f"<h2>{escape(title)}</h2>{content}"
+    # Open by default so find-in-page and printing see everything; folds without script.
+    return f"<details open><summary><h2>{escape(title)}</h2></summary>{content}</details>"
 
 
 def _case_deltas(deltas: list[CaseDelta], css: str) -> str:
@@ -73,18 +140,24 @@ def _case_deltas(deltas: list[CaseDelta], css: str) -> str:
             [
                 escape(d.case_id),
                 escape(d.metric),
-                _num(d.baseline),
-                _num(d.candidate),
-                f'<span class="{css}">{_num(d.delta_abs, sign=True)}</span>',
+                _n(d.baseline),
+                _n(d.candidate),
+                _n(d.delta_abs, html=f'<span class="{css}">{_num(d.delta_abs, sign=True)}</span>'),
             ]
             for d in deltas
         ),
         {2, 3, 4},
+        filter=True,
     )
 
 
 def _checks(changes: list[CheckChange]) -> str:
-    return _table(["case", "check"], ([escape(c.case_id), escape(c.check)] for c in changes), set())
+    return _table(
+        ["case", "check"],
+        ([escape(c.case_id), escape(c.check)] for c in changes),
+        set(),
+        filter=True,
+    )
 
 
 def render_html(report: Report) -> str:
@@ -157,7 +230,7 @@ def render_html(report: Report) -> str:
             f"{len(cmp.baseline_errors)} baseline errors, "
             f"{len(cmp.candidate_errors)} candidate errors.</p>"
         )
-        metric_rows = []
+        metric_rows: list[list[Cell]] = []
         for m in cmp.metrics:
             worse = m.delta_abs < 0 if m.direction == "maximize" else m.delta_abs > 0
             css = "worse" if worse else "better" if m.delta_abs else "muted"
@@ -166,12 +239,18 @@ def render_html(report: Report) -> str:
                 [
                     escape(m.name),
                     escape(m.direction),
-                    str(m.cases),
-                    _num(m.baseline_mean),
-                    _num(m.candidate_mean),
-                    f'<span class="{css}">{_num(m.delta_abs, sign=True)}</span>',
-                    f'<span class="{css}">{pct}</span>',
-                    f"[{_num(m.ci.low, sign=True)}, {_num(m.ci.high, sign=True)}]",
+                    _n(m.cases),
+                    _n(m.baseline_mean),
+                    _n(m.candidate_mean),
+                    _n(
+                        m.delta_abs,
+                        html=f'<span class="{css}">{_num(m.delta_abs, sign=True)}</span>',
+                    ),
+                    (f'<span class="{css}">{pct}</span>', m.delta_pct),
+                    _n(
+                        m.ci.low,
+                        html=f"[{_num(m.ci.low, sign=True)}, {_num(m.ci.high, sign=True)}]",
+                    ),
                 ]
             )
         if metric_rows:
@@ -208,12 +287,14 @@ def render_html(report: Report) -> str:
                     ),
                 )
             )
-        if cmp.candidate_errors:
-            parts.append(
-                _section(
-                    "Candidate execution errors", "<p>" + escape(", ".join(cmp.candidate_errors))
+        for name, ids in (
+            ("Baseline execution errors", cmp.baseline_errors),
+            ("Candidate execution errors", cmp.candidate_errors),
+        ):
+            if ids:
+                parts.append(
+                    _section(name, _table(["case"], ([escape(i)] for i in ids), set(), filter=True))
                 )
-            )
         if cmp.newly_failing_checks:
             parts.append(_section("Newly failing checks", _checks(cmp.newly_failing_checks)))
         if cmp.regressed_cases:
@@ -222,11 +303,17 @@ def render_html(report: Report) -> str:
             parts.append(_section("Improved cases", _case_deltas(cmp.improved_cases, "better")))
         if cmp.newly_passing_checks:
             parts.append(_section("Newly passing checks", _checks(cmp.newly_passing_checks)))
+        if cmp.candidate_failing_checks:
+            parts.append(
+                _section("Candidate failing checks", _checks(cmp.candidate_failing_checks))
+            )
+        if report.status != "INVALID" and cmp.failure_groups and cmp.failure_groups.by_check:
+            parts.append(_section("Failure groups", _failure_groups(cmp.failure_groups)))
         if cmp.repeats:
             rep = cmp.repeats
 
-            def sd(x: float | None) -> str:
-                return "n/a" if x is None else _num(x)
+            def sd(x: float | None) -> Cell:
+                return "n/a" if x is None else _n(x)
 
             parts.append(
                 _section(
@@ -248,8 +335,8 @@ def render_html(report: Report) -> str:
                         (
                             [
                                 escape(c.check),
-                                f"{c.baseline_pass_rate:.1%}",
-                                f"{c.candidate_pass_rate:.1%}",
+                                (f"{c.baseline_pass_rate:.1%}", c.baseline_pass_rate),
+                                (f"{c.candidate_pass_rate:.1%}", c.candidate_pass_rate),
                             ]
                             for c in rep.checks
                         ),
@@ -274,13 +361,16 @@ def render_html(report: Report) -> str:
                         (
                             [
                                 escape(s.check),
-                                str(s.cases),
-                                str(s.baseline_failures),
-                                str(s.candidate_failures),
-                                f'<span class="{"worse" if s.newly_failing else "muted"}">'
-                                f"{s.newly_failing}</span>",
-                                str(s.newly_passing),
-                                f"{s.p_value:.3g}",
+                                _n(s.cases),
+                                _n(s.baseline_failures),
+                                _n(s.candidate_failures),
+                                (
+                                    f'<span class="{"worse" if s.newly_failing else "muted"}">'
+                                    f"{s.newly_failing}</span>",
+                                    s.newly_failing,
+                                ),
+                                _n(s.newly_passing),
+                                (f"{s.p_value:.3g}", s.p_value),
                             ]
                             for s in cmp.check_stats
                         ),
@@ -301,15 +391,20 @@ def render_html(report: Report) -> str:
                             [
                                 escape(g.category),
                                 escape(g.metric),
-                                str(g.cases),
-                                _num(g.baseline_mean),
-                                _num(g.candidate_mean),
-                                _num(g.delta_abs, sign=True),
-                                f"[{_num(g.ci.low, sign=True)}, {_num(g.ci.high, sign=True)}]",
+                                _n(g.cases),
+                                _n(g.baseline_mean),
+                                _n(g.candidate_mean),
+                                _n(g.delta_abs, sign=True),
+                                _n(
+                                    g.ci.low,
+                                    html=f"[{_num(g.ci.low, sign=True)}, "
+                                    f"{_num(g.ci.high, sign=True)}]",
+                                ),
                             ]
                             for g in cmp.categories
                         ),
                         {2, 3, 4, 5, 6},
+                        filter=True,
                     ),
                 )
             )
@@ -318,9 +413,52 @@ def render_html(report: Report) -> str:
         policy_json = report.policy.model_dump_json(indent=2)
         parts.append(_section("Policy", f"<pre>{escape(policy_json)}</pre>"))
 
-    return (
-        '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        f"<title>EvalGate {report.status}: {escape(title)}</title>"
-        f"<style>{_CSS}</style></head><body>{''.join(parts)}</body></html>\n"
+    return page(f"EvalGate {report.status}: {escape(title)}", "".join(parts))
+
+
+def _failure_groups(groups: FailureGroups) -> str:
+    counts = ["failing", "new", "persistent", "no baseline"]
+
+    def n(g: CheckGroup | CategoryGroup | CheckCategoryGroup) -> list[Cell]:
+        return [_n(g.failing), _n(g.new), _n(g.persistent), _n(g.no_baseline)]
+
+    def cases(ids: list[str]) -> str:
+        return escape(", ".join(ids))
+
+    html = (
+        '<p class="muted">Failing checks of compared cases. failing = new (passed in the '
+        "baseline) + persistent (failed there too) + no baseline (the baseline had no such "
+        "check).</p>"
     )
+    if groups.by_check_category:
+        html += _table(
+            ["check", "category", *counts, "cases"],
+            (
+                [escape(g.check), escape(g.category), *n(g), cases(g.cases)]
+                for g in groups.by_check_category
+            ),
+            {2, 3, 4, 5},
+            filter=True,
+        )
+    html += _table(
+        ["check", *counts, "cases"],
+        ([escape(g.check), *n(g), cases(g.cases)] for g in groups.by_check),
+        {1, 2, 3, 4},
+        filter=True,
+    )
+    if groups.by_category:
+        html += _table(
+            ["category", *counts, "checks", "cases"],
+            (
+                [escape(g.category), *n(g), cases(g.checks), cases(g.cases)]
+                for g in groups.by_category
+            ),
+            {1, 2, 3, 4},
+            filter=True,
+        )
+    if groups.uncategorized:
+        html += (
+            f'<p class="muted">{groups.uncategorized} failing pair(s) without a category '
+            "are counted by check only.</p>"
+        )
+    return html
