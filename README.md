@@ -82,6 +82,7 @@ evalgate compare evals/baseline evals/candidate --policy evalgate.yaml \
 
 - `--report` writes one standalone HTML file with sortable, filterable tables and no external assets: one script, pinned by a Content Security Policy. See [the HTML report](https://github.com/josep-audenis/evalgate/blob/main/docs/report.md).
 - `--json` writes a stable, documented report: see [report format](https://github.com/josep-audenis/evalgate/blob/main/docs/report-format.md).
+- `--format NAME=PATH` writes the report with an installed reporter plugin (JUnit, CSV, your own template): see [report plugins](https://github.com/josep-audenis/evalgate/blob/main/docs/reporters.md).
 - `--markdown report.md` writes a short summary for a pull request comment or a CI job summary: see [CI integration](https://github.com/josep-audenis/evalgate/blob/main/docs/ci.md).
 - No report contains raw prompts or outputs.
 
@@ -218,7 +219,7 @@ Exit codes make EvalGate a drop-in CI step. See [CI integration](https://github.
 
 ## Status and scope
 
-Version 0.13.0 (alpha). See the [changelog](https://github.com/josep-audenis/evalgate/blob/main/CHANGELOG.md). EvalGate compares results your pipeline already produced, and can optionally score outputs with built-in evaluators or LLM judges that call your own model client. It does **not** run your application, call a model itself, or host datasets.
+Version 0.14.0 (alpha). See the [changelog](https://github.com/josep-audenis/evalgate/blob/main/CHANGELOG.md). EvalGate compares results your pipeline already produced, and can optionally score outputs with built-in evaluators or LLM judges that call your own model client. It does **not** run your application, call a model itself, or host datasets.
 
 Not yet included:
 - dedicated adapters for tools other than promptfoo and DeepEval; the generic importer covers their CSV/JSON exports

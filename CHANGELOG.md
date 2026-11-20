@@ -2,6 +2,35 @@
 
 All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change behaviour; anything that does is listed under **Changed**.
 
+## 0.14.0
+
+Report plugins (SPEC Phase 7, fifth slice). Decisions and the JSON report are unchanged from 0.13.0.
+
+### Added
+
+- **Report plugins.**
+  - **What one is:** a package can register a `render(report) -> str | bytes` function under the entry point group `evalgate.reporters`.
+  - **Using one:** `evalgate compare … --format NAME=PATH` (repeatable; `{n}` with several candidates) writes the report with it. See [docs/reporters.md](docs/reporters.md).
+  - **When plugin code runs:** only when `--format` names it, after every decision and every built-in write (artifacts, `--summary`, `--history`). An unknown or ambiguous name stops the command before comparing.
+  - **Isolation:** each reporter gets a deep copy of the report. Reporters run for INVALID candidates too.
+  - **Failures:** a reporter that fails to import, raises (including `SystemExit`) or returns something unwritable makes the command exit 2. The decision is still printed, and the exception text is never shown.
+- **`evalgate reporters`** lists the installed reporters (name, distribution, version, target) from package metadata, without importing them.
+- **Python:** `evalgate.reporters.available()`, `render(name, report)`, `ReporterError` and `ReporterInfo`.
+- **`examples/reporter-plugin`:** a minimal installable reporter that writes the failing checks as CSV.
+
+### Changed
+
+- **Ctrl-C during a command exits 2** (no decision) instead of 1, which is the code for a policy FAIL. Ctrl-C while the command line is still being parsed still exits 1.
+- `_atomic_write` and the new bytes writer share one temporary-file and cleanup path. The bytes written are unchanged.
+
+### Testing
+
+- New tests cover:
+  - the registry, with fake distributions through `importlib.metadata` and nothing installed: listing without importing, exact and ambiguous names, a distribution found twice, `str` and `bytes` results, a deep copy (a shallow one fails the test), bad results, and escaped listings;
+  - `--format`: parsing, `{n}`, lazy loading, import-time code running after the trusted writes, every failure kind (including `SystemExit(0)` on a FAIL), mutation isolation, INVALID candidates, and loading each reporter once;
+  - Ctrl-C exiting 2;
+  - the example plugin.
+
 ## 0.13.0
 
 An interactive HTML report and a history page (SPEC Phase 7, fourth slice). Decisions, exit codes and the JSON report are unchanged from 0.12.0.

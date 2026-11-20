@@ -1,0 +1,13 @@
+[project]
+name = "evalgate-csv-reporter"
+version = "0.1.0"
+description = "Example EvalGate report plugin: the candidate's failing checks as CSV."
+requires-python = ">=3.11"
+dependencies = ["evalgate-ai>=0.14"]
+
+[project.entry-points."evalgate.reporters"]
+csv = "evalgate_csv_reporter:render"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

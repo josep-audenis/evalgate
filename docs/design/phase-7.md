@@ -1,6 +1,6 @@
 # Design: Phase 7 (local history, multiple candidates, failure groups, and the long tail)
 
-Status: **0.13.0 implemented** (interactive report viewer and history page, see [docs/report.md](../report.md)); before that, **0.12.0 implemented** (local history, see [docs/history.md](../history.md); several candidates, see [docs/candidates.md](../candidates.md); failure groups, see [docs/report-format.md](../report-format.md#comparisonfailure_groups)); later releases planned. Each later release gets its own task breakdown in a plan PR when its turn comes, as was done for each Phase 6 slice.
+Status: **0.14.0 implemented** (report plugins, see [docs/reporters.md](../reporters.md)); before that, **0.13.0 implemented** (interactive report viewer and history page, see [docs/report.md](../report.md)); before that, **0.12.0 implemented** (local history, see [docs/history.md](../history.md); several candidates, see [docs/candidates.md](../candidates.md); failure groups, see [docs/report-format.md](../report-format.md#comparisonfailure_groups)); later releases planned. Each later release gets its own task breakdown in a plan PR when its turn comes, as was done for each Phase 6 slice.
 
 SPEC Phase 7 lists exploration items, not commitments. This doc puts the chosen ones in order, and each release after 0.10.0 is still gated on demand: if usage shows an item isn't needed, it is dropped.
 
