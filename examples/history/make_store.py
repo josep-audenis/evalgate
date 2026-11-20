@@ -1,12 +1,14 @@
 """Build a small local history store from the quickstart runs, then read it back.
 
 It records both quickstart runs as run entries (two releases of the same app on the same
-dataset) and their compare (FAIL), with fixed times so the store is the same on every machine.
+dataset), their compare (FAIL), and the candidate again as a patch release that still fails the
+same check, with fixed times so the store is the same on every machine.
 
 Run from the repo root:  python examples/history/make_store.py
 Then try:                evalgate history list --history examples/history/store
                          evalgate history trend scores.quality --history examples/history/store
                          evalgate history show 3 --history examples/history/store
+                         evalgate history failures --history examples/history/store
 
 The store isn't committed (`store/` is regenerated): it embeds the EvalGate version in its
 stored report, so a committed copy would change with every release.
@@ -32,6 +34,10 @@ report = evalgate.compare(
     QUICKSTART / "baseline", QUICKSTART / "candidate", QUICKSTART / "evalgate.yaml"
 )
 evalgate.record_report(report, STORE, label="v1.5.0 gate", recorded_at=T0 + timedelta(days=7))
+# A patch release that didn't fix it: the same safety failure, two run entries in a row.
+evalgate.record_run(
+    QUICKSTART / "candidate", STORE, label="v1.5.1", recorded_at=T0 + timedelta(days=14)
+)
 
 for entry in evalgate.read_history(STORE):
     status = getattr(entry, "status", "valid")

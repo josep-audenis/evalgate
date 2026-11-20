@@ -174,7 +174,7 @@ Results become ordinary checks you can require in your policy. Built-ins cover J
 
 ### Local history
 
-Add `--history .evalgate/history --label v1.5.0` to `compare` to keep a record of each decision, and `evalgate history add RUN_DIR` to record runs. Then `evalgate history list`, `show ID` and `trend scores.quality` (each with `--history DIR`) show how releases moved. The store is a local directory with summaries and reports, never outputs, and it never picks a baseline. See [history](https://github.com/josep-audenis/evalgate/blob/main/docs/history.md).
+Add `--history .evalgate/history --label v1.5.0` to `compare` to keep a record of each decision, and `evalgate history add RUN_DIR` to record runs. Then `evalgate history list`, `show ID` and `trend scores.quality` (each with `--history DIR`) show how releases moved, and `history failures` lists the checks that keep failing across them. The store is a local directory with summaries and reports, never outputs, and it never picks a baseline. See [history](https://github.com/josep-audenis/evalgate/blob/main/docs/history.md).
 
 ## How decisions are made
 
@@ -218,7 +218,7 @@ Exit codes make EvalGate a drop-in CI step. See [CI integration](https://github.
 
 ## Status and scope
 
-Version 0.11.0 (alpha). See the [changelog](https://github.com/josep-audenis/evalgate/blob/main/CHANGELOG.md). EvalGate compares results your pipeline already produced, and can optionally score outputs with built-in evaluators or LLM judges that call your own model client. It does **not** run your application, call a model itself, or host datasets.
+Version 0.12.0 (alpha). See the [changelog](https://github.com/josep-audenis/evalgate/blob/main/CHANGELOG.md). EvalGate compares results your pipeline already produced, and can optionally score outputs with built-in evaluators or LLM judges that call your own model client. It does **not** run your application, call a model itself, or host datasets.
 
 Not yet included:
 - dedicated adapters for tools other than promptfoo and DeepEval; the generic importer covers their CSV/JSON exports

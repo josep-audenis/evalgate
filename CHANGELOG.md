@@ -2,6 +2,39 @@
 
 All notable changes to `evalgate-ai`. Versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change behaviour; anything that does is listed under **Changed**.
 
+## 0.12.0
+
+Failure groups and recurring failures (SPEC Phase 7, third slice). Reporting only: decisions and exit codes are unchanged from 0.11.0, and the report gains one additive field.
+
+### Added
+
+- **`comparison.failure_groups` in the JSON report:** the candidate's failing checks on compared cases, grouped by check, by category (the baseline's) and by both, plus an `uncategorized` count. See [docs/report-format.md](docs/report-format.md#comparisonfailure_groups).
+  - Each failing `(case, check)` pair is `new` (passing in the baseline), `persistent` (failing there too) or `no_baseline` (the baseline case has no such check). Every group satisfies `failing == new + persistent + no_baseline`.
+  - Nothing is truncated. Reports written before 0.12 (no field) still load.
+- **Terminal and Markdown reports** show the top 5 groups, falling back to by-check groups when no case has a category. They note how many failing pairs had no category. Nothing is shown for an INVALID report. The HTML report gets the groups with the 0.13 viewer.
+- **`evalgate history failures`** lists `(case, check)` pairs that keep failing across recorded entries: `failing`, `of`, `first`, `last` and the current `streak`. It takes `trend`'s filters plus `--min` (default 2) and `--json`. See [docs/history.md](docs/history.md).
+- **`examples/history`** records a fourth entry (a patch release that still fails), so `history failures` has something to show.
+
+### Changed
+
+- **History entries are written as `history_version: 2`.** Version 1 lines still read, and a store may mix them.
+  - Run entries carry `case_ids` (their ok cases).
+  - Compare entries take their failing pairs from compared cases only. Version 1 entries could include candidate-only cases when `require_same_cases: false`.
+  - EvalGate 0.10 and 0.11 report version 2 lines as an unsupported `history_version`.
+
+### Testing
+
+- New tests cover:
+  - exact groups and their invariant;
+  - consistency with `check_stats` and `newly_failing_checks`;
+  - compared cases only; baseline, odd and missing categories;
+  - repeats collapsed before grouping;
+  - old reports loading;
+  - renderer top 5, fallback, INVALID and hostile names (Markdown tables stay intact);
+  - version 2 rules (`case_ids` sorted, unique and covering the failures), mixed stores;
+  - hand-computed `failing`, `of`, `first`, `last` and `streak`, including streaks ended by missing or errored cases;
+  - the CLI's exit codes and JSON.
+
 ## 0.11.0
 
 Several candidates in one command (SPEC Phase 7, second slice). With one candidate, `compare` behaves exactly as in 0.10.0.
