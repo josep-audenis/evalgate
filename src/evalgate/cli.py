@@ -27,6 +27,7 @@ from evalgate.io import (
     write_markdown_report,
     write_policy_template,
 )
+from evalgate.io import reporters as reporter_registry
 from evalgate.io.deepeval import import_deepeval
 from evalgate.io.evaluate import evaluate_outputs
 from evalgate.io.history import load_entry_report, read_history, record_report, record_run
@@ -43,6 +44,7 @@ from evalgate.reporting.terminal import (
     render_diagnostics,
     render_failures,
     render_history_list,
+    render_reporters,
     render_run_entry,
     render_trend,
 )
@@ -465,6 +467,17 @@ def _invalid(exc: InputError, what: str) -> typer.Exit:
 
 def _echo_json(data: object) -> None:
     typer.echo(json.dumps(data, indent=2))  # ASCII: survives any console encoding
+
+
+@app.command()
+@_fail_closed
+def reporters() -> None:
+    """List installed report plugins (entry point group evalgate.reporters).
+
+    Reads package metadata only; no plugin code is imported. Use one with
+    `evalgate compare ... --format NAME=PATH`.
+    """
+    render_reporters(reporter_registry.available(), console)
 
 
 @history_app.command("add")

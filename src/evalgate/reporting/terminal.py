@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.markup import escape as e  # every input-derived string goes through this
 from rich.table import Table
 
+from evalgate.io.reporters import ReporterInfo
 from evalgate.models import Diagnostic, Report
 from evalgate.models.calibration import CalibrationReport
 from evalgate.models.history import HistoryEntry, Identity, RunEntry
@@ -318,3 +319,18 @@ def render_failures(result: dict[str, object], console: Console) -> None:
             "[yellow]warning[/] entries come from more than one dataset; filter with --dataset",
             highlight=False,
         )
+
+
+def render_reporters(infos: Sequence[ReporterInfo], console: Console) -> None:
+    """`evalgate reporters`: metadata from installed packages, so escaped like any user text."""
+    if not infos:
+        console.print("no reporters installed (entry point group evalgate.reporters)")
+        return
+    table = Table()
+    for column in ("name", "distribution", "version", "target"):
+        table.add_column(column, overflow="fold")
+    for i in infos:
+        table.add_row(
+            _text(i.name), _text(i.distribution or "-"), _text(i.version or "-"), _text(i.target)
+        )
+    console.print(table)
