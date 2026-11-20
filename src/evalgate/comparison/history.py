@@ -178,6 +178,62 @@ def trend(
     }
 
 
+def _identity_of(entry: HistoryEntry) -> Identity | None:
+    return entry.run if isinstance(entry, RunEntry) else entry.candidate
+
+
+def _dataset(entry: HistoryEntry) -> tuple[str, str]:
+    identity = _identity_of(entry)
+    assert identity is not None  # select_entries keeps only entries with an identity
+    return identity.dataset_id, identity.dataset_version
+
+
+def select_entries(
+    entries: list[HistoryEntry],
+    *,
+    kind: Literal["run", "compare"] = "run",
+    dataset: str | None = None,
+    application: str | None = None,
+    last: int | None = None,
+) -> list[HistoryEntry]:
+    """Entries of one kind matching the filters, in id order, without INVALID compares (they
+    carry no data); `last` keeps the last N of those. Shared by `history failures` and the
+    history page so every view of one selection covers the same entries."""
+    selected = []
+    for entry in entries:
+        if entry.kind != kind:
+            continue
+        if isinstance(entry, CompareEntry) and entry.status == "INVALID":
+            continue
+        identity = _identity_of(entry)
+        # A null identity only occurs on INVALID compares, which are already excluded.
+        if identity is None or not _matches_dataset(identity, dataset):
+            continue
+        if application is not None and identity.application != application:
+            continue
+        selected.append(entry)
+    if last is not None:
+        selected = selected[-last:] if last else []
+    return selected
+
+
+def entry_value(entry: HistoryEntry, path: str) -> float | None:
+    """One metric path's value in an entry: a run's mean, or a compare's candidate mean."""
+    if isinstance(entry, RunEntry):
+        stat = entry.means.get(path)
+        return None if stat is None else stat.value
+    row = next((r for r in entry.metrics if r.path == path), None)
+    return None if row is None else row.candidate_mean
+
+
+def entry_paths(entries: list[HistoryEntry]) -> list[str]:
+    """Every metric path the entries have, sorted."""
+    paths: set[str] = set()
+    for e in entries:
+        paths |= set(e.means) if isinstance(e, RunEntry) else {r.path for r in e.metrics}
+    return sorted(paths)
+
+
 def recurring_failures(
     entries: list[HistoryEntry],
     *,
@@ -196,23 +252,10 @@ def recurring_failures(
     """
     if min_failing < 1:
         raise ValueError("min_failing must be at least 1")
-    selected: list[HistoryEntry] = []
-    datasets: list[tuple[str, str]] = []
-    for entry in entries:
-        if entry.kind != kind:
-            continue
-        if isinstance(entry, CompareEntry) and entry.status == "INVALID":
-            continue
-        identity = entry.run if isinstance(entry, RunEntry) else entry.candidate
-        # A null identity only occurs on INVALID compares, which are already excluded.
-        if identity is None or not _matches_dataset(identity, dataset):
-            continue
-        if application is not None and identity.application != application:
-            continue
-        selected.append(entry)
-        datasets.append((identity.dataset_id, identity.dataset_version))
-    if last is not None:
-        selected, datasets = (selected[-last:], datasets[-last:]) if last else ([], [])
+    selected = select_entries(
+        entries, kind=kind, dataset=dataset, application=application, last=last
+    )
+    datasets = [_dataset(e) for e in selected]
     case_sets = [
         set(e.case_ids) if isinstance(e, RunEntry) and e.case_ids is not None else None
         for e in selected
