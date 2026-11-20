@@ -1,6 +1,6 @@
 # Design: Phase 7 (local history, multiple candidates, failure groups, and the long tail)
 
-Status: **0.12.0 implemented** (local history, see [docs/history.md](../history.md); several candidates, see [docs/candidates.md](../candidates.md); failure groups, see [docs/report-format.md](../report-format.md#comparisonfailure_groups)); later releases planned. Each later release gets its own task breakdown in a plan PR when its turn comes, as was done for each Phase 6 slice.
+Status: **0.13.0 implemented** (interactive report viewer and history page, see [docs/report.md](../report.md)); before that, **0.12.0 implemented** (local history, see [docs/history.md](../history.md); several candidates, see [docs/candidates.md](../candidates.md); failure groups, see [docs/report-format.md](../report-format.md#comparisonfailure_groups)); later releases planned. Each later release gets its own task breakdown in a plan PR when its turn comes, as was done for each Phase 6 slice.
 
 SPEC Phase 7 lists exploration items, not commitments. This doc puts the chosen ones in order, and each release after 0.10.0 is still gated on demand: if usage shows an item isn't needed, it is dropped.
 
@@ -523,9 +523,9 @@ The HTML report is a static page: long case lists can't be sorted or searched, a
 
 **`evalgate history report OUT.html`**
 - `evalgate history report OUT.html --history DIR [--kind run|compare] [--dataset …] [--application …] [--last N] [--path PATH …]`. It writes through the existing atomic LF writer; a write failure exits 2.
-- **Selection:** one pure helper, `select_entries(entries, kind, dataset, application, last)` in `comparison/history.py`, now shared by `trend`, `recurring_failures` and the page.
+- **Selection:** one pure helper, `select_entries(entries, kind, dataset, application, last)` in `comparison/history.py`, shared by `recurring_failures` and the page.
   - It excludes INVALID compares, as `recurring_failures` already does.
-  - `trend` keeps its own handling: it calls the helper with `last=None` and INVALID compares kept, and still applies `--last` to points after skipping, so its output doesn't change. `docs/history.md` notes that the page leaves out INVALID compares that `history trend` lists.
+  - `trend` keeps its own selection code (the helper always drops INVALID compares, which `trend` counts as skipped), so its output doesn't change. `docs/history.md` notes that the page leaves out INVALID compares that `history trend` lists.
   - `--last` applies to the selected entries, not to points. Every chart and table on the page covers the same entries.
 - **Paths charted:** with no `--path`, the sorted union of `means` keys (run entries) or `metrics[].path` (compare entries). A `--path` with no values in the selected entries gets a chart box saying "no values for this path".
 - **Page content:**
@@ -534,8 +534,8 @@ The HTML report is a static page: long case lists can't be sorted or searched, a
   - the recurring failures table (`recurring_failures` over the same entries);
   - the mixed-datasets warning.
 - **The SVG** is generated server-side with no chart library, and is byte-deterministic:
-  - `viewBox="0 0 640 200"`, with 40 px padding on every side;
-  - x is the entry's index among the selected entries, evenly spaced and not by time. A single entry sits at the centre;
+  - `viewBox="0 0 640 200"`, with 40 px padding and 80 px on the left for the y labels (as built; 40 clipped labels like `0.01275`);
+  - x is the entry's index among the selected entries, evenly spaced and not by time. A single entry sits at the centre of the plot area;
   - y spans the minimum and maximum of that chart's values. When they are equal, or there is one point, the line is flat at mid-height;
   - coordinates are formatted `f"{v:.2f}"`;
   - an entry without the path is a gap. Each run of consecutive points is one `<polyline>`, and every point is also a `<circle>` with a `<title>` giving the id, label and full value;
@@ -589,7 +589,7 @@ T0 land the restyle ──▶ T1 viewer (CSP, script, sections) ──▶ T2 his
 **T3. Docs and release**
 - `docs/report.md` (new): what the HTML report shows, and the viewer.
 - A section in `docs/history.md`, and the README.
-- `examples/history` also writes `report.html`.
+- `examples/history` also writes `history.html`.
 - CHANGELOG, and the version bump to 0.13.0.
 - Before the tag, a manual check in Chromium and Firefox (Safari if available): open both pages from `file://`, sort, filter and fold, and see no console errors. Then one more pass with JavaScript disabled.
 

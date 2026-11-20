@@ -76,6 +76,7 @@ From Python: `evalgate.record_report(report, dir, label=...)`, `evalgate.record_
 | `history show ID [--json]` | A compare entry: its stored report, rendered like `compare` (after checking its hash). A run entry: its means and pass rates |
 | `history trend PATH [--kind run\|compare] [--dataset ID[@VERSION]] [--application APP] [--last N] [--json]` | One metric path per entry, in id order |
 | `history failures [--kind run\|compare] [--dataset …] [--application …] [--last N] [--min K] [--json]` | `(case, check)` pairs that keep failing across entries (below) |
+| `history report OUT.html [--kind …] [--dataset …] [--application …] [--last N] [--path PATH …]` | A standalone page with all of the above for one selection ([below](#the-history-page)) |
 
 About `trend`:
 - **Kinds are never mixed** (`--kind` defaults to `run`). A compare's mean covers only the cases both runs completed, while a run's mean covers all of its ok cases, so the two aren't the same number.
@@ -100,6 +101,18 @@ About `failures`:
 - `failures --json` gives `{"history_version": 1, "kind", "entries", "pairs": [{case_id, check, failing, of, first, last, streak}], "mixed_datasets"}`.
 - JSON output escapes non-ASCII characters, so it survives any console encoding when piped.
 - `show --json` gives `{"entry": …}` for a run entry and `{"entry": …, "report": …}` for a compare entry.
+
+## The history page
+
+`evalgate history report history.html --history DIR` writes one standalone HTML file, offline like [the comparison report](report.md), for one selection of entries. The selection uses the same options as `failures`, and it leaves out INVALID compares, which `history trend` lists as skipped. The page has:
+- **One trend chart per metric path:** every path in the selected entries, or only those given with `--path` (repeatable).
+  - Each point is one entry, evenly spaced in recording order. The y axis spans that chart's lowest and highest value.
+  - An entry without the metric leaves a gap in the line.
+  - Hovering a point shows its id, label and full value.
+- **The entries** in the selection.
+- **The recurring failures** over the same entries, as `history failures` reports them.
+
+Every chart and table covers the same entries, and `--last N` keeps the last N of them. A selection with no entries still writes a page that says so (exit 0). A missing or corrupt store, or a page that can't be written, exits 2. The page has no timestamp of its own, so the same store and options give the same bytes.
 
 ## Exit codes and failures
 
