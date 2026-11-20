@@ -20,7 +20,7 @@ Every release keeps the project's rules:
 | **0.10.0** | **Local history:** record compare results and run summaries in a local append-only store; `evalgate history list / show / trend` | Recording never changes the decision. A store failure is a tool error and exits 2, like any artifact write failure. The store holds what `--json` holds (no outputs). A corrupt store is reported line by line (exit 2). The order is stable (by entry id). |
 | **0.11.0** | **More than two candidates:** `evalgate compare BASELINE CAND1 CAND2 …` judges each candidate against the baseline with the same engine, plus an optional ranking on one declared metric | Each candidate's report is byte-identical to a two-run compare, with one artifact file per candidate. Exit 2 if any candidate is INVALID, else 1 if any FAILs, else 0. The ranking covers only non-INVALID candidates, sorts on one policy metric with its declared direction, breaks ties by argument order, is informational only (never a decision, never a baseline), and uses no aggregate score. |
 | **0.12.0** | **Failure groups:** a `failure_groups` report section (by check, category, and check × category; new vs persistent), and `evalgate history failures` for case/check pairs that keep failing across recorded entries of one kind and dataset | Reporting only: decisions are unchanged and the section is additive (`report_version` stays `"1"`); groups are sorted deterministically. |
-| **0.13.0** | **Interactive report viewer:** the HTML report gains sorting, filtering and search with inline JS (still standalone, no CDN); `evalgate history report OUT.html` makes a static trend page with inline SVG | Works offline from `file://`, with no network requests, no `serve` command and no auto-refresh. No outputs are shown, and it holds the same data as the JSON. JSON embedded inline escapes `<`, `>` and `&` (as `\u003c`, `\u003e`, `\u0026`), so no label can break out of a `<script>`. |
+| **0.13.0** | **Interactive report viewer:** the HTML report gains sorting, filtering and search with inline JS (still standalone, no CDN); `evalgate history report OUT.html` makes a static trend page with inline SVG | Works offline from `file://`, with no network requests, no `serve` command and no auto-refresh. No outputs are shown. It is a view of the JSON and never shows data that isn't in it. There is no embedded JSON: one hash-pinned inline script runs under a Content Security Policy (`default-src 'none'`). |
 | **0.14.0** | **Report plugins:** `evalgate compare --format NAME=PATH` renders through a reporter registered by an installed package (entry point `evalgate.reporters`) | Plugins run only after the exit code is computed, and get a deep copy of the report. Any `BaseException` a plugin raises (including `SystemExit`) is caught and exits 2. Entry points are resolved lazily, only when `--format` names one, so an installed package never runs code during a plain `compare`. There is no code loading from paths or YAML. `os._exit` can't be prevented: trust stops at installed packages, and the docs say so. |
 | **0.15.0** | **Experiment tracker integration:** opt-in SDK functions (`evalgate.integrations.mlflow` / `wandb`) that log a report to the user's own tracker library, each with its own extra | `import evalgate` and the engine never import them (tested). Network access goes only through the user's tracker library, as with judges. No outputs are logged. Extra manifest fields are logged as tags, and the docs say so. |
 | **0.16.0** | **TypeScript SDK:** a package in `sdk/typescript/` that writes run directories (`run.json` + `cases.jsonl`, schema 1.0/1.1) and types the report JSON; comparison runs through the `evalgate` CLI | Conformance: `load_run` on the TS output gives a `Run` equal to the Python `EvalRun` output for the same inputs. Bytes may differ, because JS and Python write numbers differently. A pytest test runs the TS writer through `node` and skips when Node is missing; the TS package has its own `node --test` suite. Report types are generated from the Pydantic JSON Schema. There is no TS copy of the engine. |
@@ -456,3 +456,147 @@ T3 history v2, case_ids, failures (needs T1) ───────────�
 - policy rules on groups;
 - a recurring-failure gate;
 - `compared_case_ids` in the report.
+
+## 5. 0.13.0: interactive report viewer
+
+### Problem
+
+The HTML report is a static page: long case lists can't be sorted or searched, and the failure groups from 0.12 aren't in it at all. History has no visual view either. Teams open the JSON instead, which defeats the point of a readable report.
+
+### Decisions (defaults; object before T1 starts)
+
+**Still one offline file.** The report stays a single standalone `.html`:
+- no CDN, no web font download, no network request of any kind, and no `serve` command;
+- it opens from `file://` and works in an email attachment or a CI artifact viewer.
+"Interactive" means sorting, filtering and folding inside that file, never a dashboard. That keeps the out-of-scope line ("dashboards, hosted anything").
+
+**Built on the restyle (T0).** The EvalGate look is landed first, unchanged: the monospace terminal style with dark and light themes, and the `decision: FAIL` header with its exit code. 0.13 adds behaviour to that design and doesn't restyle it again.
+
+**A view of the JSON, never more.**
+- Every value in the HTML comes from the JSON report. The page shows no data that isn't there, and drops nothing a reader needs to act on.
+- To meet that, 0.13 adds the sections the HTML doesn't have today:
+  - the baseline and candidate errored case ids (today only their counts appear);
+  - `candidate_failing_checks`;
+  - the failure groups.
+- The HTML has no size caps today, and it gains none.
+
+**There is no embedded JSON.** The script works only on the DOM: it reads cells and moves rows. That avoids a second copy of the data and the `</script>` escaping problem altogether. Section 1's 0.13 row is amended to match.
+
+**Progressive enhancement**
+- The server-rendered HTML is complete without JavaScript:
+  - every table emits all its rows, with `<thead>` and `<tbody>`;
+  - long sections are `<details open>`, open so find-in-page and printing see them, and they fold without script.
+- The script adds three things:
+  - **Sorting:** a `<button>` inside each sortable `<th>`, with `aria-sort`, reachable by keyboard.
+  - **Filtering:** a filter `<input>` above each long table, created by the script, so readers without JavaScript never see a control that does nothing.
+  - **Number of rows shown:** a "n of m rows" note while filtering.
+- **Sort rules:**
+  - numeric cells carry `data-sort` with the full-precision value (`repr(float)`), not the 6-significant-digit display;
+  - CI cells sort by their lower bound;
+  - `n/a` and empty cells always sort last, in both directions;
+  - text compares by code unit (`<`), never `localeCompare`, so the order doesn't depend on the browser's locale;
+  - the sort is stable.
+- No inline `on*=` handlers anywhere: everything is wired with `addEventListener`. A hash doesn't allow inline handlers without `'unsafe-hashes'`, so an injected `onerror` stays inert.
+
+**Content Security Policy**
+- The page's `<meta charset>` is followed directly by:
+  ```html
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-<B64>'; img-src data:; base-uri 'none'; form-action 'none'">
+  <link rel="icon" href="data:,">
+  ```
+  It comes before any `<style>` or `<script>`. The `data:,` icon stops a blocked `/favicon.ico` request (a console error) when an artifact viewer serves the page over http.
+- `<B64>` is `base64(sha256(UTF-8 bytes of the exact text between <script> and </script>))`. The script is ASCII-only, and there is exactly one script block.
+- `default-src 'none'` blocks every fetch, frame, font and connection.
+- `style-src 'unsafe-inline'` lets an injected style attribute apply, which is harmless: CSS can't load anything under `default-src 'none'`.
+- The policy is set by a `<meta>` tag, which applies on `file://`. Every directive used is allowed in a meta CSP.
+
+**The script**
+- It lives in `src/evalgate/reporting/viewer.js`, read through `importlib.resources`. Hatch already ships non-Python files under `src/evalgate`.
+- It is vanilla JS, about 100 lines, with no dependencies, and it binds only to `data-*` hooks.
+- It doesn't touch `document` at top level, only inside an init function called at the end, so Node can load it to test the comparator.
+- Forbidden in its source, and checked by a test: `fetch`, `XMLHttpRequest`, `import(`, `eval`, `Function(`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `document.write`.
+
+**Determinism.** The same report gives the same bytes:
+- the script is a constant and its hash is computed from it;
+- numbers use fixed formats;
+- there are no timestamps or random ids (and no generation timestamp on the history page).
+
+**`evalgate history report OUT.html`**
+- `evalgate history report OUT.html --history DIR [--kind run|compare] [--dataset …] [--application …] [--last N] [--path PATH …]`. It writes through the existing atomic LF writer; a write failure exits 2.
+- **Selection:** one pure helper, `select_entries(entries, kind, dataset, application, last)` in `comparison/history.py`, now shared by `trend`, `recurring_failures` and the page.
+  - It excludes INVALID compares, as `recurring_failures` already does.
+  - `trend` keeps its own handling: it calls the helper with `last=None` and INVALID compares kept, and still applies `--last` to points after skipping, so its output doesn't change. `docs/history.md` notes that the page leaves out INVALID compares that `history trend` lists.
+  - `--last` applies to the selected entries, not to points. Every chart and table on the page covers the same entries.
+- **Paths charted:** with no `--path`, the sorted union of `means` keys (run entries) or `metrics[].path` (compare entries). A `--path` with no values in the selected entries gets a chart box saying "no values for this path".
+- **Page content:**
+  - an entries table: id, label, status, version, dataset, recorded_at;
+  - one SVG chart per path;
+  - the recurring failures table (`recurring_failures` over the same entries);
+  - the mixed-datasets warning.
+- **The SVG** is generated server-side with no chart library, and is byte-deterministic:
+  - `viewBox="0 0 640 200"`, with 40 px padding on every side;
+  - x is the entry's index among the selected entries, evenly spaced and not by time. A single entry sits at the centre;
+  - y spans the minimum and maximum of that chart's values. When they are equal, or there is one point, the line is flat at mid-height;
+  - coordinates are formatted `f"{v:.2f}"`;
+  - an entry without the path is a gap. Each run of consecutive points is one `<polyline>`, and every point is also a `<circle>` with a `<title>` giving the id, label and full value;
+  - the y labels are the minimum and maximum (6 significant digits). The x labels are only the first and last entry ids, which avoids overlap; full labels are in the titles and the entries table;
+  - values are finite already (`Stat.value` is a finite `Number`), so non-finite values can't occur.
+- **Exit codes:** 0, or 2 for a missing or corrupt store or a write failure. An empty selection still writes a page that says so, with exit 0.
+
+**Escaping.** Every user string goes through `html.escape` with `quote=True`. That covers labels, case ids, check and category names, run ids, metric paths, the SVG `<title>` text and every attribute. Tests check hostile names everywhere they appear.
+
+### Tasks
+
+```
+T0 land the restyle ──▶ T1 viewer (CSP, script, sections) ──▶ T2 history page ──▶ T3 docs + release
+```
+
+**T0. Land the HTML restyle**
+- It is cut from `origin/main`, taking only the author's `html.py` diff and its CHANGELOG line under a new 0.13.0 (unreleased) section. `site/` is excluded.
+- A test asserts the header (`decision:`, status, `exit N`) for PASS, FAIL and INVALID.
+
+**T1. Viewer** (`reporting/html.py`, `reporting/viewer.js`)
+- **Tests:**
+  - **CSP:** the meta is present right after `<meta charset>`. The test extracts the script text from the output and hashes it itself, then checks that the hash matches the CSP.
+  - **Markup checks parse the output** with `html.parser.HTMLParser`, never substring scans, because escaped hostile text such as `&lt;img onerror=…&gt;` still contains `onerror=`. They check:
+    - exactly one `<script>` element;
+    - no attribute name starting with `on`;
+    - every `src`, `href`, `action` and `srcset` value starts with `data:`;
+    - `url(` and `@import` appear only inside `<style>`.
+
+    URL-looking user text, such as a run_id containing `https://x`, is allowed in escaped cells.
+  - **The script source** contains none of the forbidden tokens.
+  - **No-JS completeness:** every row is present in the raw HTML, and the new sections (errored ids, `candidate_failing_checks`, failure groups) match the JSON. Failure groups are absent for INVALID or when nothing fails.
+  - **`data-sort`** holds the full-precision numbers.
+  - **Hostile names** (`</script>`, `<img onerror=…>`, quotes, `&`) are escaped in cells and attributes.
+  - **Determinism:** a golden-file test for the quickstart report, and two renders in subprocesses with different `PYTHONHASHSEED` give the same bytes.
+- **Node test**, skipped when `node` is missing: it loads `viewer.js` with `vm` and checks the comparator on numbers, text, `n/a` and empty cells, ties, and both directions.
+- DOM behaviour (clicks and filtering) has no automated test. The comparator does, and T3 checks the page by hand.
+
+**T2. History page** (`reporting/history_html.py`, `comparison/history.py` `select_entries`, `cli.py`)
+- **Tests:**
+  - `select_entries` gives the same selections as before for `trend` and `recurring_failures`, which stay unchanged;
+  - exact SVG coordinates for a hand-built store: two points, three points with a gap, one point, and equal values;
+  - a `--path` with no values;
+  - x labels only at the ends;
+  - the failures table equals `recurring_failures` over the same entries;
+  - the mixed-datasets warning;
+  - hostile labels, paths and titles;
+  - the CSP and no-external-reference checks, as in T1;
+  - deterministic bytes with fixed `recorded_at`;
+  - the exit codes, including an empty selection and a write failure.
+
+**T3. Docs and release**
+- `docs/report.md` (new): what the HTML report shows, and the viewer.
+- A section in `docs/history.md`, and the README.
+- `examples/history` also writes `report.html`.
+- CHANGELOG, and the version bump to 0.13.0.
+- Before the tag, a manual check in Chromium and Firefox (Safari if available): open both pages from `file://`, sort, filter and fold, and see no console errors. Then one more pass with JavaScript disabled.
+
+**Out of 0.13.0:**
+- a combined multi-candidate HTML (still one file per candidate);
+- a served or live-updating dashboard;
+- charts in the comparison report itself;
+- embedding the JSON in the HTML;
+- web fonts;
+- theming options beyond the OS light and dark preference.
